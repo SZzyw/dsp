@@ -1,10 +1,10 @@
 import { useState } from 'react'
 
 const MODELS = [
-    { id: 'deepseek-chat', name: 'DeepSeek V3 (Chat)' },
-    { id: 'deepseek-reasoner', name: 'DeepSeek R1 (Reasoner)' },
-    { id: 'deepseek-chat-search', name: 'DeepSeek V3 + 搜索' },
-    { id: 'deepseek-reasoner-search', name: 'DeepSeek R1 + 搜索' },
+    { id: 'deepseek-chat', name: 'deepseek-chat' },
+    { id: 'deepseek-reasoner', name: 'deepseek-reasoner' },
+    { id: 'deepseek-chat-search', name: 'deepseek-chat-search' },
+    { id: 'deepseek-reasoner-search', name: 'deepseek-reasoner-search' },
 ]
 
 export default function ApiTester({ config, onMessage }) {

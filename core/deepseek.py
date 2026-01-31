@@ -17,12 +17,12 @@ DEEPSEEK_COMPLETION_URL = f"https://{DEEPSEEK_HOST}/api/v0/chat/completion"
 
 BASE_HEADERS = {
     "Host": "chat.deepseek.com",
-    "User-Agent": "DeepSeek/1.0.13 Android/35",
+    "User-Agent": "DeepSeek/1.6.11 Android/35",
     "Accept": "application/json",
     "Accept-Encoding": "gzip",
     "Content-Type": "application/json",
     "x-client-platform": "android",
-    "x-client-version": "1.3.0-auto-resume",
+    "x-client-version": "1.6.11",
     "x-client-locale": "zh_CN",
     "accept-charset": "UTF-8",
 }
@@ -79,6 +79,24 @@ def login_deepseek_via_account(account: dict) -> str:
         raise HTTPException(
             status_code=500, detail="Account login failed: invalid JSON response"
         )
+    
+    # 检查 API 错误码
+    if data.get("code") != 0:
+        error_msg = data.get("msg", "Unknown error")
+        logger.error(f"[login_deepseek_via_account] API错误: {error_msg}")
+        raise HTTPException(
+            status_code=500, detail=f"Account login failed: {error_msg}"
+        )
+    
+    # 检查业务错误码
+    biz_code = data.get("data", {}).get("biz_code")
+    biz_msg = data.get("data", {}).get("biz_msg", "")
+    if biz_code != 0:
+        logger.error(f"[login_deepseek_via_account] 业务错误: {biz_msg}")
+        raise HTTPException(
+            status_code=500, detail=f"Account login failed: {biz_msg}"
+        )
+    
     # 校验响应数据格式是否正确
     if (
         data.get("data") is None

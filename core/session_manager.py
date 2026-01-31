@@ -9,6 +9,7 @@ from .auth import (
     choose_new_account,
     get_account_identifier,
     release_account,
+    refresh_account_token,
 )
 from .deepseek import (
     DEEPSEEK_CREATE_SESSION_URL,
@@ -30,6 +31,8 @@ def create_session(request: Request, max_attempts: int = 3) -> str | None:
         会话 ID，如果失败返回 None
     """
     attempts = 0
+    token_refreshed = False  # 标记是否已尝试刷新 token
+    
     while attempts < max_attempts:
         headers = get_auth_headers(request)
         try:
@@ -56,13 +59,25 @@ def create_session(request: Request, max_attempts: int = 3) -> str | None:
             return session_id
         else:
             code = data.get("code")
+            msg = data.get("msg", "")
             logger.warning(
-                f"[create_session] 创建会话失败, code={code}, msg={data.get('msg')}"
+                f"[create_session] 创建会话失败, code={code}, msg={msg}"
             )
             resp.close()
             
-            # 配置模式下尝试切换账号
+            # 配置模式下尝试处理 token 问题
             if request.state.use_config_token:
+                # token 无效（认证失败）时，先尝试刷新当前账号的 token
+                if code in [40001, 40002, 40003] or "token" in msg.lower() or "unauthorized" in msg.lower():
+                    if not token_refreshed:
+                        logger.info("[create_session] 检测到 token 可能过期，尝试刷新")
+                        if refresh_account_token(request):
+                            token_refreshed = True
+                            continue  # 使用新 token 重试
+                        else:
+                            logger.warning("[create_session] token 刷新失败，尝试切换账号")
+                
+                # token 刷新失败或其他错误，尝试切换账号
                 current_id = get_account_identifier(request.state.account)
                 if not hasattr(request.state, "tried_accounts"):
                     request.state.tried_accounts = []
@@ -81,6 +96,7 @@ def create_session(request: Request, max_attempts: int = 3) -> str | None:
                     continue
                 request.state.account = new_account
                 request.state.deepseek_token = new_account.get("token")
+                token_refreshed = False  # 新账号重置刷新标记
             else:
                 attempts += 1
                 continue

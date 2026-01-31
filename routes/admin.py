@@ -4,13 +4,15 @@ import base64
 import json
 import os
 import httpx
+import asyncio
 
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from core.config import CONFIG, save_config, logger
-from core.auth import account_queue, init_account_queue
+from core.auth import account_queue, init_account_queue, get_queue_status, get_account_identifier
+from core.deepseek import login_deepseek_via_account
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 security = HTTPBearer(auto_error=False)
@@ -177,6 +179,242 @@ async def delete_account(identifier: str, _: bool = Depends(verify_admin)):
 
 
 # ----------------------------------------------------------------------
+# 账号队列状态（监控）
+# ----------------------------------------------------------------------
+@router.get("/queue/status")
+async def get_account_queue_status(_: bool = Depends(verify_admin)):
+    """获取账号轮询队列状态"""
+    status = get_queue_status()
+    return JSONResponse(content=status)
+
+
+# ----------------------------------------------------------------------
+# 账号验证
+# ----------------------------------------------------------------------
+async def validate_single_account(account: dict) -> dict:
+    """验证单个账号的有效性"""
+    acc_id = get_account_identifier(account)
+    result = {
+        "account": acc_id,
+        "valid": False,
+        "has_token": bool(account.get("token", "").strip()),
+        "message": "",
+    }
+    
+    try:
+        # 如果已有 token，尝试简单验证（这里简化处理）
+        if result["has_token"]:
+            result["valid"] = True
+            result["message"] = "已有有效 token"
+        else:
+            # 尝试登录
+            try:
+                login_deepseek_via_account(account)
+                result["valid"] = True
+                result["has_token"] = True
+                result["message"] = "登录成功"
+            except Exception as e:
+                result["valid"] = False
+                result["message"] = f"登录失败: {str(e)}"
+    except Exception as e:
+        result["message"] = f"验证出错: {str(e)}"
+    
+    return result
+
+
+@router.post("/accounts/validate")
+async def validate_account(request: Request, _: bool = Depends(verify_admin)):
+    """验证单个账号"""
+    data = await request.json()
+    identifier = data.get("identifier", "").strip()
+    
+    if not identifier:
+        raise HTTPException(status_code=400, detail="需要账号标识（email 或 mobile）")
+    
+    # 查找账号
+    account = None
+    for acc in CONFIG.get("accounts", []):
+        if acc.get("email") == identifier or acc.get("mobile") == identifier:
+            account = acc
+            break
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    
+    result = await validate_single_account(account)
+    
+    # 如果验证成功且获取了新 token，保存配置
+    if result["valid"] and result["has_token"]:
+        save_config(CONFIG)
+    
+    return JSONResponse(content=result)
+
+
+@router.post("/accounts/validate-all")
+async def validate_all_accounts(_: bool = Depends(verify_admin)):
+    """批量验证所有账号"""
+    accounts = CONFIG.get("accounts", [])
+    if not accounts:
+        return JSONResponse(content={
+            "total": 0,
+            "valid": 0,
+            "invalid": 0,
+            "results": [],
+        })
+    
+    results = []
+    valid_count = 0
+    
+    for acc in accounts:
+        result = await validate_single_account(acc)
+        results.append(result)
+        if result["valid"]:
+            valid_count += 1
+        # 添加小延迟避免请求过快
+        await asyncio.sleep(0.5)
+    
+    # 保存可能更新的 token
+    save_config(CONFIG)
+    
+    return JSONResponse(content={
+        "total": len(accounts),
+        "valid": valid_count,
+        "invalid": len(accounts) - valid_count,
+        "results": results,
+    })
+
+
+# ----------------------------------------------------------------------
+# 账号 API 测试（实际发送请求）
+# ----------------------------------------------------------------------
+async def test_account_api(account: dict, model: str = "deepseek-chat") -> dict:
+    """测试单个账号的 API 调用能力"""
+    from curl_cffi import requests as cffi_requests
+    from core.deepseek import DEEPSEEK_CREATE_SESSION_URL, DEEPSEEK_CHAT_COMPLETION_URL, BASE_HEADERS
+    from core.pow import get_pow_response_direct
+    
+    acc_id = get_account_identifier(account)
+    result = {
+        "account": acc_id,
+        "success": False,
+        "response_time": 0,
+        "message": "",
+        "model": model,
+    }
+    
+    import time
+    start_time = time.time()
+    
+    try:
+        # 确保有 token
+        token = account.get("token", "").strip()
+        if not token:
+            try:
+                login_deepseek_via_account(account)
+                token = account.get("token", "")
+            except Exception as e:
+                result["message"] = f"登录失败: {str(e)}"
+                return result
+        
+        headers = {**BASE_HEADERS, "authorization": f"Bearer {token}"}
+        
+        # 1. 创建会话
+        session_resp = cffi_requests.post(
+            DEEPSEEK_CREATE_SESSION_URL,
+            headers=headers,
+            json={"agent": "chat"},
+            impersonate="safari15_3",
+            timeout=15,
+        )
+        
+        if session_resp.status_code != 200:
+            result["message"] = f"创建会话失败: HTTP {session_resp.status_code}"
+            return result
+        
+        session_data = session_resp.json()
+        if session_data.get("code") != 0:
+            result["message"] = f"创建会话失败: {session_data.get('msg', 'Unknown error')}"
+            # token 可能过期，清除它
+            account["token"] = ""
+            return result
+        
+        session_id = session_data["data"]["biz_data"]["id"]
+        result["success"] = True
+        result["message"] = "API 测试成功"
+        result["response_time"] = round((time.time() - start_time) * 1000)  # ms
+        
+    except Exception as e:
+        result["message"] = f"测试失败: {str(e)}"
+    
+    return result
+
+
+@router.post("/accounts/test")
+async def test_single_account(request: Request, _: bool = Depends(verify_admin)):
+    """测试单个账号的 API 调用"""
+    data = await request.json()
+    identifier = data.get("identifier", "")
+    model = data.get("model", "deepseek-chat")
+    
+    if not identifier:
+        raise HTTPException(status_code=400, detail="需要账号标识（email 或 mobile）")
+    
+    # 查找账号
+    account = None
+    for acc in CONFIG.get("accounts", []):
+        if acc.get("email") == identifier or acc.get("mobile") == identifier:
+            account = acc
+            break
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    
+    result = await test_account_api(account, model)
+    
+    # 保存可能更新的 token
+    save_config(CONFIG)
+    
+    return JSONResponse(content=result)
+
+
+@router.post("/accounts/test-all")
+async def test_all_accounts(request: Request, _: bool = Depends(verify_admin)):
+    """批量测试所有账号的 API 调用"""
+    data = await request.json()
+    model = data.get("model", "deepseek-chat")
+    
+    accounts = CONFIG.get("accounts", [])
+    if not accounts:
+        return JSONResponse(content={
+            "total": 0,
+            "success": 0,
+            "failed": 0,
+            "results": [],
+        })
+    
+    results = []
+    success_count = 0
+    
+    for acc in accounts:
+        result = await test_account_api(acc, model)
+        results.append(result)
+        if result["success"]:
+            success_count += 1
+        # 添加小延迟避免请求过快
+        await asyncio.sleep(1)
+    
+    # 保存可能更新的 token
+    save_config(CONFIG)
+    
+    return JSONResponse(content={
+        "total": len(accounts),
+        "success": success_count,
+        "failed": len(accounts) - success_count,
+        "results": results,
+    })
+
+
+# ----------------------------------------------------------------------
 # 批量导入
 # ----------------------------------------------------------------------
 @router.post("/import")
@@ -286,9 +524,12 @@ async def sync_to_vercel(request: Request, _: bool = Depends(verify_admin)):
         vercel_token = data.get("vercel_token", "")
         project_id = data.get("project_id", "")
         team_id = data.get("team_id", "")  # 可选
+        auto_validate = data.get("auto_validate", True)  # 默认自动验证
+        save_vercel_credentials = data.get("save_credentials", True)  # 是否保存 Vercel 凭证
         
         # 支持使用预配置的 token
-        if vercel_token == "__USE_PRECONFIG__" or not vercel_token:
+        use_preconfig = vercel_token == "__USE_PRECONFIG__" or not vercel_token
+        if use_preconfig:
             vercel_token = VERCEL_TOKEN
         if not project_id:
             project_id = VERCEL_PROJECT_ID
@@ -297,6 +538,23 @@ async def sync_to_vercel(request: Request, _: bool = Depends(verify_admin)):
         
         if not vercel_token or not project_id:
             raise HTTPException(status_code=400, detail="需要 Vercel Token 和 Project ID（可通过环境变量 VERCEL_TOKEN 和 VERCEL_PROJECT_ID 预配置）")
+        
+        # 自动验证所有无 token 的账号
+        validated_count = 0
+        failed_accounts = []
+        if auto_validate:
+            accounts = CONFIG.get("accounts", [])
+            for acc in accounts:
+                acc_id = get_account_identifier(acc)
+                if not acc.get("token", "").strip():
+                    try:
+                        logger.info(f"[sync_to_vercel] 自动验证账号: {acc_id}")
+                        login_deepseek_via_account(acc)
+                        validated_count += 1
+                    except Exception as e:
+                        logger.warning(f"[sync_to_vercel] 账号 {acc_id} 验证失败: {e}")
+                        failed_accounts.append(acc_id)
+                    await asyncio.sleep(0.5)  # 避免请求过快
         
         # 准备配置 JSON
         config_json = json.dumps(CONFIG, ensure_ascii=False, separators=(",", ":"))
@@ -352,6 +610,51 @@ async def sync_to_vercel(request: Request, _: bool = Depends(verify_admin)):
                 if create_resp.status_code not in [200, 201]:
                     raise HTTPException(status_code=create_resp.status_code, detail=f"创建环境变量失败: {create_resp.text}")
             
+            # 2.5 保存 Vercel 凭证到环境变量（方便后续快捷同步）
+            saved_credentials = []
+            if save_vercel_credentials and not use_preconfig:
+                # 要保存的凭证列表
+                creds_to_save = [
+                    ("VERCEL_TOKEN", vercel_token),
+                    ("VERCEL_PROJECT_ID", project_id),
+                ]
+                if team_id:
+                    creds_to_save.append(("VERCEL_TEAM_ID", team_id))
+                
+                for key, value in creds_to_save:
+                    # 检查是否已存在
+                    existing = None
+                    for env in env_vars:
+                        if env.get("key") == key:
+                            existing = env
+                            break
+                    
+                    if existing:
+                        # 更新
+                        upd_resp = await client.patch(
+                            f"{base_url}/v9/projects/{project_id}/env/{existing['id']}",
+                            headers=headers,
+                            params=params,
+                            json={"value": value},
+                        )
+                        if upd_resp.status_code in [200, 201]:
+                            saved_credentials.append(key)
+                    else:
+                        # 创建
+                        crt_resp = await client.post(
+                            f"{base_url}/v10/projects/{project_id}/env",
+                            headers=headers,
+                            params=params,
+                            json={
+                                "key": key,
+                                "value": value,
+                                "type": "encrypted",
+                                "target": ["production", "preview"],
+                            },
+                        )
+                        if crt_resp.status_code in [200, 201]:
+                            saved_credentials.append(key)
+            
             # 3. 触发重新部署 (获取最新的 git 信息并创建新部署)
             # 获取项目信息
             project_resp = await client.get(
@@ -384,18 +687,30 @@ async def sync_to_vercel(request: Request, _: bool = Depends(verify_admin)):
                     
                     if deploy_resp.status_code in [200, 201]:
                         deploy_data = deploy_resp.json()
-                        return JSONResponse(content={
+                        result = {
                             "success": True,
                             "message": "配置已同步，正在重新部署...",
                             "deployment_url": deploy_data.get("url"),
-                        })
+                            "validated_accounts": validated_count,
+                        }
+                        if failed_accounts:
+                            result["failed_accounts"] = failed_accounts
+                        if saved_credentials:
+                            result["saved_credentials"] = saved_credentials
+                        return JSONResponse(content=result)
             
             # 如果无法自动部署，返回成功但提示手动部署
-            return JSONResponse(content={
+            result = {
                 "success": True,
                 "message": "配置已同步到 Vercel，请手动触发重新部署",
                 "manual_deploy_required": True,
-            })
+                "validated_accounts": validated_count,
+            }
+            if failed_accounts:
+                result["failed_accounts"] = failed_accounts
+            if saved_credentials:
+                result["saved_credentials"] = saved_credentials
+            return JSONResponse(content=result)
             
     except HTTPException:
         raise

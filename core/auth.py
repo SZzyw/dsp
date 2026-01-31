@@ -1,21 +1,29 @@
 # -*- coding: utf-8 -*-
-"""账号认证与管理模块"""
-import random
+"""账号认证与管理模块 - 轮询(Round-Robin)策略"""
+import threading
 from fastapi import HTTPException, Request
 
 from .config import CONFIG, logger
 from .deepseek import login_deepseek_via_account, BASE_HEADERS
 
 # -------------------------- 全局账号队列 --------------------------
-account_queue = []  # 维护所有可用账号
+# 使用列表实现轮询队列，配合线程锁保证并发安全
+account_queue = []  # 可用账号队列
+in_use_accounts = {}  # 正在使用的账号 {account_id: account}
+_queue_lock = threading.Lock()  # 线程锁
+
 claude_api_key_queue = []  # 维护所有可用的Claude API keys
 
 
 def init_account_queue():
-    """初始化时从配置加载账号"""
-    global account_queue
-    account_queue = CONFIG.get("accounts", [])[:]  # 深拷贝
-    random.shuffle(account_queue)  # 初始随机排序
+    """初始化时从配置加载账号（不再随机排序，保持配置顺序）"""
+    global account_queue, in_use_accounts
+    with _queue_lock:
+        account_queue = CONFIG.get("accounts", [])[:]  # 深拷贝
+        in_use_accounts = {}
+        # 按 token 有无排序：有 token 的账号优先
+        account_queue.sort(key=lambda a: 0 if a.get("token", "").strip() else 1)
+        logger.info(f"[init_account_queue] 初始化 {len(account_queue)} 个账号，轮询模式")
 
 
 def init_claude_api_key_queue():
@@ -37,43 +45,71 @@ def get_account_identifier(account: dict) -> str:
     return account.get("email", "").strip() or account.get("mobile", "").strip()
 
 
+def get_queue_status() -> dict:
+    """获取账号队列状态（用于监控）"""
+    with _queue_lock:
+        return {
+            "available": len(account_queue),
+            "in_use": len(in_use_accounts),
+            "total": len(account_queue) + len(in_use_accounts),
+            "available_accounts": [get_account_identifier(a) for a in account_queue],
+            "in_use_accounts": list(in_use_accounts.keys()),
+        }
+
+
 # ----------------------------------------------------------------------
-# 账号选择与释放
+# 账号选择与释放 - 轮询(Round-Robin)策略
 # ----------------------------------------------------------------------
 def choose_new_account(exclude_ids=None):
-    """选择策略：
-    1. 优先选择已有 token 的账号（避免登录）
-    2. 遍历队列，找到第一个未被 exclude_ids 包含的账号
-    3. 从队列中移除该账号
-    4. 返回该账号（由后续逻辑保证最终会重新入队）
+    """轮询选择策略：
+    1. 使用线程锁保证并发安全
+    2. 优先选择队首的有 token 账号
+    3. 从队列头部取出账号（FIFO）
+    4. 请求完成后调用 release_account 将账号放回队尾
     """
     if exclude_ids is None:
         exclude_ids = []
 
-    # 第一轮：优先选择已有 token 的账号
-    for i in range(len(account_queue)):
-        acc = account_queue[i]
-        acc_id = get_account_identifier(acc)
-        if acc_id and acc_id not in exclude_ids:
-            if acc.get("token", "").strip():  # 已有 token
-                logger.info(f"[choose_new_account] 选择已有token的账号: {acc_id}")
-                return account_queue.pop(i)
+    with _queue_lock:
+        # 第一轮：优先选择已有 token 的账号
+        for i in range(len(account_queue)):
+            acc = account_queue[i]
+            acc_id = get_account_identifier(acc)
+            if acc_id and acc_id not in exclude_ids:
+                if acc.get("token", "").strip():  # 已有 token
+                    selected = account_queue.pop(i)
+                    in_use_accounts[acc_id] = selected
+                    logger.info(f"[choose_new_account] 轮询选择(有token): {acc_id} | 队列剩余: {len(account_queue)}")
+                    return selected
 
-    # 第二轮：选择任意账号（需要登录）
-    for i in range(len(account_queue)):
-        acc = account_queue[i]
-        acc_id = get_account_identifier(acc)
-        if acc_id and acc_id not in exclude_ids:
-            logger.info(f"[choose_new_account] 选择需登录的账号: {acc_id}")
-            return account_queue.pop(i)
+        # 第二轮：选择任意账号（需要登录）
+        for i in range(len(account_queue)):
+            acc = account_queue[i]
+            acc_id = get_account_identifier(acc)
+            if acc_id and acc_id not in exclude_ids:
+                selected = account_queue.pop(i)
+                in_use_accounts[acc_id] = selected
+                logger.info(f"[choose_new_account] 轮询选择(需登录): {acc_id} | 队列剩余: {len(account_queue)}")
+                return selected
 
-    logger.warning("[choose_new_account] 没有可用的账号或所有账号都在使用中")
-    return None
+        logger.warning(f"[choose_new_account] 没有可用账号 | 队列: {len(account_queue)}, 使用中: {len(in_use_accounts)}")
+        return None
 
 
 def release_account(account: dict):
-    """将账号重新加入队列末尾"""
-    account_queue.append(account)
+    """将账号重新加入队列末尾（轮询核心：用完放队尾）"""
+    if not account:
+        return
+    
+    acc_id = get_account_identifier(account)
+    with _queue_lock:
+        # 从使用中移除
+        if acc_id in in_use_accounts:
+            del in_use_accounts[acc_id]
+        
+        # 放回队尾
+        account_queue.append(account)
+        logger.debug(f"[release_account] 释放账号: {acc_id} | 队列长度: {len(account_queue)}")
 
 
 # ----------------------------------------------------------------------
@@ -144,3 +180,50 @@ def get_auth_headers(request: Request) -> dict:
 def determine_claude_mode_and_token(request: Request):
     """Claude认证：沿用现有的OpenAI接口认证逻辑"""
     determine_mode_and_token(request)
+
+
+# ----------------------------------------------------------------------
+# Token 刷新机制
+# ----------------------------------------------------------------------
+def refresh_account_token(request: Request) -> bool:
+    """当 token 过期时，刷新账号 token。
+    
+    返回 True 表示刷新成功，False 表示刷新失败。
+    调用后 request.state.deepseek_token 会被更新。
+    """
+    if not getattr(request.state, 'use_config_token', False):
+        # 用户自带 token，无法刷新
+        return False
+    
+    account = getattr(request.state, 'account', None)
+    if not account:
+        return False
+    
+    acc_id = get_account_identifier(account)
+    logger.info(f"[refresh_account_token] 尝试刷新账号 {acc_id} 的 token")
+    
+    try:
+        # 清除旧 token
+        account["token"] = ""
+        # 重新登录
+        login_deepseek_via_account(account)
+        # 更新 request 状态
+        request.state.deepseek_token = account.get("token")
+        logger.info(f"[refresh_account_token] 账号 {acc_id} token 刷新成功")
+        return True
+    except Exception as e:
+        logger.error(f"[refresh_account_token] 账号 {acc_id} token 刷新失败: {e}")
+        return False
+
+
+def mark_token_invalid(request: Request):
+    """标记当前账号的 token 为无效，清除它以便下次重新登录"""
+    if not getattr(request.state, 'use_config_token', False):
+        return
+    
+    account = getattr(request.state, 'account', None)
+    if account:
+        acc_id = get_account_identifier(account)
+        logger.warning(f"[mark_token_invalid] 标记账号 {acc_id} 的 token 为无效")
+        account["token"] = ""
+
