@@ -10,7 +10,9 @@ import {
     User,
     Loader2,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    ChevronDown,
+    ShieldCheck
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -31,6 +33,9 @@ export default function ApiTester({ config, onMessage, authFetch }) {
     const [streamingThinking, setStreamingThinking] = useState('')
     const [isStreaming, setIsStreaming] = useState(false)
     const abortControllerRef = useRef(null)
+
+    const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [configExpanded, setConfigExpanded] = useState(false)
 
     const apiFetch = authFetch || fetch
     const accounts = config.accounts || []
@@ -178,75 +183,97 @@ export default function ApiTester({ config, onMessage, authFetch }) {
     }
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)]">
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6 h-[calc(100vh-140px)] lg:h-[calc(100vh-140px)]">
             {/* Configuration Panel */}
-            <div className="lg:col-span-1 space-y-4 overflow-y-auto pr-2">
-                <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-5">
-                    <h3 className="font-semibold flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-primary" />
-                        模型选项
-                    </h3>
-
-                    <div className="space-y-3">
-                        <label className="text-sm font-medium text-muted-foreground">模型</label>
-                        <div className="grid grid-cols-1 gap-2">
-                            {MODELS.map(m => {
-                                const Icon = m.icon
-                                return (
-                                    <button
-                                        key={m.id}
-                                        onClick={() => setModel(m.id)}
-                                        className={clsx(
-                                            "flex items-center gap-3 p-3 rounded-lg border text-left transition-all",
-                                            model === m.id
-                                                ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                                                : "border-border hover:bg-secondary/50"
-                                        )}
-                                    >
-                                        <div className={clsx("p-2 rounded-md", model === m.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                                            <Icon className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <div className="font-medium text-sm">{m.name}</div>
-                                            <div className="text-xs text-muted-foreground">{m.desc}</div>
-                                        </div>
-                                    </button>
-                                )
-                            })}
+            <div className={clsx(
+                "lg:col-span-1 flex flex-col transition-all duration-300 ease-in-out",
+                configExpanded ? "h-auto" : "h-14 lg:h-full"
+            )}>
+                <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
+                    {/* Mobile Toggle Header */}
+                    <button
+                        onClick={() => setConfigExpanded(!configExpanded)}
+                        className="lg:hidden flex items-center justify-between p-4 w-full hover:bg-muted/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-2 font-semibold">
+                            <Sparkles className="w-4 h-4 text-primary" />
+                            <span>模型与配置</span>
                         </div>
-                    </div>
+                        <div className={clsx("transition-transform duration-200", configExpanded ? "rotate-180" : "")}>
+                            <ChevronDown className="w-4 h-4" />
+                        </div>
+                    </button>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-muted-foreground">账号策略</label>
-                        <select
-                            className="input-field"
-                            value={selectedAccount}
-                            onChange={e => setSelectedAccount(e.target.value)}
-                        >
-                            <option value="">🎲 随机切换 (支持流式预览)</option>
-                            {accounts.map((acc, i) => (
-                                <option key={i} value={acc.email || acc.mobile}>
-                                    👤 {acc.email || acc.mobile}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <div className={clsx(
+                        "p-5 space-y-5 overflow-y-auto custom-scrollbar flex-1",
+                        !configExpanded && "hidden lg:block"
+                    )}>
+                        <h3 className="hidden lg:flex font-semibold items-center gap-2 mb-2">
+                            <Sparkles className="w-4 h-4 text-primary" />
+                            模型选项
+                        </h3>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-muted-foreground">API 密钥 (可选)</label>
-                        <input
-                            type="password"
-                            className="input-field font-mono text-xs"
-                            placeholder={config.keys?.[0] ? `默认: ${config.keys[0].slice(0, 8)}...` : '输入自定义 API 密钥'}
-                            value={apiKey}
-                            onChange={e => setApiKey(e.target.value)}
-                        />
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium text-muted-foreground">模型</label>
+                            <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
+                                {MODELS.map(m => {
+                                    const Icon = m.icon
+                                    return (
+                                        <button
+                                            key={m.id}
+                                            onClick={() => setModel(m.id)}
+                                            className={clsx(
+                                                "flex items-center lg:items-center gap-2 lg:gap-3 p-2 lg:p-3 rounded-lg border text-left transition-all",
+                                                model === m.id
+                                                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                                    : "border-border hover:bg-secondary/50"
+                                            )}
+                                        >
+                                            <div className={clsx("p-1.5 lg:p-2 rounded-md shrink-0", model === m.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                                                <Icon className="w-3.5 h-3.5 lg:w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="font-medium text-xs lg:text-sm truncate">{m.name}</div>
+                                                <div className="text-[10px] lg:text-xs text-muted-foreground truncate hidden sm:block lg:block">{m.desc}</div>
+                                            </div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-muted-foreground">账号策略</label>
+                            <select
+                                className="input-field"
+                                value={selectedAccount}
+                                onChange={e => setSelectedAccount(e.target.value)}
+                            >
+                                <option value="">🎲 随机切换 (支持流式预览)</option>
+                                {accounts.map((acc, i) => (
+                                    <option key={i} value={acc.email || acc.mobile}>
+                                        👤 {acc.email || acc.mobile}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-muted-foreground">API 密钥 (可选)</label>
+                            <input
+                                type="password"
+                                className="input-field font-mono text-xs"
+                                placeholder={config.keys?.[0] ? `默认: ${config.keys[0].slice(0, 8)}...` : '输入自定义 API 密钥'}
+                                value={apiKey}
+                                onChange={e => setApiKey(e.target.value)}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Chat Interface */}
-            <div className="lg:col-span-2 flex flex-col bg-card border border-border rounded-xl shadow-sm overflow-hidden h-full">
+            <div className="lg:col-span-2 flex flex-col bg-card border border-border rounded-xl shadow-sm overflow-hidden min-h-0 flex-1">
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
                     {/* User Message */}

@@ -254,8 +254,8 @@ export default function App() {
                 </header>
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-auto bg-background/50 p-4 lg:p-8">
-                    <div className="max-w-6xl mx-auto space-y-6">
+                <div className="flex-1 overflow-auto bg-background/50 p-2 sm:p-4 lg:p-8">
+                    <div className="max-w-6xl mx-auto space-y-4 lg:space-y-6">
                         <div className="hidden lg:block mb-8">
                             <h1 className="text-3xl font-bold tracking-tight mb-2">
                                 {NAV_ITEMS.find(n => n.id === activeTab)?.label}

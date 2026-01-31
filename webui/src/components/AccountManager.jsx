@@ -243,36 +243,36 @@ export default function AccountManager({ config, onRefresh, onMessage, authFetch
             {/* Queue Status */}
             {queueStatus && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg">
-                                <CheckCircle2 className="w-5 h-5" />
+                    <div className="bg-card border border-border rounded-xl p-3 lg:p-4 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2 lg:gap-3">
+                            <div className="p-1.5 lg:p-2 bg-emerald-500/10 text-emerald-500 rounded-lg">
+                                <CheckCircle2 className="w-4 h-4 lg:w-5 h-5" />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">可用账号</p>
-                                <p className="text-2xl font-bold">{queueStatus.available}</p>
+                                <p className="text-[10px] lg:text-sm font-medium text-muted-foreground uppercase tracking-wider lg:capitalize lg:tracking-normal">可用账号</p>
+                                <p className="text-xl lg:text-2xl font-bold">{queueStatus.available}</p>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg">
-                                <Server className="w-5 h-5" />
+                    <div className="bg-card border border-border rounded-xl p-3 lg:p-4 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2 lg:gap-3">
+                            <div className="p-1.5 lg:p-2 bg-amber-500/10 text-amber-500 rounded-lg">
+                                <Server className="w-4 h-4 lg:w-5 h-5" />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">使用中</p>
-                                <p className="text-2xl font-bold">{queueStatus.in_use}</p>
+                                <p className="text-[10px] lg:text-sm font-medium text-muted-foreground uppercase tracking-wider lg:capitalize lg:tracking-normal">使用中</p>
+                                <p className="text-xl lg:text-2xl font-bold">{queueStatus.in_use}</p>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 text-primary rounded-lg">
-                                <ShieldCheck className="w-5 h-5" />
+                    <div className="bg-card border border-border rounded-xl p-3 lg:p-4 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2 lg:gap-3">
+                            <div className="p-1.5 lg:p-2 bg-primary/10 text-primary rounded-lg">
+                                <ShieldCheck className="w-4 h-4 lg:w-5 h-5" />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">账号总数</p>
-                                <p className="text-2xl font-bold">{queueStatus.total}</p>
+                                <p className="text-[10px] lg:text-sm font-medium text-muted-foreground uppercase tracking-wider lg:capitalize lg:tracking-normal">账号总数</p>
+                                <p className="text-xl lg:text-2xl font-bold">{queueStatus.total}</p>
                             </div>
                         </div>
                     </div>
@@ -401,26 +401,26 @@ export default function AccountManager({ config, onRefresh, onMessage, authFetch
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 self-end md:self-auto">
+                                    <div className="flex items-center gap-2 self-start lg:self-auto ml-5 lg:ml-0">
                                         <button
                                             onClick={() => testAccount(id)}
                                             disabled={testing[id]}
-                                            className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-secondary transition-colors disabled:opacity-50"
+                                            className="px-2 lg:px-3 py-1 lg:py-1.5 text-[10px] lg:text-xs font-medium border border-border rounded-md hover:bg-secondary transition-colors disabled:opacity-50"
                                         >
                                             {testing[id] ? '正在测试...' : '测试'}
                                         </button>
                                         <button
                                             onClick={() => validateAccount(id)}
                                             disabled={validating[id]}
-                                            className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-secondary transition-colors disabled:opacity-50"
+                                            className="px-2 lg:px-3 py-1 lg:py-1.5 text-[10px] lg:text-xs font-medium border border-border rounded-md hover:bg-secondary transition-colors disabled:opacity-50"
                                         >
                                             {validating[id] ? '正在校验...' : '校验'}
                                         </button>
                                         <button
                                             onClick={() => deleteAccount(id)}
-                                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                                            className="p-1 lg:p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
                                         >
-                                            <Trash2 className="w-4 h-4" />
+                                            <Trash2 className="w-3.5 h-3.5 lg:w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
