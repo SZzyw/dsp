@@ -32,7 +32,7 @@
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FCJackHwang%2Fds2api&env=DS2API_ADMIN_KEY&envDescription=管理面板访问密码（必填）&envLink=https%3A%2F%2Fgithub.com%2FCJackHwang%2Fds2api%23环境变量&project-name=ds2api&repository-name=ds2api)
 
 1. 点击上方按钮，填写管理密码 `DS2API_ADMIN_KEY`
-2. 部署完成后访问 `/webui` 管理界面
+2. 部署完成后访问 `/admin` 管理界面
 3. 添加 DeepSeek 账号和 API Key
 4. 点击「同步到 Vercel」保存配置
 
@@ -105,7 +105,7 @@ curl https://your-domain.com/v1/chat/completions \
 
 | 接口 | 说明 |
 |-----|------|
-| `GET /webui` | 管理界面 |
+| `GET /admin` | 管理界面 |
 | `GET /admin/config` | 获取配置 |
 | `POST /admin/accounts/test` | 测试单个账号 |
 | `POST /admin/accounts/test-all` | 批量测试账号 |

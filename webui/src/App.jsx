@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
 import {
+    Routes,
+    Route,
+    Navigate,
+    useNavigate,
+    useLocation
+} from 'react-router-dom'
+import {
     LayoutDashboard,
     Key,
     Upload,
@@ -17,6 +24,7 @@ import ApiTester from './components/ApiTester'
 import BatchImport from './components/BatchImport'
 import VercelSync from './components/VercelSync'
 import Login from './components/Login'
+import LandingPage from './components/LandingPage'
 
 const NAV_ITEMS = [
     { id: 'accounts', label: '账号管理', icon: Users, description: '管理 DeepSeek 账号池' },
@@ -25,39 +33,10 @@ const NAV_ITEMS = [
     { id: 'vercel', label: 'Vercel 同步', icon: Cloud, description: '同步配置到 Vercel' },
 ]
 
-export default function App() {
+function Dashboard({ token, onLogout, config, fetchConfig, showMessage, message }) {
     const [activeTab, setActiveTab] = useState('accounts')
-    const [config, setConfig] = useState({ keys: [], accounts: [] })
-    const [loading, setLoading] = useState(true)
-    const [message, setMessage] = useState(null)
-    const [token, setToken] = useState(null)
-    const [authChecking, setAuthChecking] = useState(true)
     const [sidebarOpen, setSidebarOpen] = useState(false)
-
-    // 检查已存储的 Token
-    useEffect(() => {
-        const checkAuth = async () => {
-            const storedToken = localStorage.getItem('ds2api_token') || sessionStorage.getItem('ds2api_token')
-            const expiresAt = parseInt(localStorage.getItem('ds2api_token_expires') || sessionStorage.getItem('ds2api_token_expires') || '0')
-
-            if (storedToken && expiresAt > Date.now()) {
-                try {
-                    const res = await fetch('/admin/verify', {
-                        headers: { 'Authorization': `Bearer ${storedToken}` }
-                    })
-                    if (res.ok) {
-                        setToken(storedToken)
-                    } else {
-                        handleLogout()
-                    }
-                } catch {
-                    setToken(storedToken)
-                }
-            }
-            setAuthChecking(false)
-        }
-        checkAuth()
-    }, [])
+    const [loading, setLoading] = useState(false)
 
     const authFetch = async (url, options = {}) => {
         const headers = {
@@ -67,50 +46,10 @@ export default function App() {
         const res = await fetch(url, { ...options, headers })
 
         if (res.status === 401) {
-            handleLogout()
+            onLogout()
             throw new Error('认证已过期，请重新登录')
         }
         return res
-    }
-
-    const fetchConfig = async () => {
-        if (!token) return
-        try {
-            setLoading(true)
-            const res = await authFetch('/admin/config')
-            if (res.ok) {
-                const data = await res.json()
-                setConfig(data)
-            }
-        } catch (e) {
-            console.error('获取配置失败:', e)
-            showMessage('error', e.message)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        if (token) {
-            fetchConfig()
-        }
-    }, [token])
-
-    const showMessage = (type, text) => {
-        setMessage({ type, text })
-        setTimeout(() => setMessage(null), 5000)
-    }
-
-    const handleLogin = (newToken) => {
-        setToken(newToken)
-    }
-
-    const handleLogout = () => {
-        setToken(null)
-        localStorage.removeItem('ds2api_token')
-        localStorage.removeItem('ds2api_token_expires')
-        sessionStorage.removeItem('ds2api_token')
-        sessionStorage.removeItem('ds2api_token_expires')
     }
 
     const renderTab = () => {
@@ -128,43 +67,8 @@ export default function App() {
         }
     }
 
-    if (authChecking) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-muted-foreground animate-pulse">正在检查登录状态...</p>
-                </div>
-            </div>
-        )
-    }
-
-    if (!token) {
-        return (
-            <div className="min-h-screen flex flex-col bg-background relative overflow-hidden">
-                {/* Background decorative elements */}
-                <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                    <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px]"></div>
-                    <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-accent/5 rounded-full blur-[120px]"></div>
-                </div>
-
-                {message && (
-                    <div className={clsx(
-                        "fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg border animate-in slide-in-from-top-2 fade-in",
-                        message.type === 'error' ? "bg-destructive/10 border-destructive/20 text-destructive" :
-                            "bg-primary/10 border-primary/20 text-primary"
-                    )}>
-                        {message.text}
-                    </div>
-                )}
-                <Login onLogin={handleLogin} onMessage={showMessage} />
-            </div>
-        )
-    }
-
     return (
         <div className="flex h-screen bg-background overflow-hidden text-foreground">
-            {/* Mobile Sidebar Overlay */}
             {sidebarOpen && (
                 <div
                     className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
@@ -172,7 +76,6 @@ export default function App() {
                 />
             )}
 
-            {/* Sidebar */}
             <aside className={clsx(
                 "fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transition-transform duration-300 ease-in-out lg:transform-none flex flex-col shadow-2xl lg:shadow-none",
                 sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -233,7 +136,7 @@ export default function App() {
                             </div>
                         </div>
                         <button
-                            onClick={handleLogout}
+                            onClick={onLogout}
                             className="w-full h-10 flex items-center justify-center gap-2 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all"
                         >
                             <LogOut className="w-3.5 h-3.5" />
@@ -243,9 +146,7 @@ export default function App() {
                 </div>
             </aside>
 
-            {/* Main Content */}
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                {/* Mobile Header */}
                 <header className="lg:hidden h-14 flex items-center justify-between px-4 border-b border-border bg-card">
                     <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded bg-primary flex items-center justify-center text-primary-foreground text-[10px]">
@@ -261,7 +162,6 @@ export default function App() {
                     </button>
                 </header>
 
-                {/* Content Area */}
                 <div className="flex-1 overflow-auto bg-background p-4 lg:p-10">
                     <div className="max-w-6xl mx-auto space-y-4 lg:space-y-6">
                         <div className="hidden lg:block mb-8">
@@ -285,18 +185,147 @@ export default function App() {
                         )}
 
                         <div className="animate-in fade-in duration-500">
-                            {loading ? (
-                                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-                                    <p>正在加载数据，请稍候...</p>
-                                </div>
-                            ) : (
-                                renderTab()
-                            )}
+                            {renderTab()}
                         </div>
                     </div>
                 </div>
             </main>
         </div>
+    )
+}
+
+export default function App() {
+    const navigate = useNavigate()
+    const location = useLocation()
+    const [config, setConfig] = useState({ keys: [], accounts: [] })
+    const [loading, setLoading] = useState(true)
+    const [message, setMessage] = useState(null)
+    const [token, setToken] = useState(null)
+    const [authChecking, setAuthChecking] = useState(true)
+
+    const isProduction = import.meta.env.MODE === 'production'
+    const isAdminRoute = location.pathname.startsWith('/admin') || isProduction
+
+    useEffect(() => {
+        // 只在 admin 路由时检查登录状态
+        if (!isAdminRoute) {
+            setAuthChecking(false)
+            return
+        }
+
+        const checkAuth = async () => {
+            const storedToken = localStorage.getItem('ds2api_token') || sessionStorage.getItem('ds2api_token')
+            const expiresAt = parseInt(localStorage.getItem('ds2api_token_expires') || sessionStorage.getItem('ds2api_token_expires') || '0')
+
+            if (storedToken && expiresAt > Date.now()) {
+                try {
+                    const res = await fetch('/admin/verify', {
+                        headers: { 'Authorization': `Bearer ${storedToken}` }
+                    })
+                    if (res.ok) {
+                        setToken(storedToken)
+                    } else {
+                        handleLogout()
+                    }
+                } catch {
+                    setToken(storedToken)
+                }
+            }
+            setAuthChecking(false)
+        }
+        checkAuth()
+    }, [isAdminRoute])
+
+    const fetchConfig = async () => {
+        if (!token) return
+        try {
+            setLoading(true)
+            const res = await fetch('/admin/config', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setConfig(data)
+            }
+        } catch (e) {
+            console.error('获取配置失败:', e)
+            showMessage('error', e.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        if (token) {
+            fetchConfig()
+        }
+    }, [token])
+
+    const showMessage = (type, text) => {
+        setMessage({ type, text })
+        setTimeout(() => setMessage(null), 5000)
+    }
+
+    const handleLogin = (newToken) => {
+        setToken(newToken)
+    }
+
+    const handleLogout = () => {
+        setToken(null)
+        localStorage.removeItem('ds2api_token')
+        localStorage.removeItem('ds2api_token_expires')
+        sessionStorage.removeItem('ds2api_token')
+        sessionStorage.removeItem('ds2api_token_expires')
+    }
+
+    // 在 admin 路由时，等待认证检查完成
+    if (isAdminRoute && authChecking) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-muted-foreground animate-pulse">正在检查登录状态...</p>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <Routes>
+            {!isProduction && (
+                <Route path="/" element={<LandingPage onEnter={() => navigate('/admin')} />} />
+            )}
+            <Route path={isProduction ? "/" : "/admin"} element={
+                token ? (
+                    <Dashboard
+                        token={token}
+                        onLogout={handleLogout}
+                        config={config}
+                        fetchConfig={fetchConfig}
+                        showMessage={showMessage}
+                        message={message}
+                    />
+                ) : (
+                    <div className="min-h-screen flex flex-col bg-background relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+                            <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px]"></div>
+                            <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-accent/5 rounded-full blur-[120px]"></div>
+                        </div>
+
+                        {message && (
+                            <div className={clsx(
+                                "fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg border animate-in slide-in-from-top-2 fade-in",
+                                message.type === 'error' ? "bg-destructive/10 border-destructive/20 text-destructive" :
+                                    "bg-primary/10 border-primary/20 text-primary"
+                            )}>
+                                {message.text}
+                            </div>
+                        )}
+                        <Login onLogin={handleLogin} onMessage={showMessage} />
+                    </div>
+                )
+            } />
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
     )
 }

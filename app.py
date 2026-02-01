@@ -54,8 +54,9 @@ from routes.admin import router as admin_router
 
 app.include_router(openai_router)
 app.include_router(claude_router)
-app.include_router(home_router)
+# admin_router 必须在 home_router 之前，否则 home.py 的 /admin/{path:path} 会拦截 admin API
 app.include_router(admin_router)
+app.include_router(home_router)
 
 
 # ----------------------------------------------------------------------

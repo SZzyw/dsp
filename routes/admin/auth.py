@@ -15,8 +15,8 @@ from core.config import logger
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
-# Admin Key 验证
-ADMIN_KEY = os.getenv("DS2API_ADMIN_KEY", "")
+# Admin Key 验证（默认值适用于开发/演示环境，生产环境请务必修改）
+ADMIN_KEY = os.getenv("DS2API_ADMIN_KEY", "your-admin-secret-key")
 
 # JWT 配置
 JWT_SECRET = os.getenv("DS2API_JWT_SECRET", ADMIN_KEY or "ds2api-default-secret")
@@ -105,17 +105,6 @@ async def admin_login(request: Request):
     admin_key = data.get("admin_key", "")
     expire_hours = data.get("expire_hours", JWT_EXPIRE_HOURS)
     
-    # 开发模式：如果没有配置 ADMIN_KEY，允许任意登录
-    if not ADMIN_KEY:
-        logger.warning("[admin_login] 开发模式：未配置 ADMIN_KEY，允许任意登录")
-        token = create_jwt_token(expire_hours)
-        return JSONResponse(content={
-            "success": True,
-            "token": token,
-            "expires_in": expire_hours * 3600,
-            "warning": "开发模式 - 未配置 ADMIN_KEY"
-        })
-    
     if admin_key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Invalid admin key")
     
@@ -147,10 +136,6 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
 
 def verify_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """验证 Admin 权限（支持 JWT 和直接 admin key）"""
-    # 开发模式：如果没有配置 ADMIN_KEY，允许所有操作
-    if not ADMIN_KEY:
-        return True
-    
     if not credentials:
         raise HTTPException(status_code=401, detail="Authentication required")
     
