@@ -29,13 +29,12 @@
 
 ### Vercel 部署（推荐）
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/CJackHwang/ds2api)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FCJackHwang%2Fds2api&env=DS2API_ADMIN_KEY&envDescription=管理面板访问密码（必填）&envLink=https%3A%2F%2Fgithub.com%2FCJackHwang%2Fds2api%23环境变量&project-name=ds2api&repository-name=ds2api)
 
-1. 点击上方按钮部署
-2. 设置环境变量 `DS2API_ADMIN_KEY`（管理密码，**必填**）
-3. 部署完成后访问 `/webui` 管理界面
-4. 添加 DeepSeek 账号和 API Key
-5. 点击「同步到 Vercel」完成配置
+1. 点击上方按钮，填写管理密码 `DS2API_ADMIN_KEY`
+2. 部署完成后访问 `/webui` 管理界面
+3. 添加 DeepSeek 账号和 API Key
+4. 点击「同步到 Vercel」保存配置
 
 > **首次同步会自动验证账号、保存 Token 和 Vercel 凭证，后续操作无需再输入。**
 
