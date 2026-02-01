@@ -53,7 +53,6 @@ uvicorn.log
 node_modules/
 webui/node_modules/
 webui/dist/
-static/admin/
 .npm
 .pnpm-store/
 package-lock.json
