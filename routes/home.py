@@ -299,5 +299,3 @@ async def webui(request: Request, path: str = ""):
         return FileResponse(index_path)
     
     return HTMLResponse(content="index.html not found", status_code=404)
-
-
