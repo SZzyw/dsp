@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react'
 import {
     Plus,
     Trash2,
+    RefreshCw,
     CheckCircle2,
+    AlertCircle,
+    Search,
     Play,
+    MoreHorizontal,
     X,
     Server,
     ShieldCheck,
@@ -19,6 +23,8 @@ export default function AccountManager({ config, onRefresh, onMessage, authFetch
     const [copiedKey, setCopiedKey] = useState(null)
     const [newAccount, setNewAccount] = useState({ email: '', mobile: '', password: '' })
     const [loading, setLoading] = useState(false)
+    const [validating, setValidating] = useState({})
+    const [validatingAll, setValidatingAll] = useState(false)
     const [testing, setTesting] = useState({})
     const [testingAll, setTestingAll] = useState(false)
     const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, results: [] })
@@ -125,6 +131,60 @@ export default function AccountManager({ config, onRefresh, onMessage, authFetch
         } catch (e) {
             onMessage('error', 'Network error')
         }
+    }
+
+    const validateAccount = async (identifier) => {
+        setValidating(prev => ({ ...prev, [identifier]: true }))
+        try {
+            const res = await apiFetch('/admin/accounts/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identifier }),
+            })
+            const data = await res.json()
+            onMessage(data.valid ? 'success' : 'error', `${identifier}: ${data.message}`)
+            onRefresh()
+        } catch (e) {
+            onMessage('error', 'Validation failed: ' + e.message)
+        } finally {
+            setValidating(prev => ({ ...prev, [identifier]: false }))
+        }
+    }
+
+    const validateAllAccounts = async () => {
+        if (!confirm('校验所有账号？这可能需要一些时间。')) return
+        const accounts = config.accounts || []
+        if (accounts.length === 0) return
+
+        setValidatingAll(true)
+        setBatchProgress({ current: 0, total: accounts.length, results: [] })
+
+        let validCount = 0
+        const results = []
+
+        for (let i = 0; i < accounts.length; i++) {
+            const acc = accounts[i]
+            const id = acc.email || acc.mobile
+
+            try {
+                const res = await apiFetch('/admin/accounts/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: id }),
+                })
+                const data = await res.json()
+                results.push({ id, success: data.valid, message: data.message })
+                if (data.valid) validCount++
+            } catch (e) {
+                results.push({ id, success: false, message: e.message })
+            }
+
+            setBatchProgress({ current: i + 1, total: accounts.length, results: [...results] })
+        }
+
+        onMessage('success', `Completed: ${validCount}/${accounts.length} valid`)
+        onRefresh()
+        setValidatingAll(false)
     }
 
     const testAccount = async (identifier) => {
@@ -287,11 +347,19 @@ export default function AccountManager({ config, onRefresh, onMessage, authFetch
                     <div className="flex flex-wrap gap-2">
                         <button
                             onClick={testAllAccounts}
-                            disabled={testingAll || !config.accounts?.length}
+                            disabled={testingAll || validatingAll || !config.accounts?.length}
                             className="flex items-center px-3 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-xs font-medium border border-border disabled:opacity-50"
                         >
                             {testingAll ? <span className="animate-spin mr-2">⟳</span> : <Play className="w-3 h-3 mr-2" />}
                             测试全部
+                        </button>
+                        <button
+                            onClick={validateAllAccounts}
+                            disabled={validatingAll || testingAll || !config.accounts?.length}
+                            className="flex items-center px-3 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-xs font-medium border border-border disabled:opacity-50"
+                        >
+                            {validatingAll ? <span className="animate-spin mr-2">⟳</span> : <CheckCircle2 className="w-3 h-3 mr-2" />}
+                            校验全部
                         </button>
                         <button
                             onClick={() => setShowAddAccount(true)}
@@ -304,10 +372,10 @@ export default function AccountManager({ config, onRefresh, onMessage, authFetch
                 </div>
 
                 {/* Batch Progress */}
-                {testingAll && batchProgress.total > 0 && (
+                {(testingAll || validatingAll) && batchProgress.total > 0 && (
                     <div className="p-4 border-b border-border bg-muted/30">
                         <div className="flex items-center justify-between text-sm mb-2">
-                            <span className="font-medium">正在测试所有账号...</span>
+                            <span className="font-medium">{testingAll ? '正在测试所有账号...' : '正在校验所有账号...'}</span>
                             <span className="text-muted-foreground">{batchProgress.current} / {batchProgress.total}</span>
                         </div>
                         <div className="w-full bg-muted rounded-full h-2 overflow-hidden mb-4">
@@ -361,6 +429,13 @@ export default function AccountManager({ config, onRefresh, onMessage, authFetch
                                             className="px-2 lg:px-3 py-1 lg:py-1.5 text-[10px] lg:text-xs font-medium border border-border rounded-md hover:bg-secondary transition-colors disabled:opacity-50"
                                         >
                                             {testing[id] ? '正在测试...' : '测试'}
+                                        </button>
+                                        <button
+                                            onClick={() => validateAccount(id)}
+                                            disabled={validating[id]}
+                                            className="px-2 lg:px-3 py-1 lg:py-1.5 text-[10px] lg:text-xs font-medium border border-border rounded-md hover:bg-secondary transition-colors disabled:opacity-50"
+                                        >
+                                            {validating[id] ? '正在校验...' : '校验'}
                                         </button>
                                         <button
                                             onClick={() => deleteAccount(id)}
