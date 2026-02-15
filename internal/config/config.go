@@ -356,5 +356,5 @@ func (s *Store) ClaudeMapping() map[string]string {
 	if len(s.cfg.ClaudeMapping) > 0 {
 		return cloneStringMap(s.cfg.ClaudeMapping)
 	}
-	return map[string]string{"fast": "deepseek-chat", "slow": "deepseek-chat"}
+	return map[string]string{"fast": "deepseek-chat", "slow": "deepseek-reasoner"}
 }

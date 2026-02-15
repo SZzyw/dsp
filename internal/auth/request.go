@@ -15,7 +15,7 @@ type ctxKey string
 const authCtxKey ctxKey = "auth_context"
 
 var (
-	ErrUnauthorized = errors.New("unauthorized: missing Bearer token")
+	ErrUnauthorized = errors.New("unauthorized: missing auth token")
 	ErrNoAccount    = errors.New("no accounts configured or all accounts are busy")
 )
 
@@ -41,11 +41,10 @@ func NewResolver(store *config.Store, pool *account.Pool, login LoginFunc) *Reso
 }
 
 func (r *Resolver) Determine(req *http.Request) (*RequestAuth, error) {
-	authHeader := req.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
+	callerKey := extractCallerToken(req)
+	if callerKey == "" {
 		return nil, ErrUnauthorized
 	}
-	callerKey := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 	ctx := req.Context()
 	if !r.Store.HasAPIKey(callerKey) {
 		return &RequestAuth{UseConfigToken: false, DeepSeekToken: callerKey, resolver: r, TriedAccounts: map[string]bool{}}, nil
@@ -147,4 +146,15 @@ func (r *Resolver) Release(a *RequestAuth) {
 		return
 	}
 	r.Pool.Release(a.AccountID)
+}
+
+func extractCallerToken(req *http.Request) string {
+	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
+	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		token := strings.TrimSpace(authHeader[7:])
+		if token != "" {
+			return token
+		}
+	}
+	return strings.TrimSpace(req.Header.Get("x-api-key"))
 }

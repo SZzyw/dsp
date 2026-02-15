@@ -17,7 +17,7 @@ func AdminKey() string {
 	if v := strings.TrimSpace(os.Getenv("DS2API_ADMIN_KEY")); v != "" {
 		return v
 	}
-	return "your-admin-secret-key"
+	return "admin"
 }
 
 func jwtSecret() string {

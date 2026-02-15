@@ -1,331 +1,285 @@
-# DS2API API Reference
+# DS2API API Reference (Go Implementation)
 
 Language: [中文](API.md) | [English](API.en.md)
 
-This document describes all DS2API API endpoints.
-
----
-
-## Table of Contents
-
-- [Basics](#basics)
-- [OpenAI-Compatible API](#openai-compatible-api)
-  - [List Models](#list-models)
-  - [Chat Completions](#chat-completions)
-- [Claude-Compatible API](#claude-compatible-api)
-  - [Claude Model List](#claude-model-list)
-  - [Claude Messages](#claude-messages)
-  - [Token Counting](#token-counting)
-- [Admin API](#admin-api)
-  - [Login](#login)
-  - [Configuration](#configuration)
-  - [Account Management](#account-management)
-  - [Vercel Sync](#vercel-sync)
-- [Error Handling](#error-handling)
-- [Examples](#examples)
-
----
+This document describes the actual behavior of the current Go codebase.
 
 ## Basics
 
-| Item | Description |
-|-----|------|
-| **Base URL** | `https://your-domain.com` or `http://localhost:5001` |
-| **OpenAI auth** | `Authorization: Bearer <api-key>` |
-| **Claude auth** | `x-api-key: <api-key>` |
-| **Response format** | JSON |
+- Base URL: `http://localhost:5001` or your deployment domain
+- Default content type: `application/json`
+- Health probes: `GET /healthz`, `GET /readyz`
 
----
+### Authentication Rules
+
+Business endpoints (`/v1/*`, `/anthropic/*`) accept either:
+
+1. `Authorization: Bearer <token>`
+2. `x-api-key: <token>` (without `Bearer`)
+
+Admin endpoints:
+
+- `POST /admin/login` is public
+- `GET /admin/verify` requires `Authorization: Bearer <jwt>` (JWT only)
+- Other protected `/admin/*` endpoints accept:
+- `Authorization: Bearer <jwt>`
+- `Authorization: Bearer <admin_key>`
+
+## Route Index
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/healthz` | Liveness probe |
+| GET | `/readyz` | Readiness probe |
+| GET | `/v1/models` | OpenAI model list |
+| POST | `/v1/chat/completions` | OpenAI chat completions |
+| GET | `/anthropic/v1/models` | Claude model list |
+| POST | `/anthropic/v1/messages` | Claude messages |
+| POST | `/anthropic/v1/messages/count_tokens` | Claude token counting |
+| POST | `/admin/login` | Admin login |
+| GET | `/admin/verify` | Verify admin JWT |
+| GET | `/admin/vercel/config` | Read preconfigured Vercel creds |
+| GET | `/admin/config` | Read sanitized config |
+| POST | `/admin/config` | Update config |
+| POST | `/admin/keys` | Add API key |
+| DELETE | `/admin/keys/{key}` | Delete API key |
+| GET | `/admin/accounts` | Paginated account list |
+| POST | `/admin/accounts` | Add account |
+| DELETE | `/admin/accounts/{identifier}` | Delete account |
+| GET | `/admin/queue/status` | Account queue status |
+| POST | `/admin/accounts/test` | Test one account |
+| POST | `/admin/accounts/test-all` | Test all accounts |
+| POST | `/admin/import` | Batch import keys/accounts |
+| POST | `/admin/test` | Test API through current service |
+| POST | `/admin/vercel/sync` | Sync config to Vercel |
+| GET | `/admin/vercel/status` | Vercel sync status |
+| GET | `/admin/export` | Export config JSON/Base64 |
+
+## Health Endpoints
+
+### `GET /healthz`
+
+```json
+{"status":"ok"}
+```
+
+### `GET /readyz`
+
+```json
+{"status":"ready"}
+```
 
 ## OpenAI-Compatible API
 
-### List Models
+### `GET /v1/models`
 
-```http
-GET /v1/models
-```
+No auth required.
 
-**Response example**:
+Example response:
 
 ```json
 {
   "object": "list",
   "data": [
-    {"id": "deepseek-chat", "object": "model", "owned_by": "deepseek"},
-    {"id": "deepseek-reasoner", "object": "model", "owned_by": "deepseek"},
-    {"id": "deepseek-chat-search", "object": "model", "owned_by": "deepseek"},
-    {"id": "deepseek-reasoner-search", "object": "model", "owned_by": "deepseek"}
+    {"id": "deepseek-chat", "object": "model", "created": 1677610602, "owned_by": "deepseek", "permission": []},
+    {"id": "deepseek-reasoner", "object": "model", "created": 1677610602, "owned_by": "deepseek", "permission": []},
+    {"id": "deepseek-chat-search", "object": "model", "created": 1677610602, "owned_by": "deepseek", "permission": []},
+    {"id": "deepseek-reasoner-search", "object": "model", "created": 1677610602, "owned_by": "deepseek", "permission": []}
   ]
 }
 ```
 
----
+### `POST /v1/chat/completions`
 
-### Chat Completions
+Headers:
 
 ```http
-POST /v1/chat/completions
 Authorization: Bearer your-api-key
 Content-Type: application/json
 ```
 
-**Parameters**:
+Core request fields:
 
-| Parameter | Type | Required | Description |
-|-----|------|:----:|------|
-| `model` | string | ✅ | Model name (see below) |
-| `messages` | array | ✅ | Chat messages |
-| `stream` | boolean | ❌ | Stream responses (default `false`) |
-| `temperature` | number | ❌ | Temperature (0-2) |
-| `max_tokens` | number | ❌ | Max output tokens |
-| `tools` | array | ❌ | Tool definitions (Function Calling) |
-| `tool_choice` | string | ❌ | Tool selection strategy |
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `model` | string | yes | `deepseek-chat` / `deepseek-reasoner` / `deepseek-chat-search` / `deepseek-reasoner-search` |
+| `messages` | array | yes | OpenAI-style messages |
+| `stream` | boolean | no | default `false` |
+| `tools` | array | no | Function calling schema |
+| `temperature`, etc. | any | no | accepted in request; final behavior depends on upstream |
 
-**Supported models**:
-
-| Model | Reasoning | Search | Notes |
-|-----|:--------:|:------:|------|
-| `deepseek-chat` | ❌ | ❌ | Standard chat |
-| `deepseek-reasoner` | ✅ | ❌ | Reasoning mode with trace |
-| `deepseek-chat-search` | ❌ | ✅ | Search enhanced |
-| `deepseek-reasoner-search` | ✅ | ✅ | Reasoning + search |
-
-**Basic request example**:
+Non-stream example:
 
 ```json
 {
-  "model": "deepseek-chat",
-  "messages": [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "Hello"}
-  ]
-}
-```
-
-**Streaming request example**:
-
-```json
-{
-  "model": "deepseek-reasoner-search",
-  "messages": [
-    {"role": "user", "content": "What's in the news today?"}
-  ],
-  "stream": true
-}
-```
-
-**Streaming response format** (`stream: true`):
-
-```
-data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant"},"index":0}]}
-
-data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"reasoning_content":"Let me think..."},"index":0}]}
-
-data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"content":"Based on search results..."},"index":0}]}
-
-data: {"id":"...","object":"chat.completion.chunk","choices":[{"index":0,"finish_reason":"stop"}]}
-
-data: [DONE]
-```
-
-> **Note**: Reasoning models emit `reasoning_content` with the trace.
-
-**Non-streaming response format** (`stream: false`):
-
-```json
-{
-  "id": "chatcmpl-xxx",
+  "id": "<chat_session_id>",
   "object": "chat.completion",
   "created": 1738400000,
   "model": "deepseek-reasoner",
-  "choices": [{
-    "index": 0,
-    "message": {
-      "role": "assistant",
-      "content": "Response text",
-      "reasoning_content": "Reasoning trace (reasoner only)"
-    },
-    "finish_reason": "stop"
-  }],
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "final response",
+        "reasoning_content": "reasoning trace"
+      },
+      "finish_reason": "stop"
+    }
+  ],
   "usage": {
     "prompt_tokens": 10,
-    "completion_tokens": 50,
-    "total_tokens": 60,
+    "completion_tokens": 20,
+    "total_tokens": 30,
     "completion_tokens_details": {
-      "reasoning_tokens": 20
+      "reasoning_tokens": 5
     }
   }
 }
 ```
 
-#### Tool Calling (Function Calling)
+### OpenAI Streaming (`stream=true`)
 
-**Request example**:
+SSE format: each frame is `data: <json>\n\n`, terminated by `data: [DONE]`.
+
+- First delta may include `role: assistant`
+- Reasoning models emit `delta.reasoning_content`
+- Text emits `delta.content`
+- Last chunk includes `finish_reason` and usage
+
+Example:
+
+```text
+data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant"},"index":0}]}
+
+data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"reasoning_content":"..."},"index":0}]}
+
+data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"content":"..."},"index":0}]}
+
+data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{},"index":0,"finish_reason":"stop"}],"usage":{...}}
+
+data: [DONE]
+```
+
+### Tool Calls (Important)
+
+When `tools` is present, DS2API injects a tool prompt and parses tool-call payloads.
+
+- Non-stream: if detected, returns `message.tool_calls`, `finish_reason=tool_calls`, and `message.content=null`
+- Stream: to avoid leaking raw tool-call JSON, DS2API buffers text first; if tool call is detected, only structured `delta.tool_calls` is emitted
+
+Tool-call response example:
 
 ```json
 {
-  "model": "deepseek-chat",
-  "messages": [{"role": "user", "content": "What's the weather in Beijing?"}],
-  "tools": [{
-    "type": "function",
-    "function": {
-      "name": "get_weather",
-      "description": "Get the weather for a city",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "location": {"type": "string", "description": "City name"}
-        },
-        "required": ["location"]
-      }
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_xxx",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\":\"beijing\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
     }
-  }]
+  ]
 }
 ```
-
-**Response example**:
-
-```json
-{
-  "id": "chatcmpl-xxx",
-  "object": "chat.completion",
-  "choices": [{
-    "index": 0,
-    "message": {
-      "role": "assistant",
-      "content": null,
-      "tool_calls": [{
-        "id": "call_xxx",
-        "type": "function",
-        "function": {
-          "name": "get_weather",
-          "arguments": "{\"location\": \"Beijing\"}"
-        }
-      }]
-    },
-    "finish_reason": "tool_calls"
-  }]
-}
-```
-
----
 
 ## Claude-Compatible API
 
-### Claude Model List
+### `GET /anthropic/v1/models`
 
-```http
-GET /anthropic/v1/models
-```
+No auth required.
 
-**Response example**:
+Example response:
 
 ```json
 {
   "object": "list",
   "data": [
-    {"id": "claude-sonnet-4-20250514", "object": "model", "owned_by": "anthropic"},
-    {"id": "claude-sonnet-4-20250514-fast", "object": "model", "owned_by": "anthropic"},
-    {"id": "claude-sonnet-4-20250514-slow", "object": "model", "owned_by": "anthropic"}
+    {"id": "claude-sonnet-4-20250514", "object": "model", "created": 1715635200, "owned_by": "anthropic"},
+    {"id": "claude-sonnet-4-20250514-fast", "object": "model", "created": 1715635200, "owned_by": "anthropic"},
+    {"id": "claude-sonnet-4-20250514-slow", "object": "model", "created": 1715635200, "owned_by": "anthropic"}
   ]
 }
 ```
 
-**Model mapping**:
+### `POST /anthropic/v1/messages`
 
-| Claude Model | Actual | Notes |
-|------------|--------|------|
-| `claude-sonnet-4-20250514` | deepseek-chat | Standard mode |
-| `claude-sonnet-4-20250514-fast` | deepseek-chat | Fast mode |
-| `claude-sonnet-4-20250514-slow` | deepseek-reasoner | Reasoning mode |
-
----
-
-### Claude Messages
+Headers can be:
 
 ```http
-POST /anthropic/v1/messages
 x-api-key: your-api-key
 Content-Type: application/json
 anthropic-version: 2023-06-01
 ```
 
-**Parameters**:
+Core request fields:
 
-| Parameter | Type | Required | Description |
-|-----|------|:----:|------|
-| `model` | string | ✅ | Model name |
-| `max_tokens` | integer | ✅ | Max output tokens |
-| `messages` | array | ✅ | Chat messages |
-| `stream` | boolean | ❌ | Stream responses (default `false`) |
-| `system` | string | ❌ | System prompt |
-| `temperature` | number | ❌ | Temperature |
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `model` | string | yes | `claude-sonnet-4-20250514` / `-fast` / `-slow` |
+| `messages` | array | yes | Claude-style messages |
+| `max_tokens` | number | no | currently not strictly enforced by upstream bridge |
+| `stream` | boolean | no | default `false` |
+| `system` | string | no | optional system prompt |
+| `tools` | array | no | Claude tool schema |
 
-**Request example**:
-
-```json
-{
-  "model": "claude-sonnet-4-20250514",
-  "max_tokens": 1024,
-  "messages": [
-    {"role": "user", "content": "Hello, please introduce yourself."}
-  ]
-}
-```
-
-**Non-streaming response**:
+Non-stream example:
 
 ```json
 {
-  "id": "msg_xxx",
+  "id": "msg_1738400000000000000",
   "type": "message",
   "role": "assistant",
-  "content": [{
-    "type": "text",
-    "text": "Hello! I'm an AI assistant..."
-  }],
   "model": "claude-sonnet-4-20250514",
+  "content": [
+    {"type": "text", "text": "response"}
+  ],
   "stop_reason": "end_turn",
+  "stop_sequence": null,
   "usage": {
-    "input_tokens": 10,
-    "output_tokens": 50
+    "input_tokens": 12,
+    "output_tokens": 34
   }
 }
 ```
 
-**Streaming response** (SSE):
+If tool use is detected, `stop_reason` becomes `tool_use` and `content` contains `tool_use` blocks.
 
-```
-event: message_start
-data: {"type":"message_start","message":{"id":"msg_xxx","type":"message","role":"assistant","model":"claude-sonnet-4-20250514"}}
+### Claude Streaming (`stream=true`)
 
-event: content_block_start
+Still SSE, but current implementation writes `data:` lines only (no `event:` lines). Event type is carried in JSON `type`.
+
+Example:
+
+```text
+data: {"type":"message_start","message":{...}}
+
 data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
 
-event: content_block_delta
-data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}
 
-event: content_block_stop
 data: {"type":"content_block_stop","index":0}
 
-event: message_delta
-data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":50}}
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":12}}
 
-event: message_stop
 data: {"type":"message_stop"}
 ```
 
----
+### `POST /anthropic/v1/messages/count_tokens`
 
-### Token Counting
-
-```http
-POST /anthropic/v1/messages/count_tokens
-x-api-key: your-api-key
-Content-Type: application/json
-```
-
-**Request example**:
+Request example:
 
 ```json
 {
@@ -336,7 +290,7 @@ Content-Type: application/json
 }
 ```
 
-**Response example**:
+Response example:
 
 ```json
 {
@@ -344,358 +298,345 @@ Content-Type: application/json
 }
 ```
 
----
-
 ## Admin API
 
-All admin endpoints (except login) require `Authorization: Bearer <jwt-token>`.
+### `POST /admin/login`
 
-### Login
-
-```http
-POST /admin/login
-Content-Type: application/json
-```
-
-**Request body**:
+Request:
 
 ```json
 {
-  "key": "your-admin-key"
+  "admin_key": "admin",
+  "expire_hours": 24
 }
 ```
 
-**Response**:
+`expire_hours` is optional, default 24.
+
+Response:
 
 ```json
 {
   "success": true,
-  "token": "jwt-token-string",
+  "token": "<jwt>",
   "expires_in": 86400
 }
 ```
 
-> Tokens are valid for 24 hours by default.
+### `GET /admin/verify`
 
----
+Header: `Authorization: Bearer <jwt>`
 
-### Configuration
-
-#### Get configuration
-
-```http
-GET /admin/config
-Authorization: Bearer <jwt-token>
-```
-
-**Response**:
+Response:
 
 ```json
 {
-  "keys": ["api-key-1", "api-key-2"],
+  "valid": true,
+  "expires_at": 1738400000,
+  "remaining_seconds": 72000
+}
+```
+
+### `GET /admin/vercel/config`
+
+```json
+{
+  "has_token": true,
+  "project_id": "prj_xxx",
+  "team_id": null
+}
+```
+
+### `GET /admin/config`
+
+Sanitized config response:
+
+```json
+{
+  "keys": ["k1", "k2"],
   "accounts": [
     {
       "email": "user@example.com",
-      "password": "***",
-      "token": "session-token"
+      "mobile": "",
+      "has_password": true,
+      "has_token": true,
+      "token_preview": "abcde..."
     }
-  ]
-}
-```
-
-#### Update configuration
-
-```http
-POST /admin/config
-Authorization: Bearer <jwt-token>
-Content-Type: application/json
-```
-
-**Request body**:
-
-```json
-{
-  "keys": ["new-api-key"],
-  "accounts": [...]
-}
-```
-
----
-
-### Account Management
-
-#### Add account
-
-```http
-POST /admin/accounts
-Authorization: Bearer <jwt-token>
-Content-Type: application/json
-```
-
-**Request body**:
-
-```json
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
-```
-
-#### Batch import accounts
-
-```http
-POST /admin/accounts/batch
-Authorization: Bearer <jwt-token>
-Content-Type: application/json
-```
-
-**Request body**:
-
-```json
-{
-  "accounts": [
-    {"email": "user1@example.com", "password": "pass1"},
-    {"email": "user2@example.com", "password": "pass2"}
-  ]
-}
-```
-
-#### Test one account
-
-```http
-POST /admin/accounts/test
-Authorization: Bearer <jwt-token>
-Content-Type: application/json
-```
-
-**Request body**:
-
-```json
-{
-  "email": "user@example.com"
-}
-```
-
-#### Test all accounts
-
-```http
-POST /admin/accounts/test-all
-Authorization: Bearer <jwt-token>
-```
-
-#### Queue status
-
-```http
-GET /admin/queue/status
-Authorization: Bearer <jwt-token>
-```
-
-**Response**:
-
-```json
-{
-  "total_accounts": 5,
-  "healthy_accounts": 4,
-  "queue_size": 10,
-  "accounts": [
-    {
-      "email": "user@example.com",
-      "status": "healthy",
-      "last_used": "2026-02-01T12:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-### Vercel Sync
-
-```http
-POST /admin/vercel/sync
-Authorization: Bearer <jwt-token>
-Content-Type: application/json
-```
-
-**Request body** (first sync only):
-
-```json
-{
-  "vercel_token": "your-vercel-token",
-  "project_id": "your-project-id"
-}
-```
-
-> After a successful first sync, credentials are stored for future syncs.
-
-**Response**:
-
-```json
-{
-  "success": true,
-  "message": "Configuration synced to Vercel"
-}
-```
-
----
-
-## Error Handling
-
-All error responses follow this structure:
-
-```json
-{
-  "error": {
-    "message": "Error description",
-    "type": "error_type",
-    "code": "error_code"
+  ],
+  "claude_mapping": {
+    "fast": "deepseek-chat",
+    "slow": "deepseek-reasoner"
   }
 }
 ```
 
-**Common error codes**:
+### `POST /admin/config`
 
-| HTTP Status | Error Type | Description |
-|:----------:|---------|------|
-| 400 | `invalid_request_error` | Invalid request parameters |
-| 401 | `authentication_error` | Missing or invalid API key |
-| 403 | `permission_denied` | Insufficient permissions |
-| 429 | `rate_limit_error` | Too many requests |
-| 500 | `internal_error` | Internal server error |
-| 503 | `service_unavailable` | No available accounts |
+Updatable fields: `keys`, `accounts`, `claude_mapping`.
 
----
+Request example:
 
-## Examples
-
-### Python (OpenAI SDK)
-
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    api_key="your-api-key",
-    base_url="https://your-domain.com/v1"
-)
-
-# Basic chat
-response = client.chat.completions.create(
-    model="deepseek-chat",
-    messages=[{"role": "user", "content": "Hello"}]
-)
-print(response.choices[0].message.content)
-
-# Streaming + reasoning
-for chunk in client.chat.completions.create(
-    model="deepseek-reasoner",
-    messages=[{"role": "user", "content": "Explain relativity"}],
-    stream=True
-):
-    delta = chunk.choices[0].delta
-    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-        print(f"[Reasoning] {delta.reasoning_content}", end="")
-    if delta.content:
-        print(delta.content, end="")
+```json
+{
+  "keys": ["k1", "k2"],
+  "accounts": [
+    {"email": "user@example.com", "password": "pwd", "token": ""}
+  ],
+  "claude_mapping": {
+    "fast": "deepseek-chat",
+    "slow": "deepseek-reasoner"
+  }
+}
 ```
 
-### Python (Anthropic SDK)
+### `POST /admin/keys`
 
-```python
-import anthropic
-
-client = anthropic.Anthropic(
-    api_key="your-api-key",
-    base_url="https://your-domain.com/anthropic"
-)
-
-response = client.messages.create(
-    model="claude-sonnet-4-20250514",
-    max_tokens=1024,
-    messages=[{"role": "user", "content": "Hello"}]
-)
-print(response.content[0].text)
+```json
+{"key":"new-api-key"}
 ```
 
-### cURL
+Response:
+
+```json
+{"success":true,"total_keys":3}
+```
+
+### `DELETE /admin/keys/{key}`
+
+```json
+{"success":true,"total_keys":2}
+```
+
+### `GET /admin/accounts`
+
+Query params:
+
+- `page` (default 1)
+- `page_size` (default 10, max 100)
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "email": "user@example.com",
+      "mobile": "",
+      "has_password": true,
+      "has_token": true,
+      "token_preview": "abc..."
+    }
+  ],
+  "total": 25,
+  "page": 1,
+  "page_size": 10,
+  "total_pages": 3
+}
+```
+
+### `POST /admin/accounts`
+
+```json
+{"email":"user@example.com","password":"pwd"}
+```
+
+```json
+{"success":true,"total_accounts":6}
+```
+
+### `DELETE /admin/accounts/{identifier}`
+
+`identifier` is email or mobile.
+
+```json
+{"success":true,"total_accounts":5}
+```
+
+### `GET /admin/queue/status`
+
+```json
+{
+  "available": 3,
+  "in_use": 1,
+  "total": 4,
+  "available_accounts": ["a@example.com"],
+  "in_use_accounts": ["b@example.com"]
+}
+```
+
+### `POST /admin/accounts/test`
+
+Request fields:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `identifier` | yes | email or mobile |
+| `model` | no | default `deepseek-chat` |
+| `message` | no | if empty, only session creation is tested |
+
+Response example:
+
+```json
+{
+  "account": "user@example.com",
+  "success": true,
+  "response_time": 1240,
+  "message": "API 测试成功（仅会话创建）",
+  "model": "deepseek-chat"
+}
+```
+
+### `POST /admin/accounts/test-all`
+
+Optional request field: `model`.
+
+```json
+{
+  "total": 5,
+  "success": 4,
+  "failed": 1,
+  "results": []
+}
+```
+
+### `POST /admin/import`
+
+```json
+{
+  "keys": ["k1", "k2"],
+  "accounts": [
+    {"email":"user@example.com","password":"pwd","token":""}
+  ]
+}
+```
+
+```json
+{
+  "success": true,
+  "imported_keys": 2,
+  "imported_accounts": 1
+}
+```
+
+### `POST /admin/test`
+
+Optional request fields:
+
+- `model` (default `deepseek-chat`)
+- `message` (default `你好`)
+- `api_key` (default first key in config)
+
+Response example:
+
+```json
+{
+  "success": true,
+  "status_code": 200,
+  "response": {"id":"..."}
+}
+```
+
+### `POST /admin/vercel/sync`
+
+Request fields:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `vercel_token` | no | if empty or `__USE_PRECONFIG__`, read env |
+| `project_id` | no | fallback: `VERCEL_PROJECT_ID` |
+| `team_id` | no | fallback: `VERCEL_TEAM_ID` |
+| `auto_validate` | no | default `true` |
+| `save_credentials` | no | default `true` |
+
+Success response example:
+
+```json
+{
+  "success": true,
+  "validated_accounts": 3,
+  "message": "配置已同步，正在重新部署...",
+  "deployment_url": "https://..."
+}
+```
+
+Or manual deploy required:
+
+```json
+{
+  "success": true,
+  "validated_accounts": 3,
+  "message": "配置已同步到 Vercel，请手动触发重新部署",
+  "manual_deploy_required": true
+}
+```
+
+### `GET /admin/vercel/status`
+
+```json
+{
+  "synced": true,
+  "last_sync_time": 1738400000,
+  "has_synced_before": true
+}
+```
+
+### `GET /admin/export`
+
+```json
+{
+  "json": "{...}",
+  "base64": "ey4uLn0="
+}
+```
+
+## Error Payloads
+
+Error payload formats are not fully unified in current code:
+
+- OpenAI routes often return: `{"error":"..."}`
+- Claude routes often return: `{"error":{"type":"...","message":"..."}}`
+- Admin routes often return: `{"detail":"..."}`
+
+Clients should handle HTTP status code plus `error` / `detail` fields.
+
+## cURL Examples
+
+### OpenAI non-stream
 
 ```bash
-# OpenAI format
-curl https://your-domain.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
+curl http://localhost:5001/v1/chat/completions \
   -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
   -d '{
     "model": "deepseek-chat",
-    "messages": [{"role": "user", "content": "Hello"}]
+    "messages": [{"role": "user", "content": "Hello"}],
+    "stream": false
   }'
+```
 
-# Claude format
-curl https://your-domain.com/anthropic/v1/messages \
+### OpenAI stream
+
+```bash
+curl http://localhost:5001/v1/chat/completions \
+  -H "Authorization: Bearer your-api-key" \
   -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek-reasoner",
+    "messages": [{"role": "user", "content": "Explain quantum entanglement"}],
+    "stream": true
+  }'
+```
+
+### Claude
+
+```bash
+curl http://localhost:5001/anthropic/v1/messages \
   -H "x-api-key: your-api-key" \
+  -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
     "model": "claude-sonnet-4-20250514",
     "max_tokens": 1024,
     "messages": [{"role": "user", "content": "Hello"}]
   }'
-```
-
-### JavaScript / TypeScript
-
-```javascript
-// OpenAI format - streaming request
-const response = await fetch('https://your-domain.com/v1/chat/completions', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer your-api-key'
-  },
-  body: JSON.stringify({
-    model: 'deepseek-chat-search',
-    messages: [{ role: 'user', content: 'What is in the news today?' }],
-    stream: true
-  })
-});
-
-const reader = response.body.getReader();
-const decoder = new TextDecoder();
-
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  
-  const chunk = decoder.decode(value);
-  const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
-  
-  for (const line of lines) {
-    const data = line.slice(6);
-    if (data === '[DONE]') continue;
-    
-    const json = JSON.parse(data);
-    const content = json.choices?.[0]?.delta?.content;
-    if (content) process.stdout.write(content);
-  }
-}
-```
-
-### Node.js (OpenAI SDK)
-
-```javascript
-import OpenAI from 'openai';
-
-const client = new OpenAI({
-  apiKey: 'your-api-key',
-  baseURL: 'https://your-domain.com/v1'
-});
-
-const stream = await client.chat.completions.create({
-  model: 'deepseek-reasoner',
-  messages: [{ role: 'user', content: 'Explain black holes' }],
-  stream: true
-});
-
-for await (const chunk of stream) {
-  const content = chunk.choices[0]?.delta?.content;
-  if (content) process.stdout.write(content);
-}
 ```

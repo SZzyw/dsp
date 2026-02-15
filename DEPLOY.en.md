@@ -2,31 +2,48 @@
 
 Language: [中文](DEPLOY.md) | [English](DEPLOY.en.md)
 
-## Contents
+This guide is aligned with the current Go codebase.
 
-- Vercel deployment
-- Docker deployment
-- Local run
-- systemd deployment
+## Deployment Modes
 
-## Vercel Deployment
+- Local run: `go run ./cmd/ds2api`
+- Docker: `docker-compose up -d`
+- Vercel: serverless entry at `api/index.go`
+- Linux service mode: systemd
 
-1. Import the repository into Vercel
-2. Set required environment variables:
-- `DS2API_ADMIN_KEY`
-- `DS2API_CONFIG_JSON` (JSON or Base64)
-3. Deploy and open `/admin`
+## 0. Prerequisites
 
-The project uses `api/index.go` as the serverless entrypoint. See `vercel.json`.
+- Go 1.25+
+- Node.js 20+ (only if you need to build WebUI locally)
+- `config.json` or `DS2API_CONFIG_JSON`
 
-## Docker Deployment
+## 1. Local Run
+
+```bash
+git clone https://github.com/CJackHwang/ds2api.git
+cd ds2api
+
+cp config.example.json config.json
+# edit config.json
+
+go run ./cmd/ds2api
+```
+
+Default port is `5001` (override with `PORT`).
+
+Build WebUI if `/admin` reports missing assets:
+
+```bash
+./scripts/build-webui.sh
+```
+
+## 2. Docker Deployment
 
 ```bash
 cp .env.example .env
 # edit .env
 
 docker-compose up -d
-
 docker-compose logs -f
 ```
 
@@ -36,20 +53,50 @@ Rebuild after updates:
 docker-compose up -d --build
 ```
 
-## Local Run
+Notes:
 
-```bash
-cp config.example.json config.json
-# edit config
+- `Dockerfile` uses multi-stage build (WebUI + Go binary)
+- Container entry command is `/usr/local/bin/ds2api`
 
-go run ./cmd/ds2api
+## 3. Vercel Deployment
+
+- Serverless entry: `api/index.go`
+- Rewrites and cache headers: `vercel.json`
+
+Minimum environment variables:
+
+- `DS2API_ADMIN_KEY`
+- `DS2API_CONFIG_JSON` (raw JSON or Base64)
+
+Optional:
+
+- `VERCEL_TOKEN`
+- `VERCEL_PROJECT_ID`
+- `VERCEL_TEAM_ID`
+
+After deploy, verify:
+
+- `/healthz`
+- `/v1/models`
+- `/admin`
+
+## 4. Reverse Proxy (Nginx)
+
+Disable buffering for SSE:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:5001;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_cache off;
+    chunked_transfer_encoding on;
+    tcp_nodelay on;
+}
 ```
 
-Default port is `5001` (override with `PORT`).
-
-## systemd Deployment (Linux)
-
-Example unit file:
+## 5. systemd Example (Linux)
 
 ```ini
 [Unit]
@@ -61,7 +108,7 @@ Type=simple
 WorkingDirectory=/opt/ds2api
 Environment=PORT=5001
 Environment=DS2API_CONFIG_PATH=/opt/ds2api/config.json
-Environment=DS2API_ADMIN_KEY=your-admin-secret-key
+Environment=DS2API_ADMIN_KEY=admin
 ExecStart=/opt/ds2api/ds2api
 Restart=always
 RestartSec=5
@@ -70,11 +117,25 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-Useful commands:
+Common commands:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable ds2api
 sudo systemctl start ds2api
 sudo systemctl status ds2api
+```
+
+## 6. Post-Deploy Checks
+
+```bash
+curl -s http://127.0.0.1:5001/healthz
+curl -s http://127.0.0.1:5001/readyz
+curl -s http://127.0.0.1:5001/v1/models
+```
+
+If admin UI is required:
+
+```bash
+curl -s http://127.0.0.1:5001/admin
 ```

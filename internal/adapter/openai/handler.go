@@ -211,6 +211,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 
 	created := time.Now().Unix()
 	firstChunkSent := false
+	bufferToolContent := len(toolNames) > 0
 	currentType := "text"
 	if thinkingEnabled {
 		currentType = "thinking"
@@ -240,12 +241,34 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 		detected := util.ParseToolCalls(finalText, toolNames)
 		if len(detected) > 0 {
 			finishReason = "tool_calls"
+			delta := map[string]any{
+				"tool_calls": util.FormatOpenAIToolCalls(detected),
+			}
+			if !firstChunkSent {
+				delta["role"] = "assistant"
+				firstChunkSent = true
+			}
 			sendChunk(map[string]any{
 				"id":      completionID,
 				"object":  "chat.completion.chunk",
 				"created": created,
 				"model":   model,
-				"choices": []map[string]any{{"delta": map[string]any{"tool_calls": util.FormatOpenAIToolCalls(detected)}, "index": 0}},
+				"choices": []map[string]any{{"delta": delta, "index": 0}},
+			})
+		} else if bufferToolContent && strings.TrimSpace(finalText) != "" {
+			delta := map[string]any{
+				"content": finalText,
+			}
+			if !firstChunkSent {
+				delta["role"] = "assistant"
+				firstChunkSent = true
+			}
+			sendChunk(map[string]any{
+				"id":      completionID,
+				"object":  "chat.completion.chunk",
+				"created": created,
+				"model":   model,
+				"choices": []map[string]any{{"delta": delta, "index": 0}},
 			})
 		}
 		promptTokens := util.EstimateTokens(finalPrompt)
@@ -325,7 +348,9 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 					}
 				} else {
 					text.WriteString(p.Text)
-					delta["content"] = p.Text
+					if !bufferToolContent {
+						delta["content"] = p.Text
+					}
 				}
 				if len(delta) > 0 {
 					newChoices = append(newChoices, map[string]any{"delta": delta, "index": 0})
