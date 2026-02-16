@@ -113,6 +113,15 @@ How to fix:
 4. Ensure `go.mod` uses a supported version (this repo uses `go 1.24`)
 5. Redeploy (preferably with cache cleared)
 
+Another common root cause (Go monorepo + `internal/`):
+
+```text
+... use of internal package ds2api/internal/server not allowed
+```
+
+This usually happens when the Vercel Go entrypoint imports `internal/...` directly.
+This repo now avoids that by using a public bridge package: `api/index.go` -> `ds2api/app` -> `internal/server`.
+
 ## 4. Reverse Proxy (Nginx)
 
 Disable buffering for SSE:

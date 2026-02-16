@@ -112,6 +112,15 @@ Error: Command failed: go build -ldflags -s -w -o .../bootstrap .../main__vc__go
 4. 确认仓库 `go.mod` 为受支持版本（当前为 `go 1.24`）
 5. 重新部署（建议 `Redeploy` 并清缓存）
 
+另一个常见根因（Go 单仓 + `internal/`）：
+
+```text
+... use of internal package ds2api/internal/server not allowed
+```
+
+这通常发生在 Vercel Go 入口文件直接 `import internal/...`。
+当前仓库已通过公开桥接包 `app` 解决：`api/index.go` -> `ds2api/app` -> `internal/server`。
+
 ## 4. 反向代理（Nginx）
 
 如果在 Nginx 后挂载，建议关闭缓冲以保证 SSE：
