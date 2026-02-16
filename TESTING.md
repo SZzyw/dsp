@@ -61,7 +61,8 @@ go run ./cmd/ds2api-tests \
   --port 0 \
   --timeout 120 \
   --retries 2 \
-  --no-preflight=false
+  --no-preflight=false \
+  --keep 5
 ```
 
 | 参数 | 说明 | 默认值 |
@@ -73,6 +74,17 @@ go run ./cmd/ds2api-tests \
 | `--timeout` | 单个请求超时秒数 | `120` |
 | `--retries` | 网络/5xx 请求重试次数 | `2` |
 | `--no-preflight` | 跳过 preflight 检查 | `false` |
+| `--keep` | 保留最近几次测试结果（`0` = 全部保留） | `5` |
+
+---
+
+## 自动清理 | Auto Cleanup
+
+每次测试运行完成后，程序会自动扫描输出目录（`--out`），按时间排序保留最近 `--keep` 次运行的结果，超出部分自动删除。
+
+- 默认保留 **5** 次
+- 设置 `--keep 0` 可关闭自动清理
+- 被删除的旧运行目录会打印日志提示
 
 ---
 

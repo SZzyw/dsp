@@ -31,6 +31,7 @@ type Options struct {
 	Timeout     time.Duration
 	Retries     int
 	NoPreflight bool
+	MaxKeepRuns int
 }
 
 type runSummary struct {
@@ -161,6 +162,7 @@ func DefaultOptions() Options {
 		Timeout:     120 * time.Second,
 		Retries:     2,
 		NoPreflight: false,
+		MaxKeepRuns: 5,
 	}
 }
 
@@ -210,6 +212,11 @@ func Run(ctx context.Context, opts Options) error {
 	end := time.Now()
 	if err := r.writeSummary(start, end); err != nil {
 		return err
+	}
+
+	// Prune old test runs, keeping only the most recent N.
+	if err := r.pruneOldRuns(); err != nil {
+		r.warnings = append(r.warnings, "prune old runs: "+err.Error())
 	}
 
 	failed := 0
@@ -266,6 +273,52 @@ func (r *Runner) prepareRunDir() error {
 	}
 	r.serverLog = filepath.Join(r.runDir, "server.log")
 	r.preflightLog = filepath.Join(r.runDir, "preflight.log")
+	return nil
+}
+
+// pruneOldRuns removes old test run directories, keeping the most recent MaxKeepRuns.
+// Run IDs use the format "20060102T150405Z", so alphabetical order == chronological order.
+func (r *Runner) pruneOldRuns() error {
+	keep := r.opts.MaxKeepRuns
+	if keep <= 0 {
+		return nil // 0 or negative means no pruning
+	}
+
+	entries, err := os.ReadDir(r.opts.OutputDir)
+	if err != nil {
+		return err
+	}
+
+	// Collect only directories (each run is a directory).
+	var runDirs []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		runDirs = append(runDirs, e.Name())
+	}
+
+	sort.Strings(runDirs)
+
+	if len(runDirs) <= keep {
+		return nil
+	}
+
+	// Remove oldest runs (those at the beginning of the sorted list).
+	toRemove := runDirs[:len(runDirs)-keep]
+	var errs []string
+	for _, name := range toRemove {
+		dirPath := filepath.Join(r.opts.OutputDir, name)
+		if err := os.RemoveAll(dirPath); err != nil {
+			errs = append(errs, fmt.Sprintf("remove %s: %v", name, err))
+		} else {
+			fmt.Fprintf(os.Stdout, "pruned old test run: %s\n", name)
+		}
+	}
+
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
 	return nil
 }
 

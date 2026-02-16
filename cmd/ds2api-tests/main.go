@@ -21,6 +21,7 @@ func main() {
 	flag.IntVar(&timeoutSeconds, "timeout", int(opts.Timeout.Seconds()), "Per-request timeout in seconds")
 	flag.IntVar(&opts.Retries, "retries", opts.Retries, "Retry count for network/5xx requests")
 	flag.BoolVar(&opts.NoPreflight, "no-preflight", opts.NoPreflight, "Skip preflight checks")
+	flag.IntVar(&opts.MaxKeepRuns, "keep", opts.MaxKeepRuns, "Max test runs to keep (0 = keep all)")
 	flag.Parse()
 
 	if timeoutSeconds <= 0 {
