@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,11 +17,20 @@ import (
 	"ds2api/internal/util"
 )
 
+// writeJSON is a package-internal alias to avoid mass-renaming all call-sites.
+var writeJSON = util.WriteJSON
+
 type Handler struct {
 	Store *config.Store
 	Auth  *auth.Resolver
 	DS    *deepseek.Client
 }
+
+var (
+	claudeStreamPingInterval    = time.Duration(deepseek.KeepAliveTimeout) * time.Second
+	claudeStreamIdleTimeout     = time.Duration(deepseek.StreamIdleTimeout) * time.Second
+	claudeStreamMaxKeepaliveCnt = deepseek.MaxKeepaliveCount
+)
 
 func RegisterRoutes(r chi.Router, h *Handler) {
 	r.Get("/anthropic/v1/models", h.ListModels)
@@ -74,7 +82,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		thinkingEnabled = false
 		searchEnabled = false
 	}
-	_ = searchEnabled
 	finalPrompt := util.MessagesPrepare(toMessageMaps(dsPayload["messages"]))
 
 	sessionID, err := h.DS.CreateSession(r.Context(), a, 3)
@@ -107,13 +114,15 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullText, fullThinking := collectDeepSeek(resp, thinkingEnabled)
 	toolNames := extractClaudeToolNames(toolsRequested)
-	detected := util.ParseToolCalls(fullText, toolNames)
-	if toBool(req["stream"]) {
-		h.writeClaudeStream(w, r, model, normalized, fullText, detected)
+	if util.ToBool(req["stream"]) {
+		h.handleClaudeStreamRealtime(w, r, resp, model, normalized, thinkingEnabled, searchEnabled, toolNames)
 		return
 	}
+	result := sse.CollectStream(resp, thinkingEnabled, true)
+	fullText := result.Text
+	fullThinking := result.Thinking
+	detected := util.ParseToolCalls(fullText, toolNames)
 	content := make([]map[string]any, 0, 4)
 	if fullThinking != "" {
 		content = append(content, map[string]any{"type": "thinking", "thinking": fullThinking})
@@ -193,42 +202,14 @@ func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"input_tokens": inputTokens})
 }
 
-func collectDeepSeek(resp *http.Response, thinkingEnabled bool) (string, string) {
+func (h *Handler) handleClaudeStreamRealtime(w http.ResponseWriter, r *http.Request, resp *http.Response, model string, messages []any, thinkingEnabled, searchEnabled bool, toolNames []string) {
 	defer resp.Body.Close()
-	text := strings.Builder{}
-	thinking := strings.Builder{}
-	currentType := "text"
-	if thinkingEnabled {
-		currentType = "thinking"
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"type": "api_error", "message": string(body)}})
+		return
 	}
-	scanner := bufio.NewScanner(resp.Body)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 2*1024*1024)
-	for scanner.Scan() {
-		chunk, done, ok := sse.ParseDeepSeekSSELine(scanner.Bytes())
-		if !ok {
-			continue
-		}
-		if done {
-			break
-		}
-		parts, finished, newType := sse.ParseSSEChunkForContent(chunk, thinkingEnabled, currentType)
-		currentType = newType
-		if finished {
-			break
-		}
-		for _, p := range parts {
-			if p.Type == "thinking" {
-				thinking.WriteString(p.Text)
-			} else {
-				text.WriteString(p.Text)
-			}
-		}
-	}
-	return text.String(), thinking.String()
-}
 
-func (h *Handler) writeClaudeStream(w http.ResponseWriter, r *http.Request, model string, messages []any, fullText string, detected []util.ParsedToolCall) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache, no-transform")
 	w.Header().Set("Connection", "keep-alive")
@@ -238,8 +219,11 @@ func (h *Handler) writeClaudeStream(w http.ResponseWriter, r *http.Request, mode
 	if !canFlush {
 		config.Logger.Warn("[claude_stream] response writer does not support flush; streaming may be buffered")
 	}
-	send := func(v any) {
+	send := func(event string, v any) {
 		b, _ := json.Marshal(v)
+		_, _ = w.Write([]byte("event: "))
+		_, _ = w.Write([]byte(event))
+		_, _ = w.Write([]byte("\n"))
 		_, _ = w.Write([]byte("data: "))
 		_, _ = w.Write(b)
 		_, _ = w.Write([]byte("\n\n"))
@@ -247,9 +231,23 @@ func (h *Handler) writeClaudeStream(w http.ResponseWriter, r *http.Request, mode
 			_ = rc.Flush()
 		}
 	}
+	sendError := func(message string) {
+		msg := strings.TrimSpace(message)
+		if msg == "" {
+			msg = "upstream stream error"
+		}
+		send("error", map[string]any{
+			"type": "error",
+			"error": map[string]any{
+				"type":    "api_error",
+				"message": msg,
+			},
+		})
+	}
+
 	messageID := fmt.Sprintf("msg_%d", time.Now().UnixNano())
 	inputTokens := util.EstimateTokens(fmt.Sprintf("%v", messages))
-	send(map[string]any{
+	send("message_start", map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
 			"id":            messageID,
@@ -262,26 +260,236 @@ func (h *Handler) writeClaudeStream(w http.ResponseWriter, r *http.Request, mode
 			"usage":         map[string]any{"input_tokens": inputTokens, "output_tokens": 0},
 		},
 	})
-	outputTokens := 0
-	stopReason := "end_turn"
-	if len(detected) > 0 {
-		stopReason = "tool_use"
-		for i, tc := range detected {
-			send(map[string]any{"type": "content_block_start", "index": i, "content_block": map[string]any{"type": "tool_use", "id": fmt.Sprintf("toolu_%d_%d", time.Now().Unix(), i), "name": tc.Name, "input": tc.Input}})
-			send(map[string]any{"type": "content_block_stop", "index": i})
-			outputTokens += util.EstimateTokens(fmt.Sprintf("%v", tc.Input))
+
+	initialType := "text"
+	if thinkingEnabled {
+		initialType = "thinking"
+	}
+	parsedLines, done := sse.StartParsedLinePump(r.Context(), resp.Body, thinkingEnabled, initialType)
+	bufferToolContent := len(toolNames) > 0
+	hasContent := false
+	lastContent := time.Now()
+	keepaliveCount := 0
+
+	thinking := strings.Builder{}
+	text := strings.Builder{}
+
+	nextBlockIndex := 0
+	thinkingBlockOpen := false
+	thinkingBlockIndex := -1
+	textBlockOpen := false
+	textBlockIndex := -1
+	ended := false
+
+	closeThinkingBlock := func() {
+		if !thinkingBlockOpen {
+			return
 		}
-	} else {
-		if fullText != "" {
-			send(map[string]any{"type": "content_block_start", "index": 0, "content_block": map[string]any{"type": "text", "text": ""}})
-			send(map[string]any{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": fullText}})
-			send(map[string]any{"type": "content_block_stop", "index": 0})
-			outputTokens = util.EstimateTokens(fullText)
+		send("content_block_stop", map[string]any{
+			"type":  "content_block_stop",
+			"index": thinkingBlockIndex,
+		})
+		thinkingBlockOpen = false
+		thinkingBlockIndex = -1
+	}
+	closeTextBlock := func() {
+		if !textBlockOpen {
+			return
+		}
+		send("content_block_stop", map[string]any{
+			"type":  "content_block_stop",
+			"index": textBlockIndex,
+		})
+		textBlockOpen = false
+		textBlockIndex = -1
+	}
+
+	finalize := func(stopReason string) {
+		if ended {
+			return
+		}
+		ended = true
+
+		closeThinkingBlock()
+		closeTextBlock()
+
+		finalThinking := thinking.String()
+		finalText := text.String()
+
+		if bufferToolContent {
+			detected := util.ParseToolCalls(finalText, toolNames)
+			if len(detected) > 0 {
+				stopReason = "tool_use"
+				for i, tc := range detected {
+					idx := nextBlockIndex + i
+					send("content_block_start", map[string]any{
+						"type":  "content_block_start",
+						"index": idx,
+						"content_block": map[string]any{
+							"type":  "tool_use",
+							"id":    fmt.Sprintf("toolu_%d_%d", time.Now().Unix(), idx),
+							"name":  tc.Name,
+							"input": tc.Input,
+						},
+					})
+					send("content_block_stop", map[string]any{
+						"type":  "content_block_stop",
+						"index": idx,
+					})
+				}
+				nextBlockIndex += len(detected)
+			} else if finalText != "" {
+				idx := nextBlockIndex
+				nextBlockIndex++
+				send("content_block_start", map[string]any{
+					"type":  "content_block_start",
+					"index": idx,
+					"content_block": map[string]any{
+						"type": "text",
+						"text": "",
+					},
+				})
+				send("content_block_delta", map[string]any{
+					"type":  "content_block_delta",
+					"index": idx,
+					"delta": map[string]any{
+						"type": "text_delta",
+						"text": finalText,
+					},
+				})
+				send("content_block_stop", map[string]any{
+					"type":  "content_block_stop",
+					"index": idx,
+				})
+			}
+		}
+
+		outputTokens := util.EstimateTokens(finalThinking) + util.EstimateTokens(finalText)
+		send("message_delta", map[string]any{
+			"type": "message_delta",
+			"delta": map[string]any{
+				"stop_reason":   stopReason,
+				"stop_sequence": nil,
+			},
+			"usage": map[string]any{
+				"output_tokens": outputTokens,
+			},
+		})
+		send("message_stop", map[string]any{"type": "message_stop"})
+	}
+
+	pingTicker := time.NewTicker(claudeStreamPingInterval)
+	defer pingTicker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-pingTicker.C:
+			if !hasContent {
+				keepaliveCount++
+				if keepaliveCount >= claudeStreamMaxKeepaliveCnt {
+					finalize("end_turn")
+					return
+				}
+			}
+			if hasContent && time.Since(lastContent) > claudeStreamIdleTimeout {
+				finalize("end_turn")
+				return
+			}
+			send("ping", map[string]any{"type": "ping"})
+		case parsed, ok := <-parsedLines:
+			if !ok {
+				if err := <-done; err != nil {
+					sendError(err.Error())
+					return
+				}
+				finalize("end_turn")
+				return
+			}
+			if !parsed.Parsed {
+				continue
+			}
+			if parsed.ErrorMessage != "" {
+				sendError(parsed.ErrorMessage)
+				return
+			}
+			if parsed.Stop {
+				finalize("end_turn")
+				return
+			}
+
+			for _, p := range parsed.Parts {
+				if p.Text == "" {
+					continue
+				}
+				if p.Type != "thinking" && searchEnabled && sse.IsCitation(p.Text) {
+					continue
+				}
+
+				hasContent = true
+				lastContent = time.Now()
+				keepaliveCount = 0
+
+				if p.Type == "thinking" {
+					if !thinkingEnabled {
+						continue
+					}
+					thinking.WriteString(p.Text)
+					closeTextBlock()
+					if !thinkingBlockOpen {
+						thinkingBlockIndex = nextBlockIndex
+						nextBlockIndex++
+						send("content_block_start", map[string]any{
+							"type":  "content_block_start",
+							"index": thinkingBlockIndex,
+							"content_block": map[string]any{
+								"type":     "thinking",
+								"thinking": "",
+							},
+						})
+						thinkingBlockOpen = true
+					}
+					send("content_block_delta", map[string]any{
+						"type":  "content_block_delta",
+						"index": thinkingBlockIndex,
+						"delta": map[string]any{
+							"type":     "thinking_delta",
+							"thinking": p.Text,
+						},
+					})
+					continue
+				}
+
+				text.WriteString(p.Text)
+				if bufferToolContent {
+					continue
+				}
+				closeThinkingBlock()
+				if !textBlockOpen {
+					textBlockIndex = nextBlockIndex
+					nextBlockIndex++
+					send("content_block_start", map[string]any{
+						"type":  "content_block_start",
+						"index": textBlockIndex,
+						"content_block": map[string]any{
+							"type": "text",
+							"text": "",
+						},
+					})
+					textBlockOpen = true
+				}
+				send("content_block_delta", map[string]any{
+					"type":  "content_block_delta",
+					"index": textBlockIndex,
+					"delta": map[string]any{
+						"type": "text_delta",
+						"text": p.Text,
+					},
+				})
+			}
 		}
 	}
-	send(map[string]any{"type": "message_delta", "delta": map[string]any{"stop_reason": stopReason, "stop_sequence": nil}, "usage": map[string]any{"output_tokens": outputTokens}})
-	send(map[string]any{"type": "message_stop"})
-	_ = r
 }
 
 func normalizeClaudeMessages(messages []any) []any {
@@ -392,15 +600,4 @@ func cloneMap(in map[string]any) map[string]any {
 		out[k] = v
 	}
 	return out
-}
-
-func toBool(v any) bool {
-	b, _ := v.(bool)
-	return b
-}
-
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
 }

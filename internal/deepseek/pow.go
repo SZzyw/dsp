@@ -8,6 +8,8 @@ import (
 	"errors"
 	"math"
 	"os"
+	stdruntime "runtime"
+	"strconv"
 	"sync"
 
 	"ds2api/internal/config"
@@ -23,6 +25,16 @@ type PowSolver struct {
 
 	runtime  wazero.Runtime
 	compiled wazero.CompiledModule
+	pool     chan *pooledModule
+	poolSize int
+}
+
+type pooledModule struct {
+	mod     api.Module
+	stackFn api.Function
+	allocFn api.Function
+	freeFn  api.Function
+	solveFn api.Function
 }
 
 func NewPowSolver(wasmPath string) *PowSolver {
@@ -41,6 +53,18 @@ func (p *PowSolver) init(ctx context.Context) error {
 		}
 		p.runtime = wazero.NewRuntime(ctx)
 		p.compiled, p.err = p.runtime.CompileModule(ctx, wasmBytes)
+		if p.err == nil {
+			p.poolSize = powPoolSizeFromEnv()
+			p.pool = make(chan *pooledModule, p.poolSize)
+			for range p.poolSize {
+				inst, err := p.createModule(ctx)
+				if err != nil {
+					p.err = err
+					return
+				}
+				p.pool <- inst
+			}
+		}
 	})
 	return p.err
 }
@@ -64,40 +88,38 @@ func (p *PowSolver) Compute(ctx context.Context, challenge map[string]any) (int6
 	expireAt := toInt64(challenge["expire_at"], 1680000000)
 	prefix := salt + "_" + itoa(expireAt) + "_"
 
-	mod, err := p.runtime.InstantiateModule(ctx, p.compiled, wazero.NewModuleConfig())
+	pm, err := p.acquireModule(ctx)
 	if err != nil {
 		return 0, err
 	}
-	defer mod.Close(ctx)
+	defer p.releaseModule(pm)
 
-	mem := mod.Memory()
+	mem := pm.mod.Memory()
 	if mem == nil {
 		return 0, errors.New("wasm memory missing")
 	}
-	stackFn := mod.ExportedFunction("__wbindgen_add_to_stack_pointer")
-	allocFn := mod.ExportedFunction("__wbindgen_export_0")
-	solveFn := mod.ExportedFunction("wasm_solve")
-	if stackFn == nil || allocFn == nil || solveFn == nil {
-		return 0, errors.New("required wasm exports missing")
-	}
-
-	retPtrs, err := stackFn.Call(ctx, uint64(uint32(^uint32(15)))) // -16 i32
+	retPtrs, err := pm.stackFn.Call(ctx, uint64(uint32(^uint32(15)))) // -16 i32
 	if err != nil || len(retPtrs) == 0 {
 		return 0, errors.New("stack alloc failed")
 	}
 	retptr := uint32(retPtrs[0])
-	defer stackFn.Call(ctx, 16)
+	defer func() {
+		_, _ = pm.stackFn.Call(context.Background(), 16)
+	}()
 
-	chPtr, chLen, err := writeUTF8(ctx, allocFn, mem, challengeStr)
+	chPtr, chLen, err := writeUTF8(ctx, pm.allocFn, mem, challengeStr)
 	if err != nil {
 		return 0, err
 	}
-	prefixPtr, prefixLen, err := writeUTF8(ctx, allocFn, mem, prefix)
+	defer freeUTF8(pm.freeFn, chPtr, chLen)
+
+	prefixPtr, prefixLen, err := writeUTF8(ctx, pm.allocFn, mem, prefix)
 	if err != nil {
 		return 0, err
 	}
+	defer freeUTF8(pm.freeFn, prefixPtr, prefixLen)
 
-	if _, err := solveFn.Call(ctx,
+	if _, err := pm.solveFn.Call(ctx,
 		uint64(retptr),
 		uint64(chPtr), uint64(chLen),
 		uint64(prefixPtr), uint64(prefixLen),
@@ -122,6 +144,57 @@ func (p *PowSolver) Compute(ctx context.Context, challenge map[string]any) (int6
 	return int64(value), nil
 }
 
+func (p *PowSolver) createModule(ctx context.Context) (*pooledModule, error) {
+	mod, err := p.runtime.InstantiateModule(ctx, p.compiled, wazero.NewModuleConfig())
+	if err != nil {
+		return nil, err
+	}
+	stackFn := mod.ExportedFunction("__wbindgen_add_to_stack_pointer")
+	allocFn := mod.ExportedFunction("__wbindgen_export_0")
+	solveFn := mod.ExportedFunction("wasm_solve")
+	if stackFn == nil || allocFn == nil || solveFn == nil {
+		_ = mod.Close(context.Background())
+		return nil, errors.New("required wasm exports missing")
+	}
+	return &pooledModule{
+		mod:     mod,
+		stackFn: stackFn,
+		allocFn: allocFn,
+		freeFn:  mod.ExportedFunction("__wbindgen_export_2"),
+		solveFn: solveFn,
+	}, nil
+}
+
+func (p *PowSolver) acquireModule(ctx context.Context) (*pooledModule, error) {
+	if p.pool != nil {
+		for {
+			select {
+			case pm := <-p.pool:
+				if pm != nil {
+					return pm, nil
+				}
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
+	return p.createModule(ctx)
+}
+
+func (p *PowSolver) releaseModule(pm *pooledModule) {
+	if pm == nil || pm.mod == nil {
+		return
+	}
+	if p.pool != nil {
+		select {
+		case p.pool <- pm:
+			return
+		default:
+		}
+	}
+	_ = pm.mod.Close(context.Background())
+}
+
 func writeUTF8(ctx context.Context, allocFn api.Function, mem api.Memory, text string) (uint32, uint32, error) {
 	data := []byte(text)
 	res, err := allocFn.Call(ctx, uint64(len(data)), 1)
@@ -133,6 +206,13 @@ func writeUTF8(ctx context.Context, allocFn api.Function, mem api.Memory, text s
 		return 0, 0, errors.New("mem write failed")
 	}
 	return ptr, uint32(len(data)), nil
+}
+
+func freeUTF8(freeFn api.Function, ptr, size uint32) {
+	if freeFn == nil || ptr == 0 || size == 0 {
+		return
+	}
+	_, _ = freeFn.Call(context.Background(), uint64(ptr), uint64(size), 1)
 }
 
 func BuildPowHeader(challenge map[string]any, answer int64) (string, error) {
@@ -178,8 +258,24 @@ func toInt64(v any, d int64) int64 {
 }
 
 func itoa(n int64) string {
-	b, _ := json.Marshal(n)
-	return string(b)
+	return strconv.FormatInt(n, 10)
+}
+
+func powPoolSizeFromEnv() int {
+	const fallback = 4
+	n := fallback
+	if cpus := stdruntime.GOMAXPROCS(0); cpus > 0 {
+		n = cpus
+	}
+	if raw := os.Getenv("DS2API_POW_POOL_SIZE"); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+			n = v
+		}
+	}
+	if n > 64 {
+		return 64
+	}
+	return n
 }
 
 func PreloadWASM(wasmPath string) {

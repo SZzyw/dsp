@@ -45,6 +45,7 @@ env/
 *.log
 logs/
 uvicorn.log
+artifacts/
 
 # Vercel
 .vercel
@@ -66,6 +67,10 @@ pnpm-lock.yaml
 .parcel-cache/
 static/admin/
 internal/webui/assets/admin/
+
+# Go compiled binaries
+ds2api
+ds2api-tests
 
 # Environment
 .env.local
