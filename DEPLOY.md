@@ -70,6 +70,7 @@ docker-compose up -d --build
 - 为缓解 Go Runtime 的流式缓冲，`/v1/chat/completions` 在 Vercel 上会优先走 `api/chat-stream.js`（Node Runtime）
 - `api/chat-stream.js` 对非流式请求或 `tools` 请求会自动回退到 Go 入口（内部 `__go=1`）
 - `api/chat-stream.js` 仅负责流式数据转发与 SSE 转换；鉴权、账号选择、会话创建、PoW 计算仍由 Go 内部 prepare 接口完成（仅 Vercel 启用）
+- Go prepare 会创建流式 lease，Node 在流结束后回调 release；账号占用语义与 Go 原生流式保持一致
 
 至少配置环境变量：
 
@@ -86,6 +87,7 @@ docker-compose up -d --build
 - `DS2API_ACCOUNT_MAX_QUEUE`（等待队列上限，默认=`recommended_concurrency`）
 - `DS2API_ACCOUNT_QUEUE_SIZE`（同上别名）
 - `DS2API_VERCEL_INTERNAL_SECRET`（可选，Vercel 混合流式链路内部鉴权；未设置时回退使用 `DS2API_ADMIN_KEY`）
+- `DS2API_VERCEL_STREAM_LEASE_TTL_SECONDS`（可选，流式 lease 过期秒数，默认 `900`）
 
 并发建议值会动态按 `账号数量 × 每账号并发上限` 计算（默认即 `账号数量 × 2`）。
 当 in-flight 满时，请求先进入等待队列；默认队列上限等于建议并发值，因此默认 429 阈值约为 `账号数量 × 4`。

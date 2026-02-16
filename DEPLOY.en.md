@@ -70,6 +70,7 @@ Notes:
 - To mitigate Go Runtime streaming buffering, `/v1/chat/completions` on Vercel is routed to `api/chat-stream.js` (Node Runtime)
 - `api/chat-stream.js` automatically falls back to the Go entry for non-stream requests or requests with `tools` (internal `__go=1`)
 - `api/chat-stream.js` is data-path only (stream relay + SSE conversion); auth/account/session/PoW preparation still comes from an internal Go prepare endpoint (enabled on Vercel only)
+- Go prepare creates a stream lease and Node releases it when streaming ends, keeping account occupancy semantics aligned with native Go streaming
 
 Minimum environment variables:
 
@@ -86,6 +87,7 @@ Optional:
 - `DS2API_ACCOUNT_MAX_QUEUE` (waiting queue limit, default=`recommended_concurrency`)
 - `DS2API_ACCOUNT_QUEUE_SIZE` (alias of the same setting)
 - `DS2API_VERCEL_INTERNAL_SECRET` (optional internal auth secret for Vercel hybrid streaming path; falls back to `DS2API_ADMIN_KEY` when unset)
+- `DS2API_VERCEL_STREAM_LEASE_TTL_SECONDS` (optional stream lease TTL in seconds, default `900`)
 
 Recommended concurrency is computed dynamically as `account_count * per_account_inflight_limit` (default is `account_count * 2`).
 When inflight slots are full, requests are queued first; with default queue size, 429 typically starts around `account_count * 4`.

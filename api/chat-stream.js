@@ -59,6 +59,7 @@ module.exports = async function handler(req, res) {
 
   const model = asString(prep.body.model) || asString(payload.model);
   const sessionID = asString(prep.body.session_id) || `chatcmpl-${Date.now()}`;
+  const leaseID = asString(prep.body.lease_id);
   const deepseekToken = asString(prep.body.deepseek_token);
   const powHeader = asString(prep.body.pow_header);
   const completionPayload = prep.body.payload && typeof prep.body.payload === 'object' ? prep.body.payload : null;
@@ -66,138 +67,148 @@ module.exports = async function handler(req, res) {
   const thinkingEnabled = toBool(prep.body.thinking_enabled);
   const searchEnabled = toBool(prep.body.search_enabled);
 
-  if (!model || !deepseekToken || !powHeader || !completionPayload) {
+  if (!model || !leaseID || !deepseekToken || !powHeader || !completionPayload) {
     writeOpenAIError(res, 500, 'invalid vercel prepare response');
     return;
   }
-
-  const completionRes = await fetch(DEEPSEEK_COMPLETION_URL, {
-    method: 'POST',
-    headers: {
-      ...BASE_HEADERS,
-      authorization: `Bearer ${deepseekToken}`,
-      'x-ds-pow-response': powHeader,
-    },
-    body: JSON.stringify(completionPayload),
-  });
-
-  if (!completionRes.ok || !completionRes.body) {
-    const detail = await safeReadText(completionRes);
-    writeOpenAIError(res, 500, detail ? `Failed to get completion: ${detail}` : 'Failed to get completion.');
-    return;
-  }
-
-  res.statusCode = 200;
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  if (typeof res.flushHeaders === 'function') {
-    res.flushHeaders();
-  }
-
-  const created = Math.floor(Date.now() / 1000);
-  let firstChunkSent = false;
-  let currentType = thinkingEnabled ? 'thinking' : 'text';
-  let thinkingText = '';
-  let outputText = '';
-  const decoder = new TextDecoder();
-  const reader = completionRes.body.getReader();
-  let buffered = '';
-
-  const sendFrame = (obj) => {
-    res.write(`data: ${JSON.stringify(obj)}\n\n`);
-    if (typeof res.flush === 'function') {
-      res.flush();
-    }
-  };
-
-  const finish = (reason) => {
-    sendFrame({
-      id: sessionID,
-      object: 'chat.completion.chunk',
-      created,
-      model,
-      choices: [{ delta: {}, index: 0, finish_reason: reason }],
-      usage: buildUsage(finalPrompt, thinkingText, outputText),
-    });
-    res.write('data: [DONE]\n\n');
-    res.end();
-  };
-
+  const releaseLease = createLeaseReleaser(req, leaseID);
   try {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) {
-        break;
-      }
-      buffered += decoder.decode(value, { stream: true });
-      const lines = buffered.split('\n');
-      buffered = lines.pop() || '';
+    const completionRes = await fetch(DEEPSEEK_COMPLETION_URL, {
+      method: 'POST',
+      headers: {
+        ...BASE_HEADERS,
+        authorization: `Bearer ${deepseekToken}`,
+        'x-ds-pow-response': powHeader,
+      },
+      body: JSON.stringify(completionPayload),
+    });
 
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line.startsWith('data:')) {
-          continue;
-        }
-        const dataStr = line.slice(5).trim();
-        if (!dataStr) {
-          continue;
-        }
-        if (dataStr === '[DONE]') {
-          finish('stop');
-          return;
-        }
-        let chunk;
-        try {
-          chunk = JSON.parse(dataStr);
-        } catch (_err) {
-          continue;
-        }
-        if (chunk.error || chunk.code === 'content_filter') {
-          finish('content_filter');
-          return;
-        }
-        const parsed = parseChunkForContent(chunk, thinkingEnabled, currentType);
-        currentType = parsed.newType;
-        if (parsed.finished) {
-          finish('stop');
-          return;
-        }
-
-        for (const p of parsed.parts) {
-          if (!p.text) {
-            continue;
-          }
-          if (searchEnabled && isCitation(p.text)) {
-            continue;
-          }
-          const delta = {};
-          if (!firstChunkSent) {
-            delta.role = 'assistant';
-            firstChunkSent = true;
-          }
-          if (p.type === 'thinking') {
-            thinkingText += p.text;
-            delta.reasoning_content = p.text;
-          } else {
-            outputText += p.text;
-            delta.content = p.text;
-          }
-          sendFrame({
-            id: sessionID,
-            object: 'chat.completion.chunk',
-            created,
-            model,
-            choices: [{ delta, index: 0 }],
-          });
-        }
-      }
+    if (!completionRes.ok || !completionRes.body) {
+      const detail = await safeReadText(completionRes);
+      writeOpenAIError(res, 500, detail ? `Failed to get completion: ${detail}` : 'Failed to get completion.');
+      return;
     }
-    finish('stop');
-  } catch (_err) {
-    finish('stop');
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
+
+    const created = Math.floor(Date.now() / 1000);
+    let firstChunkSent = false;
+    let currentType = thinkingEnabled ? 'thinking' : 'text';
+    let thinkingText = '';
+    let outputText = '';
+    const decoder = new TextDecoder();
+    const reader = completionRes.body.getReader();
+    let buffered = '';
+    let ended = false;
+
+    const sendFrame = (obj) => {
+      res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      if (typeof res.flush === 'function') {
+        res.flush();
+      }
+    };
+
+    const finish = async (reason) => {
+      if (ended) {
+        return;
+      }
+      ended = true;
+      sendFrame({
+        id: sessionID,
+        object: 'chat.completion.chunk',
+        created,
+        model,
+        choices: [{ delta: {}, index: 0, finish_reason: reason }],
+        usage: buildUsage(finalPrompt, thinkingText, outputText),
+      });
+      res.write('data: [DONE]\n\n');
+      await releaseLease();
+      res.end();
+    };
+
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffered += decoder.decode(value, { stream: true });
+        const lines = buffered.split('\n');
+        buffered = lines.pop() || '';
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line.startsWith('data:')) {
+            continue;
+          }
+          const dataStr = line.slice(5).trim();
+          if (!dataStr) {
+            continue;
+          }
+          if (dataStr === '[DONE]') {
+            await finish('stop');
+            return;
+          }
+          let chunk;
+          try {
+            chunk = JSON.parse(dataStr);
+          } catch (_err) {
+            continue;
+          }
+          if (chunk.error || chunk.code === 'content_filter') {
+            await finish('content_filter');
+            return;
+          }
+          const parsed = parseChunkForContent(chunk, thinkingEnabled, currentType);
+          currentType = parsed.newType;
+          if (parsed.finished) {
+            await finish('stop');
+            return;
+          }
+
+          for (const p of parsed.parts) {
+            if (!p.text) {
+              continue;
+            }
+            if (searchEnabled && isCitation(p.text)) {
+              continue;
+            }
+            const delta = {};
+            if (!firstChunkSent) {
+              delta.role = 'assistant';
+              firstChunkSent = true;
+            }
+            if (p.type === 'thinking') {
+              thinkingText += p.text;
+              delta.reasoning_content = p.text;
+            } else {
+              outputText += p.text;
+              delta.content = p.text;
+            }
+            sendFrame({
+              id: sessionID,
+              object: 'chat.completion.chunk',
+              created,
+              model,
+              choices: [{ delta, index: 0 }],
+            });
+          }
+        }
+      }
+      await finish('stop');
+    } catch (_err) {
+      await finish('stop');
+    }
+  } finally {
+    await releaseLease();
   }
 };
 
@@ -236,26 +247,12 @@ async function readRawBody(req) {
 }
 
 async function fetchStreamPrepare(req, rawBody) {
-  const proto = asString(header(req, 'x-forwarded-proto')) || 'https';
-  const host = asString(header(req, 'host'));
-  const url = new URL(`${proto}://${host}${req.url || '/v1/chat/completions'}`);
-  url.searchParams.set('__go', '1');
+  const url = buildInternalGoURL(req);
   url.searchParams.set('__stream_prepare', '1');
-  const protectionBypass = resolveProtectionBypass(req);
-  if (protectionBypass) {
-    url.searchParams.set('x-vercel-protection-bypass', protectionBypass);
-  }
 
   const upstream = await fetch(url.toString(), {
     method: 'POST',
-    headers: {
-      authorization: asString(header(req, 'authorization')),
-      'x-api-key': asString(header(req, 'x-api-key')),
-      'x-ds2-target-account': asString(header(req, 'x-ds2-target-account')),
-      'x-ds2-internal-token': internalSecret(),
-      'x-vercel-protection-bypass': protectionBypass,
-      'content-type': asString(header(req, 'content-type')) || 'application/json',
-    },
+    headers: buildInternalGoHeaders(req, { withInternalToken: true, withContentType: true }),
     body: rawBody,
   });
 
@@ -308,6 +305,68 @@ async function safeReadText(resp) {
 
 function internalSecret() {
   return asString(process.env.DS2API_VERCEL_INTERNAL_SECRET) || asString(process.env.DS2API_ADMIN_KEY) || 'admin';
+}
+
+function buildInternalGoURL(req) {
+  const proto = asString(header(req, 'x-forwarded-proto')) || 'https';
+  const host = asString(header(req, 'host'));
+  const url = new URL(`${proto}://${host}${req.url || '/v1/chat/completions'}`);
+  url.searchParams.set('__go', '1');
+  const protectionBypass = resolveProtectionBypass(req);
+  if (protectionBypass) {
+    url.searchParams.set('x-vercel-protection-bypass', protectionBypass);
+  }
+  return url;
+}
+
+function buildInternalGoHeaders(req, opts = {}) {
+  const headers = {
+    authorization: asString(header(req, 'authorization')),
+    'x-api-key': asString(header(req, 'x-api-key')),
+    'x-ds2-target-account': asString(header(req, 'x-ds2-target-account')),
+    'x-vercel-protection-bypass': resolveProtectionBypass(req),
+  };
+  if (opts.withInternalToken) {
+    headers['x-ds2-internal-token'] = internalSecret();
+  }
+  if (opts.withContentType) {
+    headers['content-type'] = asString(header(req, 'content-type')) || 'application/json';
+  }
+  return headers;
+}
+
+function createLeaseReleaser(req, leaseID) {
+  let released = false;
+  return async () => {
+    if (released || !leaseID) {
+      return;
+    }
+    released = true;
+    try {
+      await releaseStreamLease(req, leaseID);
+    } catch (_err) {
+      // Ignore release errors. Lease TTL cleanup on Go side still prevents permanent leaks.
+    }
+  };
+}
+
+async function releaseStreamLease(req, leaseID) {
+  const url = buildInternalGoURL(req);
+  url.searchParams.set('__stream_release', '1');
+  const body = Buffer.from(JSON.stringify({ lease_id: leaseID }));
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1500);
+  try {
+    await fetch(url.toString(), {
+      method: 'POST',
+      headers: buildInternalGoHeaders(req, { withInternalToken: true, withContentType: true }),
+      body,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function resolveProtectionBypass(req) {
@@ -500,24 +559,11 @@ function estimateTokens(text) {
 }
 
 async function proxyToGo(req, res, rawBody) {
-  const proto = asString(header(req, 'x-forwarded-proto')) || 'https';
-  const host = asString(header(req, 'host'));
-  const url = new URL(`${proto}://${host}${req.url || '/v1/chat/completions'}`);
-  url.searchParams.set('__go', '1');
-  const protectionBypass = resolveProtectionBypass(req);
-  if (protectionBypass) {
-    url.searchParams.set('x-vercel-protection-bypass', protectionBypass);
-  }
+  const url = buildInternalGoURL(req);
 
   const upstream = await fetch(url.toString(), {
     method: 'POST',
-    headers: {
-      authorization: asString(header(req, 'authorization')),
-      'x-api-key': asString(header(req, 'x-api-key')),
-      'x-ds2-target-account': asString(header(req, 'x-ds2-target-account')),
-      'x-vercel-protection-bypass': protectionBypass,
-      'content-type': asString(header(req, 'content-type')) || 'application/json',
-    },
+    headers: buildInternalGoHeaders(req, { withContentType: true }),
     body: rawBody,
   });
 

@@ -89,6 +89,8 @@ export default function ApiTester({ config, onMessage, authFetch }) {
     const runTest = async () => {
         if (loading) return
 
+        const startedAt = Date.now()
+
         setLoading(true)
         setIsStreaming(true)
         setResponse(null)
@@ -175,7 +177,8 @@ export default function ApiTester({ config, onMessage, authFetch }) {
             } else {
                 const data = await res.json()
                 setResponse({ success: true, status_code: res.status, ...data })
-                onMessage('success', t('apiTester.testSuccess', { account: selectedAccount || 'Auto', time: 'N/A' }))
+                const elapsed = Math.max(0, Date.now() - startedAt)
+                onMessage('success', t('apiTester.testSuccess', { account: selectedAccount || 'Auto', time: elapsed }))
             }
         } catch (e) {
             if (e.name === 'AbortError') {
