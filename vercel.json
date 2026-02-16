@@ -1,10 +1,9 @@
 {
   "version": 2,
-  "buildCommand": "bash scripts/build-webui.sh",
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/app.py"
+      "destination": "/api/index"
     }
   ],
   "headers": [

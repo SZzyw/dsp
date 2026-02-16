@@ -145,6 +145,8 @@
         "apiKeyOptional": "API Key (optional)",
         "apiKeyDefault": "Default: ...{suffix}",
         "apiKeyPlaceholder": "Enter a custom key",
+        "modeManaged": "Managed key mode (uses account pool).",
+        "modeDirect": "Direct token mode (requires a valid DeepSeek token).",
         "statusError": "Error",
         "reasoningTrace": "Reasoning Trace",
         "generating": "Generating response...",
