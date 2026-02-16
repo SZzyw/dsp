@@ -167,12 +167,15 @@ func (p *PowSolver) createModule(ctx context.Context) (*pooledModule, error) {
 
 func (p *PowSolver) acquireModule(ctx context.Context) (*pooledModule, error) {
 	if p.pool != nil {
-		select {
-		case pm := <-p.pool:
-			if pm != nil {
-				return pm, nil
+		for {
+			select {
+			case pm := <-p.pool:
+				if pm != nil {
+					return pm, nil
+				}
+			case <-ctx.Done():
+				return nil, ctx.Err()
 			}
-		default:
 		}
 	}
 	return p.createModule(ctx)

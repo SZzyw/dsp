@@ -1,7 +1,6 @@
 package claude
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -220,20 +219,6 @@ func (h *Handler) handleClaudeStreamRealtime(w http.ResponseWriter, r *http.Requ
 	if !canFlush {
 		config.Logger.Warn("[claude_stream] response writer does not support flush; streaming may be buffered")
 	}
-	lines := make(chan []byte, 128)
-	done := make(chan error, 1)
-	go func() {
-		scanner := bufio.NewScanner(resp.Body)
-		buf := make([]byte, 0, 64*1024)
-		scanner.Buffer(buf, 2*1024*1024)
-		for scanner.Scan() {
-			b := append([]byte{}, scanner.Bytes()...)
-			lines <- b
-		}
-		close(lines)
-		done <- scanner.Err()
-	}()
-
 	send := func(event string, v any) {
 		b, _ := json.Marshal(v)
 		_, _ = w.Write([]byte("event: "))
@@ -276,10 +261,11 @@ func (h *Handler) handleClaudeStreamRealtime(w http.ResponseWriter, r *http.Requ
 		},
 	})
 
-	currentType := "text"
+	initialType := "text"
 	if thinkingEnabled {
-		currentType = "thinking"
+		initialType = "thinking"
 	}
+	parsedLines, done := sse.StartParsedLinePump(r.Context(), resp.Body, thinkingEnabled, initialType)
 	bufferToolContent := len(toolNames) > 0
 	hasContent := false
 	lastContent := time.Now()
@@ -412,7 +398,7 @@ func (h *Handler) handleClaudeStreamRealtime(w http.ResponseWriter, r *http.Requ
 				return
 			}
 			send("ping", map[string]any{"type": "ping"})
-		case line, ok := <-lines:
+		case parsed, ok := <-parsedLines:
 			if !ok {
 				if err := <-done; err != nil {
 					sendError(err.Error())
@@ -421,9 +407,6 @@ func (h *Handler) handleClaudeStreamRealtime(w http.ResponseWriter, r *http.Requ
 				finalize("end_turn")
 				return
 			}
-
-			parsed := sse.ParseDeepSeekContentLine(line, thinkingEnabled, currentType)
-			currentType = parsed.NextType
 			if !parsed.Parsed {
 				continue
 			}

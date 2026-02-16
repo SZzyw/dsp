@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -189,29 +188,16 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 		config.Logger.Warn("[stream] response writer does not support flush; streaming may be buffered")
 	}
 
-	lines := make(chan []byte, 128)
-	done := make(chan error, 1)
-	go func() {
-		scanner := bufio.NewScanner(resp.Body)
-		buf := make([]byte, 0, 64*1024)
-		scanner.Buffer(buf, 2*1024*1024)
-		for scanner.Scan() {
-			b := append([]byte{}, scanner.Bytes()...)
-			lines <- b
-		}
-		close(lines)
-		done <- scanner.Err()
-	}()
-
 	created := time.Now().Unix()
 	firstChunkSent := false
 	bufferToolContent := len(toolNames) > 0
 	var toolSieve toolStreamSieveState
 	toolCallsEmitted := false
-	currentType := "text"
+	initialType := "text"
 	if thinkingEnabled {
-		currentType = "thinking"
+		initialType = "thinking"
 	}
+	parsedLines, done := sse.StartParsedLinePump(r.Context(), resp.Body, thinkingEnabled, initialType)
 	thinking := strings.Builder{}
 	text := strings.Builder{}
 	lastContent := time.Now()
@@ -321,7 +307,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 				_, _ = w.Write([]byte(": keep-alive\n\n"))
 				_ = rc.Flush()
 			}
-		case line, ok := <-lines:
+		case parsed, ok := <-parsedLines:
 			if !ok {
 				// Ensure scanner completion is observed only after all queued
 				// SSE lines are drained, avoiding early finalize races.
@@ -329,8 +315,6 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 				finalize("stop")
 				return
 			}
-			parsed := sse.ParseDeepSeekContentLine(line, thinkingEnabled, currentType)
-			currentType = parsed.NextType
 			if !parsed.Parsed {
 				continue
 			}
