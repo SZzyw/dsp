@@ -460,9 +460,16 @@ Response:
   "in_use": 1,
   "total": 4,
   "available_accounts": ["a@example.com"],
-  "in_use_accounts": ["b@example.com"]
+  "in_use_accounts": ["b@example.com"],
+  "max_inflight_per_account": 2,
+  "recommended_concurrency": 8
 }
 ```
+
+Field notes:
+
+- `max_inflight_per_account`: per-account in-flight limit (default `2`, override via env)
+- `recommended_concurrency`: suggested client concurrency, dynamically computed as `account_count * max_inflight_per_account`
 
 ### `POST /admin/accounts/test`
 

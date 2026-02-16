@@ -73,6 +73,10 @@ Optional:
 - `VERCEL_TOKEN`
 - `VERCEL_PROJECT_ID`
 - `VERCEL_TEAM_ID`
+- `DS2API_ACCOUNT_MAX_INFLIGHT` (per-account inflight limit, default `2`)
+- `DS2API_ACCOUNT_CONCURRENCY` (alias of the same setting)
+
+Recommended concurrency is computed dynamically as `account_count * per_account_inflight_limit` (default is `account_count * 2`).
 
 After deploy, verify:
 

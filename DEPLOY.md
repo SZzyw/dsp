@@ -73,6 +73,10 @@ docker-compose up -d --build
 - `VERCEL_TOKEN`
 - `VERCEL_PROJECT_ID`
 - `VERCEL_TEAM_ID`
+- `DS2API_ACCOUNT_MAX_INFLIGHT`（每账号并发上限，默认 `2`）
+- `DS2API_ACCOUNT_CONCURRENCY`（同上别名）
+
+并发建议值会动态按 `账号数量 × 每账号并发上限` 计算（默认即 `账号数量 × 2`）。
 
 部署后建议先访问：
 

@@ -121,6 +121,8 @@ docker-compose logs -f
 | --- | --- |
 | `PORT` | Service port, default `5001` |
 | `LOG_LEVEL` | `DEBUG/INFO/WARN/ERROR` |
+| `DS2API_ACCOUNT_MAX_INFLIGHT` | Max in-flight requests per managed account, default `2` |
+| `DS2API_ACCOUNT_CONCURRENCY` | Alias of the same setting (legacy compatibility) |
 | `DS2API_ADMIN_KEY` | Admin login key, default `admin` |
 | `DS2API_JWT_SECRET` | Admin JWT signing secret (optional) |
 | `DS2API_JWT_EXPIRE_HOURS` | Admin JWT TTL in hours, default `24` |
@@ -140,6 +142,13 @@ For business endpoints (`/v1/*`, `/anthropic/*`), DS2API supports two modes:
 2. Direct token mode: if the incoming token is not in `config.keys`, DS2API treats it as a DeepSeek token directly.
 
 Optional header: `X-Ds2-Target-Account` to pin one managed account.
+
+## Recommended Concurrency
+
+- DS2API computes recommended concurrency dynamically as: `account_count * per_account_inflight_limit`
+- Default per-account inflight limit is `2`, so default recommendation is `account_count * 2`
+- You can override per-account inflight via `DS2API_ACCOUNT_MAX_INFLIGHT` (or `DS2API_ACCOUNT_CONCURRENCY`)
+- `GET /admin/queue/status` returns both `max_inflight_per_account` and `recommended_concurrency`
 
 ## Tool Call Adaptation
 

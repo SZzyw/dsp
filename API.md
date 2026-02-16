@@ -478,9 +478,16 @@ data: {"type":"message_stop"}
   "in_use": 1,
   "total": 4,
   "available_accounts": ["a@example.com"],
-  "in_use_accounts": ["b@example.com"]
+  "in_use_accounts": ["b@example.com"],
+  "max_inflight_per_account": 2,
+  "recommended_concurrency": 8
 }
 ```
+
+字段说明：
+
+- `max_inflight_per_account`：每个账号允许的并发 in-flight 请求上限（默认 `2`，可由环境变量覆盖）
+- `recommended_concurrency`：建议客户端并发值，按 `账号数量 × max_inflight_per_account` 动态计算
 
 ### `POST /admin/accounts/test`
 

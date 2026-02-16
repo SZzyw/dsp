@@ -121,6 +121,8 @@ docker-compose logs -f
 | --- | --- |
 | `PORT` | 服务端口，默认 `5001` |
 | `LOG_LEVEL` | 日志级别：`DEBUG/INFO/WARN/ERROR` |
+| `DS2API_ACCOUNT_MAX_INFLIGHT` | 每个账号最大并发 in-flight 请求数，默认 `2` |
+| `DS2API_ACCOUNT_CONCURRENCY` | 同上别名（兼容旧写法） |
 | `DS2API_ADMIN_KEY` | Admin 登录密钥，默认 `admin` |
 | `DS2API_JWT_SECRET` | Admin JWT 签名密钥（可选） |
 | `DS2API_JWT_EXPIRE_HOURS` | Admin JWT 过期小时数，默认 `24` |
@@ -140,6 +142,13 @@ docker-compose logs -f
 2. 直通 token 模式：当传入 token 不在 `config.keys` 中时，服务直接把它当作 DeepSeek token 使用。
 
 可选请求头：`X-Ds2-Target-Account`，用于指定托管账号。
+
+## 并发建议值
+
+- 系统建议并发值按账号池动态计算：`账号数量 × 每账号并发上限`
+- 默认每账号并发上限是 `2`，因此默认建议值是 `账号数量 × 2`
+- 可通过 `DS2API_ACCOUNT_MAX_INFLIGHT`（或 `DS2API_ACCOUNT_CONCURRENCY`）手动覆盖每账号并发上限
+- `GET /admin/queue/status` 会返回 `max_inflight_per_account` 与 `recommended_concurrency`
 
 ## Tool Call 适配说明
 
