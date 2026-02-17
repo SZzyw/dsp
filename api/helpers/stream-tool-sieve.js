@@ -129,12 +129,9 @@ function splitSafeContentForToolDetection(s) {
   if (suspiciousStart > 0) {
     return [text.slice(0, suspiciousStart), text.slice(suspiciousStart)];
   }
-  const chars = Array.from(text);
-  const maxHold = 128;
-  if (chars.length <= maxHold) {
-    return ['', text];
-  }
-  return [chars.slice(0, chars.length - maxHold).join(''), chars.slice(chars.length - maxHold).join('')];
+  // If suspicious content starts at the beginning, keep holding until we can
+  // either parse a full tool JSON block or reach stream flush.
+  return ['', text];
 }
 
 function findSuspiciousPrefixStart(s) {
@@ -168,23 +165,14 @@ function consumeToolCapture(captured, toolNames) {
   const lower = captured.toLowerCase();
   const keyIdx = lower.indexOf('tool_calls');
   if (keyIdx < 0) {
-    if (Array.from(captured).length >= 256) {
-      return { ready: true, prefix: captured, calls: [], suffix: '' };
-    }
     return { ready: false, prefix: '', calls: [], suffix: '' };
   }
   const start = captured.slice(0, keyIdx).lastIndexOf('{');
   if (start < 0) {
-    if (Array.from(captured).length >= 512) {
-      return { ready: true, prefix: captured, calls: [], suffix: '' };
-    }
     return { ready: false, prefix: '', calls: [], suffix: '' };
   }
   const obj = extractJSONObjectFrom(captured, start);
   if (!obj.ok) {
-    if (Array.from(captured).length >= 4096) {
-      return { ready: true, prefix: captured, calls: [], suffix: '' };
-    }
     return { ready: false, prefix: '', calls: [], suffix: '' };
   }
   const parsed = parseToolCalls(captured.slice(start, obj.end), toolNames);
