@@ -159,7 +159,6 @@ func (h *Handler) handleResponsesStream(w http.ResponseWriter, r *http.Request, 
 		if bufferToolContent {
 			for _, evt := range flushToolSieve(&sieve, toolNames) {
 				if evt.Content != "" {
-					finalText += evt.Content
 					sendEvent("response.output_text.delta", util.BuildOpenAIResponsesTextDeltaPayload(responseID, evt.Content))
 				}
 				if len(evt.ToolCalls) > 0 {
