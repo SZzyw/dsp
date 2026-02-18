@@ -439,6 +439,7 @@ Returns sanitized config.
   "keys": ["k1", "k2"],
   "accounts": [
     {
+      "identifier": "user@example.com",
       "email": "user@example.com",
       "mobile": "",
       "has_password": true,
@@ -499,6 +500,7 @@ Updatable fields: `keys`, `accounts`, `claude_mapping`.
 {
   "items": [
     {
+      "identifier": "user@example.com",
       "email": "user@example.com",
       "mobile": "",
       "has_password": true,
@@ -523,7 +525,7 @@ Updatable fields: `keys`, `accounts`, `claude_mapping`.
 
 ### `DELETE /admin/accounts/{identifier}`
 
-`identifier` is email or mobile.
+`identifier` can be email, mobile, or the synthetic id for token-only accounts (`token:<hash>`).
 
 **Response**: `{"success": true, "total_accounts": 5}`
 
@@ -553,7 +555,7 @@ Updatable fields: `keys`, `accounts`, `claude_mapping`.
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| `identifier` | ✅ | email or mobile |
+| `identifier` | ✅ | email / mobile / token-only synthetic id |
 | `model` | ❌ | default `deepseek-chat` |
 | `message` | ❌ | if empty, only session creation is tested |
 

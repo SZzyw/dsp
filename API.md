@@ -439,6 +439,7 @@ data: {"type":"message_stop"}
   "keys": ["k1", "k2"],
   "accounts": [
     {
+      "identifier": "user@example.com",
       "email": "user@example.com",
       "mobile": "",
       "has_password": true,
@@ -499,6 +500,7 @@ data: {"type":"message_stop"}
 {
   "items": [
     {
+      "identifier": "user@example.com",
       "email": "user@example.com",
       "mobile": "",
       "has_password": true,
@@ -523,7 +525,7 @@ data: {"type":"message_stop"}
 
 ### `DELETE /admin/accounts/{identifier}`
 
-`identifier` 为 email 或 mobile。
+`identifier` 可为 email、mobile，或 token-only 账号的合成标识（`token:<hash>`）。
 
 **响应**：`{"success": true, "total_accounts": 5}`
 
@@ -553,7 +555,7 @@ data: {"type":"message_stop"}
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `identifier` | ✅ | email 或 mobile |
+| `identifier` | ✅ | email / mobile / token-only 合成标识 |
 | `model` | ❌ | 默认 `deepseek-chat` |
 | `message` | ❌ | 空字符串时仅测试会话创建 |
 
