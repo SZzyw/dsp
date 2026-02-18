@@ -16,17 +16,11 @@ import (
 )
 
 func (h *Handler) GetResponseByID(w http.ResponseWriter, r *http.Request) {
-	a, err := h.Auth.Determine(r)
+	a, err := h.Auth.DetermineCaller(r)
 	if err != nil {
-		status := http.StatusUnauthorized
-		detail := err.Error()
-		if err == auth.ErrNoAccount {
-			status = http.StatusTooManyRequests
-		}
-		writeOpenAIError(w, status, detail)
+		writeOpenAIError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	defer h.Auth.Release(a)
 
 	id := strings.TrimSpace(chi.URLParam(r, "response_id"))
 	if id == "" {

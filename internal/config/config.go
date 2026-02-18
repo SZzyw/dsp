@@ -73,7 +73,7 @@ type Config struct {
 }
 
 type CompatConfig struct {
-	WideInputStrictOutput bool `json:"wide_input_strict_output,omitempty"`
+	WideInputStrictOutput *bool `json:"wide_input_strict_output,omitempty"`
 }
 
 type ToolcallConfig struct {
@@ -109,7 +109,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 	if len(c.ModelAliases) > 0 {
 		m["model_aliases"] = c.ModelAliases
 	}
-	if c.Compat.WideInputStrictOutput {
+	if c.Compat.WideInputStrictOutput != nil {
 		m["compat"] = c.Compat
 	}
 	if strings.TrimSpace(c.Toolcall.Mode) != "" || strings.TrimSpace(c.Toolcall.EarlyEmitConfidence) != "" {
@@ -194,12 +194,14 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 
 func (c Config) Clone() Config {
 	clone := Config{
-		Keys:             slices.Clone(c.Keys),
-		Accounts:         slices.Clone(c.Accounts),
-		ClaudeMapping:    cloneStringMap(c.ClaudeMapping),
-		ClaudeModelMap:   cloneStringMap(c.ClaudeModelMap),
-		ModelAliases:     cloneStringMap(c.ModelAliases),
-		Compat:           c.Compat,
+		Keys:           slices.Clone(c.Keys),
+		Accounts:       slices.Clone(c.Accounts),
+		ClaudeMapping:  cloneStringMap(c.ClaudeMapping),
+		ClaudeModelMap: cloneStringMap(c.ClaudeModelMap),
+		ModelAliases:   cloneStringMap(c.ModelAliases),
+		Compat: CompatConfig{
+			WideInputStrictOutput: cloneBoolPtr(c.Compat.WideInputStrictOutput),
+		},
 		Toolcall:         c.Toolcall,
 		Responses:        c.Responses,
 		Embeddings:       c.Embeddings,
@@ -222,6 +224,14 @@ func cloneStringMap(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func cloneBoolPtr(in *bool) *bool {
+	if in == nil {
+		return nil
+	}
+	v := *in
+	return &v
 }
 
 type Store struct {
@@ -569,9 +579,12 @@ func (s *Store) ModelAliases() map[string]string {
 }
 
 func (s *Store) CompatWideInputStrictOutput() bool {
-	// Current default policy is always wide-input / strict-output.
-	// Kept as a method so callers do not depend on storage shape.
-	return true
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.cfg.Compat.WideInputStrictOutput == nil {
+		return true
+	}
+	return *s.cfg.Compat.WideInputStrictOutput
 }
 
 func (s *Store) ToolcallMode() string {

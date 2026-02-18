@@ -320,6 +320,39 @@ func TestStoreFindAccountNotFound(t *testing.T) {
 	}
 }
 
+func TestStoreCompatWideInputStrictOutputDefaultTrue(t *testing.T) {
+	t.Setenv("DS2API_CONFIG_JSON", `{"keys":["k1"],"accounts":[]}`)
+	store := LoadStore()
+	if !store.CompatWideInputStrictOutput() {
+		t.Fatal("expected default wide_input_strict_output=true when unset")
+	}
+}
+
+func TestStoreCompatWideInputStrictOutputCanDisable(t *testing.T) {
+	t.Setenv("DS2API_CONFIG_JSON", `{"keys":["k1"],"accounts":[],"compat":{"wide_input_strict_output":false}}`)
+	store := LoadStore()
+	if store.CompatWideInputStrictOutput() {
+		t.Fatal("expected wide_input_strict_output=false when explicitly configured")
+	}
+
+	snap := store.Snapshot()
+	data, err := snap.MarshalJSON()
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	rawCompat, ok := out["compat"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected compat in marshaled output, got %#v", out)
+	}
+	if rawCompat["wide_input_strict_output"] != false {
+		t.Fatalf("expected explicit false in compat, got %#v", rawCompat)
+	}
+}
+
 func TestStoreIsEnvBacked(t *testing.T) {
 	t.Setenv("DS2API_CONFIG_JSON", `{"keys":["k1"],"accounts":[]}`)
 	store := LoadStore()

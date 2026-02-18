@@ -26,6 +26,22 @@ func newDirectTokenResolver(t *testing.T) (*config.Store, *auth.Resolver) {
 	return store, resolver
 }
 
+func newManagedKeyResolver(t *testing.T) (*config.Store, *auth.Resolver) {
+	t.Helper()
+	t.Setenv("DS2API_CONFIG_JSON", `{
+		"keys":["managed-key"],
+		"accounts":[{"email":"acc@example.com","password":"pwd","token":"account-token"}]
+	}`)
+	t.Setenv("DS2API_ACCOUNT_MAX_INFLIGHT", "1")
+	t.Setenv("DS2API_ACCOUNT_MAX_QUEUE", "0")
+	store := config.LoadStore()
+	pool := account.NewPool(store)
+	resolver := auth.NewResolver(store, pool, func(_ context.Context, _ config.Account) (string, error) {
+		return "unused", nil
+	})
+	return store, resolver
+}
+
 func authForToken(t *testing.T, resolver *auth.Resolver, token string) *auth.RequestAuth {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/v1/responses/resp_test", nil)
@@ -121,5 +137,40 @@ func TestResponsesRouteValidationContract(t *testing.T) {
 				t.Fatalf("expected error.param: %#v", out)
 			}
 		})
+	}
+}
+
+func TestGetResponseByIDManagedKeySkipsAccountPoolPressure(t *testing.T) {
+	store, resolver := newManagedKeyResolver(t)
+	h := &Handler{Store: store, Auth: resolver}
+	r := chi.NewRouter()
+	RegisterRoutes(r, h)
+
+	ownerReq := httptest.NewRequest(http.MethodGet, "/v1/responses/resp_test", nil)
+	ownerReq.Header.Set("Authorization", "Bearer managed-key")
+	ownerAuth, err := resolver.DetermineCaller(ownerReq)
+	if err != nil {
+		t.Fatalf("determine caller failed: %v", err)
+	}
+	owner := responseStoreOwner(ownerAuth)
+	h.getResponseStore().put(owner, "resp_test", map[string]any{
+		"id":     "resp_test",
+		"object": "response",
+	})
+
+	occupyReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	occupyReq.Header.Set("Authorization", "Bearer managed-key")
+	occupied, err := resolver.Determine(occupyReq)
+	if err != nil {
+		t.Fatalf("expected first acquire to succeed: %v", err)
+	}
+	defer resolver.Release(occupied)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/responses/resp_test", nil)
+	req.Header.Set("Authorization", "Bearer managed-key")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 under pool pressure, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }

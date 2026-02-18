@@ -66,6 +66,26 @@ func TestDetermineWithXAPIKeyManagedKeyAcquiresAccount(t *testing.T) {
 	}
 }
 
+func TestDetermineCallerWithManagedKeySkipsAccountAcquire(t *testing.T) {
+	r := newTestResolver(t)
+	req, _ := http.NewRequest(http.MethodGet, "/v1/responses/resp_1", nil)
+	req.Header.Set("x-api-key", "managed-key")
+
+	a, err := r.DetermineCaller(req)
+	if err != nil {
+		t.Fatalf("determine caller failed: %v", err)
+	}
+	if a.CallerID == "" {
+		t.Fatalf("expected caller id to be populated")
+	}
+	if a.UseConfigToken {
+		t.Fatalf("expected no config-token lease for caller-only auth")
+	}
+	if a.AccountID != "" {
+		t.Fatalf("expected empty account id, got %q", a.AccountID)
+	}
+}
+
 func TestCallerTokenIDStable(t *testing.T) {
 	a := callerTokenID("token-a")
 	b := callerTokenID("token-a")
@@ -86,6 +106,19 @@ func TestDetermineMissingToken(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
 	_, err := r.Determine(req)
+	if err == nil {
+		t.Fatal("expected unauthorized error")
+	}
+	if err != ErrUnauthorized {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDetermineCallerMissingToken(t *testing.T) {
+	r := newTestResolver(t)
+	req, _ := http.NewRequest(http.MethodGet, "/v1/responses/resp_1", nil)
+
+	_, err := r.DetermineCaller(req)
 	if err == nil {
 		t.Fatal("expected unauthorized error")
 	}

@@ -85,7 +85,8 @@ module.exports = async function handler(req, res) {
   const finalPrompt = asString(prep.body.final_prompt);
   const thinkingEnabled = toBool(prep.body.thinking_enabled);
   const searchEnabled = toBool(prep.body.search_enabled);
-  const toolNames = extractToolNames(payload.tools);
+  const toolPolicy = resolveToolcallPolicy(prep.body, payload.tools);
+  const toolNames = toolPolicy.toolNames;
 
   if (!model || !leaseID || !deepseekToken || !powHeader || !completionPayload) {
     writeOpenAIError(res, 500, 'invalid vercel prepare response');
@@ -156,7 +157,8 @@ module.exports = async function handler(req, res) {
     let currentType = thinkingEnabled ? 'thinking' : 'text';
     let thinkingText = '';
     let outputText = '';
-    const toolSieveEnabled = toolNames.length > 0;
+    const toolSieveEnabled = toolPolicy.toolSieveEnabled;
+    const emitEarlyToolDeltas = toolPolicy.emitEarlyToolDeltas;
     const toolSieveState = createToolSieveState();
     let toolCallsEmitted = false;
     const streamToolCallIDs = new Map();
@@ -297,6 +299,9 @@ module.exports = async function handler(req, res) {
               const events = processToolSieveChunk(toolSieveState, p.text, toolNames);
               for (const evt of events) {
                 if (evt.type === 'tool_call_deltas' && Array.isArray(evt.deltas) && evt.deltas.length > 0) {
+                  if (!emitEarlyToolDeltas) {
+                    continue;
+                  }
                   toolCallsEmitted = true;
                   sendDeltaFrame({ tool_calls: formatIncrementalToolCallDeltas(evt.deltas, streamToolCallIDs) });
                   continue;
@@ -405,6 +410,37 @@ function relayPreparedFailure(res, prep) {
     return;
   }
   writeOpenAIError(res, prep.status || 500, 'vercel prepare failed');
+}
+
+function resolveToolcallPolicy(prepBody, payloadTools) {
+  const preparedToolNames = normalizePreparedToolNames(prepBody && prepBody.tool_names);
+  const toolNames = preparedToolNames.length > 0 ? preparedToolNames : extractToolNames(payloadTools);
+  const featureMatchEnabled = boolDefaultTrue(prepBody && prepBody.toolcall_feature_match);
+  const emitEarlyToolDeltas = boolDefaultTrue(prepBody && prepBody.toolcall_early_emit_high);
+  return {
+    toolNames,
+    toolSieveEnabled: toolNames.length > 0 && featureMatchEnabled,
+    emitEarlyToolDeltas,
+  };
+}
+
+function normalizePreparedToolNames(v) {
+  if (!Array.isArray(v) || v.length === 0) {
+    return [];
+  }
+  const out = [];
+  for (const item of v) {
+    const name = asString(item);
+    if (!name) {
+      continue;
+    }
+    out.push(name);
+  }
+  return out;
+}
+
+function boolDefaultTrue(v) {
+  return v !== false;
 }
 
 async function safeReadText(resp) {
@@ -933,4 +969,7 @@ module.exports.__test = {
   extractContentRecursive,
   shouldSkipPath,
   asString,
+  resolveToolcallPolicy,
+  normalizePreparedToolNames,
+  boolDefaultTrue,
 };

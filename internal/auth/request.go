@@ -83,6 +83,26 @@ func (r *Resolver) Determine(req *http.Request) (*RequestAuth, error) {
 	return a, nil
 }
 
+// DetermineCaller resolves caller identity without acquiring any pooled account.
+// Use this for local-cache lookup routes that only need tenant isolation.
+func (r *Resolver) DetermineCaller(req *http.Request) (*RequestAuth, error) {
+	callerKey := extractCallerToken(req)
+	if callerKey == "" {
+		return nil, ErrUnauthorized
+	}
+	callerID := callerTokenID(callerKey)
+	a := &RequestAuth{
+		UseConfigToken: false,
+		CallerID:       callerID,
+		resolver:       r,
+		TriedAccounts:  map[string]bool{},
+	}
+	if r == nil || r.Store == nil || !r.Store.HasAPIKey(callerKey) {
+		a.DeepSeekToken = callerKey
+	}
+	return a, nil
+}
+
 func WithAuth(ctx context.Context, a *RequestAuth) context.Context {
 	return context.WithValue(ctx, authCtxKey, a)
 }
