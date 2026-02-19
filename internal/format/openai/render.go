@@ -43,7 +43,10 @@ func BuildChatCompletion(completionID, model, finalPrompt, finalThinking, finalT
 }
 
 func BuildResponseObject(responseID, model, finalPrompt, finalThinking, finalText string, toolNames []string) map[string]any {
-	detected := util.ParseToolCalls(finalText, toolNames)
+	// Responses output should only be treated as tool calls when the model
+	// produced a standalone structured payload. This prevents accidental
+	// empty output_text on normal prose that merely contains tool_call-like text.
+	detected := util.ParseStandaloneToolCalls(finalText, toolNames)
 	exposedOutputText := finalText
 	output := make([]any, 0, 2)
 	if len(detected) > 0 {

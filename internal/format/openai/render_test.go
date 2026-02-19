@@ -62,3 +62,28 @@ func TestBuildResponseObjectToolCallsFollowChatShape(t *testing.T) {
 		t.Fatalf("unexpected arguments: %#v", args)
 	}
 }
+
+func TestBuildResponseObjectKeepsOutputTextForMixedProse(t *testing.T) {
+	obj := BuildResponseObject(
+		"resp_test",
+		"gpt-4o",
+		"prompt",
+		"",
+		`示例格式：{"tool_calls":[{"name":"search","input":{"q":"golang"}}]}，但这条是普通回答。`,
+		[]string{"search"},
+	)
+
+	outputText, _ := obj["output_text"].(string)
+	if outputText == "" {
+		t.Fatalf("expected output_text to be preserved for mixed prose")
+	}
+
+	output, _ := obj["output"].([]any)
+	if len(output) != 1 {
+		t.Fatalf("expected one output item, got %#v", obj["output"])
+	}
+	first, _ := output[0].(map[string]any)
+	if first["type"] != "message" {
+		t.Fatalf("expected output type message, got %#v", first["type"])
+	}
+}
