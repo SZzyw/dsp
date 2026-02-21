@@ -154,7 +154,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, resp *htt
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 	rc := http.NewResponseController(w)
-	canFlush := rc.Flush() == nil
+	_, canFlush := w.(http.Flusher)
 	if !canFlush {
 		config.Logger.Warn("[stream] response writer does not support flush; streaming may be buffered")
 	}

@@ -114,13 +114,7 @@ func (s *responsesStreamRuntime) finalize() {
 	// Compatibility fallback: some streams only emit incremental tool deltas.
 	// Ensure final function_call_arguments.done is emitted at least once.
 	if s.toolCallsEmitted {
-		detected := util.ParseStandaloneToolCalls(finalText, s.toolNames)
-		if len(detected) == 0 {
-			detected = util.ParseToolCalls(finalText, s.toolNames)
-		}
-		if len(detected) == 0 {
-			detected = util.ParseStandaloneToolCalls(finalThinking, s.toolNames)
-		}
+		detected := util.ParseToolCalls(finalText, s.toolNames)
 		if len(detected) == 0 {
 			detected = util.ParseToolCalls(finalThinking, s.toolNames)
 		}

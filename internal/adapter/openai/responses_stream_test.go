@@ -381,6 +381,48 @@ func TestHandleResponsesStreamMultiToolCallFromThinkingChannel(t *testing.T) {
 	}
 }
 
+func TestHandleResponsesStreamCompletedFollowsChatToolCallSemantics(t *testing.T) {
+	h := &Handler{}
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	rec := httptest.NewRecorder()
+
+	sseLine := func(v string) string {
+		b, _ := json.Marshal(map[string]any{
+			"p": "response/content",
+			"v": v,
+		})
+		return "data: " + string(b) + "\n"
+	}
+
+	streamBody := sseLine("我来调用工具\n") +
+		sseLine(`{"tool_calls":[{"name":"read_file","input":{"path":"README.MD"}}]}`) +
+		"data: [DONE]\n"
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(streamBody)),
+	}
+
+	h.handleResponsesStream(rec, req, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, false, []string{"read_file"})
+
+	completed, ok := extractSSEEventPayload(rec.Body.String(), "response.completed")
+	if !ok {
+		t.Fatalf("expected response.completed event, body=%s", rec.Body.String())
+	}
+	responseObj, _ := completed["response"].(map[string]any)
+	output, _ := responseObj["output"].([]any)
+	hasFunctionCall := false
+	for _, item := range output {
+		m, _ := item.(map[string]any)
+		if m != nil && m["type"] == "function_call" {
+			hasFunctionCall = true
+			break
+		}
+	}
+	if !hasFunctionCall {
+		t.Fatalf("expected completed output to include function_call when mixed prose contains tool_calls payload, output=%#v", output)
+	}
+}
+
 func extractSSEEventPayload(body, targetEvent string) (map[string]any, bool) {
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	matched := false

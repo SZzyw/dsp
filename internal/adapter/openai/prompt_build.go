@@ -12,3 +12,10 @@ func buildOpenAIFinalPrompt(messagesRaw []any, toolsRaw any, traceID string) (st
 	}
 	return deepseek.MessagesPrepare(messages), toolNames
 }
+
+// BuildPromptForAdapter exposes the OpenAI-compatible prompt building flow so
+// other protocol adapters (for example Gemini) can reuse the same tool/history
+// normalization logic and remain behavior-compatible with chat/completions.
+func BuildPromptForAdapter(messagesRaw []any, toolsRaw any, traceID string) (string, []string) {
+	return buildOpenAIFinalPrompt(messagesRaw, toolsRaw, traceID)
+}

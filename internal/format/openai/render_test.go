@@ -70,7 +70,7 @@ func TestBuildResponseObjectToolCallsFollowChatShape(t *testing.T) {
 	}
 }
 
-func TestBuildResponseObjectKeepsOutputTextForMixedProse(t *testing.T) {
+func TestBuildResponseObjectTreatsMixedProseToolPayloadAsToolCall(t *testing.T) {
 	obj := BuildResponseObject(
 		"resp_test",
 		"gpt-4o",
@@ -81,17 +81,41 @@ func TestBuildResponseObjectKeepsOutputTextForMixedProse(t *testing.T) {
 	)
 
 	outputText, _ := obj["output_text"].(string)
-	if outputText == "" {
-		t.Fatalf("expected output_text to be preserved for mixed prose")
+	if outputText != "" {
+		t.Fatalf("expected output_text hidden once tool calls are detected, got %q", outputText)
 	}
 
 	output, _ := obj["output"].([]any)
+	if len(output) != 2 {
+		t.Fatalf("expected function_call + tool_calls wrapper, got %#v", obj["output"])
+	}
+	first, _ := output[0].(map[string]any)
+	if first["type"] != "function_call" {
+		t.Fatalf("expected first output type function_call, got %#v", first["type"])
+	}
+}
+
+func TestBuildResponseObjectFencedToolPayloadRemainsText(t *testing.T) {
+	obj := BuildResponseObject(
+		"resp_test",
+		"gpt-4o",
+		"prompt",
+		"",
+		"```json\n{\"tool_calls\":[{\"name\":\"search\",\"input\":{\"q\":\"golang\"}}]}\n```",
+		[]string{"search"},
+	)
+
+	outputText, _ := obj["output_text"].(string)
+	if outputText == "" {
+		t.Fatalf("expected output_text preserved for fenced example")
+	}
+	output, _ := obj["output"].([]any)
 	if len(output) != 1 {
-		t.Fatalf("expected one output item, got %#v", obj["output"])
+		t.Fatalf("expected one message output item, got %#v", obj["output"])
 	}
 	first, _ := output[0].(map[string]any)
 	if first["type"] != "message" {
-		t.Fatalf("expected output type message, got %#v", first["type"])
+		t.Fatalf("expected message output type, got %#v", first["type"])
 	}
 }
 

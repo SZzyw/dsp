@@ -128,7 +128,7 @@ func (h *Handler) handleResponsesStream(w http.ResponseWriter, r *http.Request, 
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 	rc := http.NewResponseController(w)
-	canFlush := rc.Flush() == nil
+	_, canFlush := w.(http.Flusher)
 
 	initialType := "text"
 	if thinkingEnabled {

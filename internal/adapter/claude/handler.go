@@ -38,6 +38,10 @@ func RegisterRoutes(r chi.Router, h *Handler) {
 	r.Get("/anthropic/v1/models", h.ListModels)
 	r.Post("/anthropic/v1/messages", h.Messages)
 	r.Post("/anthropic/v1/messages/count_tokens", h.CountTokens)
+	r.Post("/v1/messages", h.Messages)
+	r.Post("/messages", h.Messages)
+	r.Post("/v1/messages/count_tokens", h.CountTokens)
+	r.Post("/messages/count_tokens", h.CountTokens)
 }
 
 func (h *Handler) ListModels(w http.ResponseWriter, _ *http.Request) {
@@ -167,7 +171,7 @@ func (h *Handler) handleClaudeStreamRealtime(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 	rc := http.NewResponseController(w)
-	canFlush := rc.Flush() == nil
+	_, canFlush := w.(http.Flusher)
 	if !canFlush {
 		config.Logger.Warn("[claude_stream] response writer does not support flush; streaming may be buffered")
 	}
