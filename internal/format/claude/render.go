@@ -9,7 +9,7 @@ import (
 
 func BuildMessageResponse(messageID, model string, normalizedMessages []any, finalThinking, finalText string, toolNames []string) map[string]any {
 	detected := util.ParseToolCalls(finalText, toolNames)
-	if len(detected) == 0 && finalThinking != "" {
+	if len(detected) == 0 && finalText == "" && finalThinking != "" {
 		detected = util.ParseToolCalls(finalThinking, toolNames)
 	}
 	content := make([]map[string]any, 0, 4)

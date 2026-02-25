@@ -46,7 +46,7 @@ func (s *claudeStreamRuntime) finalize(stopReason string) {
 
 	if s.bufferToolContent {
 		detected := util.ParseToolCalls(finalText, s.toolNames)
-		if len(detected) == 0 && finalThinking != "" {
+		if len(detected) == 0 && finalText == "" && finalThinking != "" {
 			detected = util.ParseToolCalls(finalThinking, s.toolNames)
 		}
 		if len(detected) > 0 {
