@@ -194,6 +194,36 @@ func TestNormalizeOpenAIMessagesForPrompt_PreservesConcatenatedToolArguments(t *
 	}
 }
 
+func TestNormalizeOpenAIMessagesForPrompt_AssistantNilContentDoesNotInjectNullLiteral(t *testing.T) {
+	raw := []any{
+		map[string]any{
+			"role":    "assistant",
+			"content": nil,
+			"tool_calls": []any{
+				map[string]any{
+					"id": "call_screenshot",
+					"function": map[string]any{
+						"name":      "send_file_to_user",
+						"arguments": `{"file_path":"/tmp/a.png"}`,
+					},
+				},
+			},
+		},
+	}
+
+	normalized := normalizeOpenAIMessagesForPrompt(raw, "")
+	if len(normalized) != 1 {
+		t.Fatalf("expected one normalized message, got %d", len(normalized))
+	}
+	content, _ := normalized[0]["content"].(string)
+	if strings.Contains(content, "<｜Assistant｜>null") || strings.HasPrefix(strings.TrimSpace(content), "null") {
+		t.Fatalf("unexpected null literal injected into assistant tool history: %q", content)
+	}
+	if !strings.Contains(content, "function.name: send_file_to_user") {
+		t.Fatalf("expected tool history block preserved, got %q", content)
+	}
+}
+
 func TestNormalizeOpenAIMessagesForPrompt_DeveloperRoleMapsToSystem(t *testing.T) {
 	raw := []any{
 		map[string]any{"role": "developer", "content": "必须先走工具调用"},

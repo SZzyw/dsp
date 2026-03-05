@@ -132,6 +132,9 @@ func formatToolResultForPrompt(msg map[string]any) string {
 }
 
 func normalizeOpenAIContentForPrompt(v any) string {
+	if v == nil {
+		return ""
+	}
 	switch x := v.(type) {
 	case string:
 		return x
