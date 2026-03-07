@@ -40,6 +40,9 @@ func ParseToolCallsDetailed(text string, availableToolNames []string) ToolCallPa
 	for _, candidate := range candidates {
 		tc := parseToolCallsPayload(candidate)
 		if len(tc) == 0 {
+			tc = parseXMLToolCalls(candidate)
+		}
+		if len(tc) == 0 {
 			tc = parseMarkupToolCalls(candidate)
 		}
 		if len(tc) > 0 {
@@ -49,7 +52,11 @@ func ParseToolCallsDetailed(text string, availableToolNames []string) ToolCallPa
 		}
 	}
 	if len(parsed) == 0 {
-		return result
+		parsed = parseXMLToolCalls(text)
+		if len(parsed) == 0 {
+			return result
+		}
+		result.SawToolCallSyntax = true
 	}
 
 	calls, rejectedNames := filterToolCallsDetailed(parsed, availableToolNames)
@@ -80,6 +87,9 @@ func ParseStandaloneToolCallsDetailed(text string, availableToolNames []string) 
 			continue
 		}
 		parsed := parseToolCallsPayload(candidate)
+		if len(parsed) == 0 {
+			parsed = parseXMLToolCalls(candidate)
+		}
 		if len(parsed) == 0 {
 			parsed = parseMarkupToolCalls(candidate)
 		}
