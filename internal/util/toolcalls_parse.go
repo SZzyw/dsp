@@ -45,7 +45,11 @@ func ParseToolCallsDetailed(text string, availableToolNames []string) ToolCallPa
 		}
 	}
 	if len(parsed) == 0 {
-		return result
+		parsed = parseXMLToolCalls(text)
+		if len(parsed) == 0 {
+			return result
+		}
+		result.SawToolCallSyntax = true
 	}
 
 	calls, rejectedNames := filterToolCallsDetailed(parsed, availableToolNames)
