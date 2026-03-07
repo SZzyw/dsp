@@ -357,3 +357,36 @@ func TestHandleClaudeStreamRealtimeToolSafetyAcrossStructuredFormats(t *testing.
 		})
 	}
 }
+
+func TestHandleClaudeStreamRealtimeDoesNotStopOnUnclosedFencedToolExample(t *testing.T) {
+	h := &Handler{}
+	resp := makeClaudeSSEHTTPResponse(
+		"data: {\"p\":\"response/content\",\"v\":\"Here is an example:\\n```json\\n{\\\"tool_calls\\\":[{\\\"name\\\":\\\"Bash\\\",\\\"input\\\":{\\\"command\\\":\\\"pwd\\\"}}]}\"}",
+		"data: {\"p\":\"response/content\",\"v\":\"\\n```\\nDo not execute it.\"}",
+		`data: [DONE]`,
+	)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", nil)
+
+	h.handleClaudeStreamRealtime(rec, req, resp, "claude-sonnet-4-5", []any{map[string]any{"role": "user", "content": "show example only"}}, false, false, []string{"Bash"})
+
+	frames := parseClaudeFrames(t, rec.Body.String())
+	for _, f := range findClaudeFrames(frames, "content_block_start") {
+		contentBlock, _ := f.Payload["content_block"].(map[string]any)
+		if contentBlock["type"] == "tool_use" {
+			t.Fatalf("unexpected tool_use for fenced example, body=%s", rec.Body.String())
+		}
+	}
+
+	foundEndTurn := false
+	for _, f := range findClaudeFrames(frames, "message_delta") {
+		delta, _ := f.Payload["delta"].(map[string]any)
+		if delta["stop_reason"] == "end_turn" {
+			foundEndTurn = true
+			break
+		}
+	}
+	if !foundEndTurn {
+		t.Fatalf("expected stop_reason=end_turn, body=%s", rec.Body.String())
+	}
+}

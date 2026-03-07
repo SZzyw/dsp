@@ -117,6 +117,9 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 
 		s.text.WriteString(p.Text)
 		if s.bufferToolContent {
+			if hasUnclosedCodeFence(s.text.String()) {
+				continue
+			}
 			detected := util.ParseToolCalls(s.text.String(), s.toolNames)
 			if len(detected) > 0 {
 				s.finalize("tool_use")
@@ -153,4 +156,8 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 	}
 
 	return streamengine.ParsedDecision{ContentSeen: contentSeen}
+}
+
+func hasUnclosedCodeFence(text string) bool {
+	return strings.Count(text, "```")%2 == 1
 }

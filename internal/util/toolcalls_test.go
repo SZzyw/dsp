@@ -260,3 +260,14 @@ func TestParseToolCallsSupportsAntmlFunctionAttributeWithParametersTag(t *testin
 		t.Fatalf("expected command argument, got %#v", calls[0].Input)
 	}
 }
+
+func TestParseToolCallsSupportsMultipleAntmlFunctionCalls(t *testing.T) {
+	text := `<antml:function_calls><antml:function_call id="1" function="Bash"><antml:parameters>{"command":"pwd"}</antml:parameters></antml:function_call><antml:function_call id="2" function="Read"><antml:parameters>{"file_path":"README.md"}</antml:parameters></antml:function_call></antml:function_calls>`
+	calls := ParseToolCalls(text, []string{"bash", "read"})
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 calls, got %#v", calls)
+	}
+	if calls[0].Name != "bash" || calls[1].Name != "read" {
+		t.Fatalf("expected canonical names [bash read], got %#v", calls)
+	}
+}

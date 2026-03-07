@@ -32,8 +32,8 @@ func parseXMLToolCalls(text string) []ParsedToolCall {
 	if call, ok := parseFunctionCallTagStyle(text); ok {
 		return []ParsedToolCall{call}
 	}
-	if call, ok := parseAntmlFunctionCallStyle(text); ok {
-		return []ParsedToolCall{call}
+	if calls := parseAntmlFunctionCallStyles(text); len(calls) > 0 {
+		return calls
 	}
 	if call, ok := parseInvokeFunctionCallStyle(text); ok {
 		return []ParsedToolCall{call}
@@ -140,8 +140,24 @@ func parseFunctionCallTagStyle(text string) (ParsedToolCall, bool) {
 	return ParsedToolCall{Name: name, Input: input}, true
 }
 
-func parseAntmlFunctionCallStyle(text string) (ParsedToolCall, bool) {
-	m := antmlFunctionCallPattern.FindStringSubmatch(text)
+func parseAntmlFunctionCallStyles(text string) []ParsedToolCall {
+	matches := antmlFunctionCallPattern.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	out := make([]ParsedToolCall, 0, len(matches))
+	for _, m := range matches {
+		if call, ok := parseSingleAntmlFunctionCallMatch(m); ok {
+			out = append(out, call)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func parseSingleAntmlFunctionCallMatch(m []string) (ParsedToolCall, bool) {
 	if len(m) < 3 {
 		return ParsedToolCall{}, false
 	}
