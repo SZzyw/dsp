@@ -93,6 +93,15 @@ func parseSingleXMLToolCall(block string) (ParsedToolCall, bool) {
 				if err := dec.DecodeElement(&v, &t); err == nil && strings.TrimSpace(v) != "" {
 					name = strings.TrimSpace(v)
 				}
+			case "input", "arguments", "argument", "args", "params":
+				var v string
+				if err := dec.DecodeElement(&v, &t); err == nil && strings.TrimSpace(v) != "" {
+					if parsed := parseToolCallInput(strings.TrimSpace(v)); len(parsed) > 0 {
+						for k, vv := range parsed {
+							params[k] = vv
+						}
+					}
+				}
 			default:
 				if inParams || inTool {
 					var v string
@@ -208,6 +217,13 @@ func parseInvokeFunctionCallStyle(text string) (ParsedToolCall, bool) {
 		v := strings.TrimSpace(pm[2])
 		if k != "" {
 			input[k] = v
+		}
+	}
+	if len(input) == 0 {
+		if argsRaw := findMarkupTagValue(m[2], toolCallMarkupArgsTagNames, toolCallMarkupArgsPatternByTag); argsRaw != "" {
+			input = parseMarkupInput(argsRaw)
+		} else if kv := parseMarkupKVObject(m[2]); len(kv) > 0 {
+			input = kv
 		}
 	}
 	return ParsedToolCall{Name: name, Input: input}, true
