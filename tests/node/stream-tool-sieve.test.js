@@ -264,3 +264,9 @@ test('formatOpenAIStreamToolCalls reuses ids with the same idStore', () => {
   assert.equal(second.length, 1);
   assert.equal(first[0].id, second[0].id);
 });
+
+test('parseToolCalls rejects mismatched markup tags', () => {
+  const payload = '<tool_call><name>read_file</function><arguments>{"path":"README.md"}</arguments></tool_call>';
+  const calls = parseToolCalls(payload, ['read_file']);
+  assert.equal(calls.length, 0);
+});
