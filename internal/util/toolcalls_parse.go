@@ -45,6 +45,9 @@ func ParseToolCallsDetailed(text string, availableToolNames []string) ToolCallPa
 		if len(tc) == 0 {
 			tc = parseMarkupToolCalls(candidate)
 		}
+		if len(tc) == 0 {
+			tc = parseTextKVToolCalls(candidate)
+		}
 		if len(tc) > 0 {
 			parsed = tc
 			result.SawToolCallSyntax = true
@@ -54,7 +57,10 @@ func ParseToolCallsDetailed(text string, availableToolNames []string) ToolCallPa
 	if len(parsed) == 0 {
 		parsed = parseXMLToolCalls(text)
 		if len(parsed) == 0 {
-			return result
+			parsed = parseTextKVToolCalls(text)
+			if len(parsed) == 0 {
+				return result
+			}
 		}
 		result.SawToolCallSyntax = true
 	}
@@ -92,6 +98,9 @@ func ParseStandaloneToolCallsDetailed(text string, availableToolNames []string) 
 		}
 		if len(parsed) == 0 {
 			parsed = parseMarkupToolCalls(candidate)
+		}
+		if len(parsed) == 0 {
+			parsed = parseTextKVToolCalls(candidate)
 		}
 		if len(parsed) > 0 {
 			result.SawToolCallSyntax = true
@@ -207,7 +216,8 @@ func looksLikeToolCallSyntax(text string) bool {
 	return strings.Contains(lower, "tool_calls") ||
 		strings.Contains(lower, "<tool_call") ||
 		strings.Contains(lower, "<function_call") ||
-		strings.Contains(lower, "<invoke")
+		strings.Contains(lower, "<invoke") ||
+		strings.Contains(lower, "function.name:")
 }
 
 func parseToolCallList(v any) []ParsedToolCall {
