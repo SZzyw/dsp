@@ -36,6 +36,19 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer h.Auth.Release(a)
+	
+	// 自动删除会话功能
+	if h.Store.AutoDeleteSessions() && a.DeepSeekToken != "" {
+		defer func() {
+			deleted, err := h.DS.DeleteAllSessionsForToken(context.Background(), a.DeepSeekToken)
+			if err != nil {
+				config.Logger.Warn("[auto_delete_sessions] failed", "account", a.AccountID, "error", err)
+			} else {
+				config.Logger.Debug("[auto_delete_sessions] deleted", "account", a.AccountID, "count", deleted)
+			}
+		}()
+	}
+	
 	r = r.WithContext(auth.WithAuth(r.Context(), a))
 
 	var req map[string]any
