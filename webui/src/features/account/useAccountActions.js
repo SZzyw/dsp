@@ -196,7 +196,7 @@ export function useAccountActions({ apiFetch, t, onMessage, onRefresh, config, f
             const data = await res.json()
             
             if (data.success) {
-                onMessage('success', t('accountManager.deleteAllSessionsSuccess', { count: data.deleted }))
+                onMessage('success', t('accountManager.deleteAllSessionsSuccess'))
                 // 清除会话数显示
                 setSessionCounts(prev => {
                     const newCounts = { ...prev }

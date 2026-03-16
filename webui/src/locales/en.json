@@ -135,7 +135,7 @@
         "sessionCount": "Sessions: {count}",
         "deleteAllSessions": "Delete all sessions",
         "deleteAllSessionsConfirm": "Are you sure you want to delete all sessions for this account? This action cannot be undone.",
-        "deleteAllSessionsSuccess": "Successfully deleted {count} sessions"
+        "deleteAllSessionsSuccess": "Successfully deleted all sessions"
     },
     "apiTester": {
         "defaultMessage": "Hello, please introduce yourself in one sentence.",

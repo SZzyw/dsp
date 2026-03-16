@@ -12,7 +12,8 @@ const (
 	DeepSeekCreatePowURL     = "https://chat.deepseek.com/api/v0/chat/create_pow_challenge"
 	DeepSeekCompletionURL    = "https://chat.deepseek.com/api/v0/chat/completion"
 	DeepSeekFetchSessionURL  = "https://chat.deepseek.com/api/v0/chat_session/fetch_page"
-	DeepSeekDeleteSessionURL = "https://chat.deepseek.com/api/v0/chat_session/delete"
+	DeepSeekDeleteSessionURL     = "https://chat.deepseek.com/api/v0/chat_session/delete"
+	DeepSeekDeleteAllSessionsURL = "https://chat.deepseek.com/api/v0/chat_session/delete_all"
 )
 
 var defaultBaseHeaders = map[string]string{

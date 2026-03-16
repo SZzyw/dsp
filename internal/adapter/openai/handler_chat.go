@@ -42,11 +42,11 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		// 2. 新请求可能获取到同一账号并开始使用
 		// 3. 异步删除仍在进行，会截断新请求正在使用的会话
 		if h.Store.AutoDeleteSessions() && a.DeepSeekToken != "" {
-			deleted, err := h.DS.DeleteAllSessionsForToken(context.Background(), a.DeepSeekToken)
+			err := h.DS.DeleteAllSessionsForToken(context.Background(), a.DeepSeekToken)
 			if err != nil {
 				config.Logger.Warn("[auto_delete_sessions] failed", "account", a.AccountID, "error", err)
 			} else {
-				config.Logger.Debug("[auto_delete_sessions] deleted", "account", a.AccountID, "count", deleted)
+				config.Logger.Debug("[auto_delete_sessions] success", "account", a.AccountID)
 			}
 		}
 		h.Auth.Release(a)

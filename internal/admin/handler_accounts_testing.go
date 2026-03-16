@@ -245,11 +245,11 @@ func (h *Handler) deleteAllSessions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 删除所有会话
-	deleted, err := h.DS.DeleteAllSessionsForToken(r.Context(), token)
+	err := h.DS.DeleteAllSessionsForToken(r.Context(), token)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"success": false, "message": "删除失败: " + err.Error(), "deleted": deleted})
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "message": "删除失败: " + err.Error()})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"success": true, "deleted": deleted, "message": fmt.Sprintf("成功删除 %d 个会话", deleted)})
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "message": "删除成功"})
 }

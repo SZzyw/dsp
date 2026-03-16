@@ -39,8 +39,8 @@ func (m *testingDSMock) CallCompletion(_ context.Context, _ *auth.RequestAuth, _
 	return nil, errors.New("should not call CallCompletion in this test")
 }
 
-func (m *testingDSMock) DeleteAllSessionsForToken(_ context.Context, _ string) (int, error) {
-	return 0, nil
+func (m *testingDSMock) DeleteAllSessionsForToken(_ context.Context, _ string) error {
+	return nil
 }
 
 func (m *testingDSMock) GetSessionCountForToken(_ context.Context, _ string) (*deepseek.SessionStats, error) {

@@ -42,7 +42,7 @@ type DeepSeekCaller interface {
 	GetPow(ctx context.Context, a *auth.RequestAuth, maxAttempts int) (string, error)
 	CallCompletion(ctx context.Context, a *auth.RequestAuth, payload map[string]any, powResp string, maxAttempts int) (*http.Response, error)
 	GetSessionCountForToken(ctx context.Context, token string) (*deepseek.SessionStats, error)
-	DeleteAllSessionsForToken(ctx context.Context, token string) (int, error)
+	DeleteAllSessionsForToken(ctx context.Context, token string) error
 }
 
 var _ ConfigStore = (*config.Store)(nil)

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"ds2api/internal/auth"
 	"ds2api/internal/config"
@@ -115,124 +114,43 @@ func (c *Client) DeleteSessionForToken(ctx context.Context, token string, sessio
 }
 
 // DeleteAllSessions 删除所有会话（谨慎使用）
-func (c *Client) DeleteAllSessions(ctx context.Context, a *auth.RequestAuth) (int, error) {
-	const maxNoProgress = 3 // 最大无进度次数
+func (c *Client) DeleteAllSessions(ctx context.Context, a *auth.RequestAuth) error {
+	headers := c.authHeaders(a.DeepSeekToken)
+	payload := map[string]any{}
 
-	deleted := 0
-	cursor := ""
-	noProgressCount := 0
-
-	for {
-		sessions, hasMore, err := c.FetchSessionPage(ctx, a, cursor)
-		if err != nil {
-			return deleted, err
-		}
-
-		deletedThisRound := 0
-		for _, session := range sessions {
-			_, err := c.DeleteSession(ctx, a, session.ID, 1)
-			if err == nil {
-				deleted++
-				deletedThisRound++
-			}
-		}
-
-		// 无进度检测：如果连续多轮没有成功删除任何会话，退出循环
-		if deletedThisRound == 0 {
-			noProgressCount++
-			if noProgressCount >= maxNoProgress {
-				config.Logger.Warn("[delete_all_sessions] exiting due to no progress", "deleted", deleted)
-				break
-			}
-		} else {
-			noProgressCount = 0
-		}
-
-		if !hasMore || len(sessions) == 0 {
-			break
-		}
+	resp, status, err := c.postJSONWithStatus(ctx, c.regular, DeepSeekDeleteAllSessionsURL, headers, payload)
+	if err != nil {
+		config.Logger.Warn("[delete_all_sessions] request error", "error", err)
+		return err
 	}
 
-	return deleted, nil
+	code := intFrom(resp["code"])
+	if status != http.StatusOK || code != 0 {
+		msg, _ := resp["msg"].(string)
+		config.Logger.Warn("[delete_all_sessions] failed", "status", status, "code", code, "msg", msg)
+		return fmt.Errorf("request failed: status=%d, code=%d, msg=%s", status, code, msg)
+	}
+
+	return nil
 }
 
 // DeleteAllSessionsForToken 直接使用 token 删除所有会话（直通模式）
-func (c *Client) DeleteAllSessionsForToken(ctx context.Context, token string) (int, error) {
-	const maxNoProgress = 3 // 最大无进度次数
+func (c *Client) DeleteAllSessionsForToken(ctx context.Context, token string) error {
+	headers := c.authHeaders(token)
+	payload := map[string]any{}
 
-	deleted := 0
-	cursor := ""
-	noProgressCount := 0
-
-	for {
-		// 获取会话列表
-		headers := c.authHeaders(token)
-		params := url.Values{}
-		params.Set("lte_cursor.pinned", "false")
-		if cursor != "" {
-			params.Set("lte_cursor", cursor)
-		}
-		reqURL := DeepSeekFetchSessionURL + "?" + params.Encode()
-
-		resp, status, err := c.getJSONWithStatus(ctx, c.regular, reqURL, headers)
-		if err != nil {
-			return deleted, err
-		}
-
-		code := intFrom(resp["code"])
-		if status != http.StatusOK || code != 0 {
-			msg, _ := resp["msg"].(string)
-			return deleted, fmt.Errorf("fetch sessions failed: status=%d, code=%d, msg=%s", status, code, msg)
-		}
-
-		data, _ := resp["data"].(map[string]any)
-		bizData, _ := data["biz_data"].(map[string]any)
-		chatSessions, _ := bizData["chat_sessions"].([]any)
-		hasMore, _ := bizData["has_more"].(bool)
-
-		// 删除每个会话
-		deletedThisRound := 0
-		for _, s := range chatSessions {
-			if m, ok := s.(map[string]any); ok {
-				sessionID := stringFromMap(m, "id")
-				if sessionID == "" {
-					continue
-				}
-				_, err := c.DeleteSessionForToken(ctx, token, sessionID)
-				if err == nil {
-					deleted++
-					deletedThisRound++
-				}
-			}
-		}
-
-		// 无进度检测：如果连续多轮没有成功删除任何会话，退出循环
-		if deletedThisRound == 0 {
-			noProgressCount++
-			if noProgressCount >= maxNoProgress {
-				config.Logger.Warn("[delete_all_sessions_for_token] exiting due to no progress", "deleted", deleted)
-				break
-			}
-		} else {
-			noProgressCount = 0
-		}
-
-		if !hasMore || len(chatSessions) == 0 {
-			break
-		}
-
-		// 推进 cursor：从最后一个会话中提取 cursor（通常基于 updated_at 或 id）
-		if len(chatSessions) > 0 {
-			if lastSession, ok := chatSessions[len(chatSessions)-1].(map[string]any); ok {
-				// 尝试从响应中获取 cursor 字段，或使用最后会话的 ID/updated_at
-				if nextCursor, ok := bizData["cursor"].(string); ok && nextCursor != "" {
-					cursor = nextCursor
-				} else if nextCursor := stringFromMap(lastSession, "id"); nextCursor != "" {
-					cursor = nextCursor
-				}
-			}
-		}
+	resp, status, err := c.postJSONWithStatus(ctx, c.regular, DeepSeekDeleteAllSessionsURL, headers, payload)
+	if err != nil {
+		config.Logger.Warn("[delete_all_sessions_for_token] request error", "error", err)
+		return err
 	}
 
-	return deleted, nil
+	code := intFrom(resp["code"])
+	if status != http.StatusOK || code != 0 {
+		msg, _ := resp["msg"].(string)
+		config.Logger.Warn("[delete_all_sessions_for_token] failed", "status", status, "code", code, "msg", msg)
+		return fmt.Errorf("request failed: status=%d, code=%d, msg=%s", status, code, msg)
+	}
+
+	return nil
 }

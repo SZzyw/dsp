@@ -135,7 +135,7 @@
         "sessionCount": "会话: {count}",
         "deleteAllSessions": "删除所有会话",
         "deleteAllSessionsConfirm": "确定要删除该账号的所有会话吗？此操作不可恢复。",
-        "deleteAllSessionsSuccess": "成功删除 {count} 个会话"
+        "deleteAllSessionsSuccess": "删除成功"
     },
     "apiTester": {
         "defaultMessage": "你好，请用一句话介绍你自己。",
