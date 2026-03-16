@@ -71,10 +71,10 @@ while IFS= read -r file; do
 
   lines="$(wc -l < "$abs" | tr -d ' ')"
   limit="$DEFAULT_MAX"
-  if is_frontend_file "$file"; then
-    limit="$FRONTEND_MAX"
-  elif is_entry_file "$file"; then
+  if is_entry_file "$file"; then
     limit="$ENTRY_MAX"
+  elif is_frontend_file "$file"; then
+    limit="$FRONTEND_MAX"
   fi
 
   if (( lines > limit )); then
