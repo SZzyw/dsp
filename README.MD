@@ -476,6 +476,23 @@ go run ./cmd/ds2api-tests \
 npm ci --prefix webui && npm run build --prefix webui
 ```
 
+## 测试
+
+详细测试指南请参阅 [TESTING.md](TESTING.md)。
+
+### 快速测试命令
+
+```bash
+# 运行所有单元测试
+go test ./...
+
+# 运行 tool calls 相关测试（调试工具调用问题）
+go test -v -run 'TestParseToolCalls|TestRepair' ./internal/util/
+
+# 运行端到端测试
+./tests/scripts/run-live.sh
+```
+
 ## Release 自动构建（GitHub Actions）
 
 工作流文件：`.github/workflows/release-artifacts.yml`
