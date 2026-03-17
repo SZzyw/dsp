@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 )
 
@@ -171,7 +172,13 @@ func resolveAllowedToolName(name string, allowed map[string]struct{}, allowedCan
 func parseToolCallsPayload(payload string) []ParsedToolCall {
 	var decoded any
 	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
-		return nil
+		// Try to repair backslashes first! Because LLMs often mix these two problems.
+		repaired := repairInvalidJSONBackslashes(payload)
+		// Try loose repair on top of that
+		repaired = RepairLooseJSON(repaired)
+		if err := json.Unmarshal([]byte(repaired), &decoded); err != nil {
+			return nil
+		}
 	}
 	switch v := decoded.(type) {
 	case map[string]any:
@@ -271,6 +278,13 @@ func parseToolCallInput(v any) map[string]any {
 				return parsed
 			}
 		}
+		// Try to repair loose JSON in string argument as well
+		repairedLoose := RepairLooseJSON(raw)
+		if repairedLoose != raw {
+			if err := json.Unmarshal([]byte(repairedLoose), &parsed); err == nil && parsed != nil {
+				return parsed
+			}
+		}
 		return map[string]any{"_raw": raw}
 	default:
 		b, err := json.Marshal(x)
@@ -331,4 +345,29 @@ func repairInvalidJSONBackslashes(s string) string {
 		}
 	}
 	return out.String()
+}
+
+var unquotedKeyPattern = regexp.MustCompile(`([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:`)
+
+// missingArrayBracketsPattern identifies a sequence of two or more JSON objects separated by commas
+// that immediately follow a colon, which indicates a missing array bracket `[` `]`.
+// E.g., "key": {"a": 1}, {"b": 2} -> "key": [{"a": 1}, {"b": 2}]
+// NOTE: The pattern uses (?:[^{}]|\{[^{}]*\})* to support single-level nested {} objects,
+// which handles cases like {"content": "x", "input": {"q": "y"}}
+var missingArrayBracketsPattern = regexp.MustCompile(`(:\s*)(\{(?:[^{}]|\{[^{}]*\})*\}(?:\s*,\s*\{(?:[^{}]|\{[^{}]*\})*\})+)`)
+
+func RepairLooseJSON(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	// 1. Replace unquoted keys: {key: -> {"key":
+	s = unquotedKeyPattern.ReplaceAllString(s, `$1"$2":`)
+
+	// 2. Heuristic: Fix missing array brackets for list of objects
+	// e.g., : {obj1}, {obj2} -> : [{obj1}, {obj2}]
+	// This specifically addresses DeepSeek's "list hallucination"
+	s = missingArrayBracketsPattern.ReplaceAllString(s, `$1[$2]`)
+
+	return s
 }
