@@ -46,6 +46,9 @@ function processToolSieveChunk(state, chunk, toolNames) {
       if (Array.isArray(consumed.calls) && consumed.calls.length > 0) {
         state.pendingToolRaw = captured;
         state.pendingToolCalls = consumed.calls;
+        if (consumed.suffix) {
+          state.pending = consumed.suffix + state.pending;
+        }
         continue;
       }
       if (consumed.prefix) {
@@ -235,17 +238,6 @@ function consumeToolCapture(state, toolNames) {
     };
   }
 
-  // Strict standalone mode: if the stream already produced meaningful prose,
-  // treat later tool-looking JSON as plain text instead of intercepting.
-  if ((state.recentTextTail || '').trim() !== '' && prefixPart.trim() === '') {
-    return {
-      ready: true,
-      prefix: captured,
-      calls: [],
-      suffix: '',
-    };
-  }
-
   const parsed = parseStandaloneToolCallsDetailed(captured.slice(actualStart, obj.end), toolNames);
   if (!Array.isArray(parsed.calls) || parsed.calls.length === 0) {
     if (parsed.sawToolCallSyntax && parsed.rejectedByPolicy) {
@@ -256,18 +248,6 @@ function consumeToolCapture(state, toolNames) {
         suffix: suffixPart,
       };
     }
-    return {
-      ready: true,
-      prefix: captured,
-      calls: [],
-      suffix: '',
-    };
-  }
-
-  // Strict standalone mode: only intercept when the tool payload stands alone
-  // (allowing only surrounding whitespace). If there is non-whitespace prose
-  // before/after the JSON object, keep everything as normal text.
-  if (prefixPart.trim() !== '' || suffixPart.trim() !== '') {
     return {
       ready: true,
       prefix: captured,
