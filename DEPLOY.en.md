@@ -113,12 +113,8 @@ go build -o ds2api ./cmd/ds2api
 # Copy env template
 cp .env.example .env
 
-# Generate single-line Base64 from config.json
-DS2API_CONFIG_JSON="$(base64 < config.json | tr -d '\n')"
-
-# Edit .env and set:
+# Edit .env and set at least:
 #   DS2API_ADMIN_KEY=your-admin-key
-#   DS2API_CONFIG_JSON=${DS2API_CONFIG_JSON}
 
 # Start
 docker-compose up -d

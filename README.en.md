@@ -160,17 +160,13 @@ Default URL: `http://localhost:5001`
 # 1. Prepare env file
 cp .env.example .env
 
-# 2. Generate DS2API_CONFIG_JSON from config.json (single-line Base64)
-DS2API_CONFIG_JSON="$(base64 < config.json | tr -d '\n')"
-
-# 3. Edit .env and set:
+# 2. Edit .env (at least set DS2API_ADMIN_KEY)
 #    DS2API_ADMIN_KEY=replace-with-a-strong-secret
-#    DS2API_CONFIG_JSON=${DS2API_CONFIG_JSON}
 
-# 4. Start
+# 3. Start
 docker-compose up -d
 
-# 5. View logs
+# 4. View logs
 docker-compose logs -f
 ```
 

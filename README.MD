@@ -160,17 +160,13 @@ go run ./cmd/ds2api
 # 1. 准备环境变量文件
 cp .env.example .env
 
-# 2. 从 config.json 生成 DS2API_CONFIG_JSON（单行 Base64）
-DS2API_CONFIG_JSON="$(base64 < config.json | tr -d '\n')"
-
-# 3. 编辑 .env，设置：
+# 2. 编辑 .env（至少设置 DS2API_ADMIN_KEY）
 #    DS2API_ADMIN_KEY=请替换为强密码
-#    DS2API_CONFIG_JSON=${DS2API_CONFIG_JSON}
 
-# 4. 启动
+# 3. 启动
 docker-compose up -d
 
-# 5. 查看日志
+# 4. 查看日志
 docker-compose logs -f
 ```
 
