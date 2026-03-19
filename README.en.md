@@ -398,7 +398,7 @@ ds2api/
 ├── api/
 │   ├── index.go             # Vercel Serverless Go entry
 │   ├── chat-stream.js       # Vercel Node.js stream relay
-│   └── helpers/             # Node.js helper modules
+│   └── (rewrite targets in vercel.json)
 ├── internal/
 │   ├── account/             # Account pool and concurrency queue
 │   ├── adapter/
@@ -411,6 +411,7 @@ ds2api/
 │   ├── compat/              # Compatibility helpers
 │   ├── config/              # Config loading and hot-reload
 │   ├── deepseek/            # DeepSeek API client, PoW WASM
+│   ├── js/                  # Node runtime stream/compat logic
 │   ├── devcapture/          # Dev packet capture module
 │   ├── format/              # Output formatting
 │   ├── prompt/              # Prompt construction
@@ -421,7 +422,9 @@ ds2api/
 │   └── webui/               # WebUI static file serving and auto-build
 ├── webui/                   # React WebUI source (Vite + Tailwind)
 │   └── src/
-│       ├── components/      # AccountManager / ApiTester / BatchImport / VercelSync / Login / LandingPage
+│       ├── app/             # Routing, auth, config state
+│       ├── features/        # Feature modules (account/settings/vercel/apiTester)
+│       ├── components/      # Shared UI pieces (login/landing, etc.)
 │       └── locales/         # Language packs (zh.json / en.json)
 ├── scripts/
 │   └── build-webui.sh       # Manual WebUI build script
@@ -484,7 +487,7 @@ Workflow: `.github/workflows/release-artifacts.yml`
 - **Trigger**: only on GitHub Release `published` (normal pushes do not trigger builds)
 - **Outputs**: multi-platform archives (`linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64`) + `sha256sums.txt`
 - **Container publishing**: GHCR only (`ghcr.io/cjackhwang/ds2api`)
-- **Each archive includes**: `ds2api` executable, `static/admin`, WASM file, config template, README, LICENSE
+- **Each archive includes**: `ds2api` executable, `static/admin`, WASM file (with embedded fallback support), config template, README, LICENSE
 
 ## Disclaimer
 

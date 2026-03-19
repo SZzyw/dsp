@@ -397,7 +397,7 @@ ds2api/
 ├── api/
 │   ├── index.go             # Vercel Serverless Go 入口
 │   ├── chat-stream.js       # Vercel Node.js 流式转发
-│   └── helpers/             # Node.js 辅助模块
+│   └── (rewrite targets in vercel.json)
 ├── internal/
 │   ├── account/             # 账号池与并发队列
 │   ├── adapter/
@@ -410,6 +410,7 @@ ds2api/
 │   ├── compat/              # 兼容性辅助
 │   ├── config/              # 配置加载与热更新
 │   ├── deepseek/            # DeepSeek API 客户端、PoW WASM
+│   ├── js/                  # Node 运行时流式处理与兼容逻辑
 │   ├── devcapture/          # 开发抓包模块
 │   ├── format/              # 输出格式化
 │   ├── prompt/              # Prompt 构建
@@ -420,7 +421,9 @@ ds2api/
 │   └── webui/               # WebUI 静态文件托管与自动构建
 ├── webui/                   # React WebUI 源码（Vite + Tailwind）
 │   └── src/
-│       ├── components/      # AccountManager / ApiTester / BatchImport / VercelSync / Login / LandingPage
+│       ├── app/             # 路由、鉴权、配置状态管理
+│       ├── features/        # 业务功能模块（account/settings/vercel/apiTester）
+│       ├── components/      # 登录/落地页等通用组件
 │       └── locales/         # 中英文语言包（zh.json / en.json）
 ├── scripts/
 │   └── build-webui.sh       # WebUI 手动构建脚本
@@ -500,7 +503,7 @@ go test -v -run 'TestParseToolCalls|TestRepair' ./internal/util/
 - **触发条件**：仅在 GitHub Release `published` 时触发（普通 push 不会触发）
 - **构建产物**：多平台二进制包（`linux/amd64`、`linux/arm64`、`darwin/amd64`、`darwin/arm64`、`windows/amd64`）+ `sha256sums.txt`
 - **容器镜像发布**：仅推送到 GHCR（`ghcr.io/cjackhwang/ds2api`）
-- **每个压缩包包含**：`ds2api` 可执行文件、`static/admin`、WASM 文件、配置示例、README、LICENSE
+- **每个压缩包包含**：`ds2api` 可执行文件、`static/admin`、WASM 文件（同时支持内置 fallback）、配置示例、README、LICENSE
 
 ## 免责声明
 
