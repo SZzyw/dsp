@@ -113,12 +113,8 @@ go build -o ds2api ./cmd/ds2api
 # 复制环境变量模板
 cp .env.example .env
 
-# 从 config.json 生成单行 Base64
-DS2API_CONFIG_JSON="$(base64 < config.json | tr -d '\n')"
-
-# 编辑 .env（请改成你的强密码），设置：
+# 编辑 .env（请改成你的强密码），至少设置：
 #   DS2API_ADMIN_KEY=your-admin-key
-#   DS2API_CONFIG_JSON=${DS2API_CONFIG_JSON}
 
 # 启动
 docker-compose up -d
