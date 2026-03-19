@@ -366,7 +366,7 @@ Each archive includes:
 
 - `ds2api` executable (`ds2api.exe` on Windows)
 - `static/admin/` (built WebUI assets)
-- `sha3_wasm_bg.7b9ca65ddd.wasm`
+- `sha3_wasm_bg.7b9ca65ddd.wasm` (optional; binary has embedded fallback)
 - `config.example.json`, `.env.example`
 - `README.MD`, `README.en.md`, `LICENSE`
 
@@ -455,7 +455,9 @@ server {
 ```bash
 # Copy compiled binary and related files to target directory
 sudo mkdir -p /opt/ds2api
-sudo cp ds2api config.json sha3_wasm_bg.7b9ca65ddd.wasm /opt/ds2api/
+sudo cp ds2api config.json /opt/ds2api/
+# Optional: if you want to use an external WASM file (override embedded one)
+# sudo cp sha3_wasm_bg.7b9ca65ddd.wasm /opt/ds2api/
 sudo cp -r static/admin /opt/ds2api/static/admin
 ```
 
