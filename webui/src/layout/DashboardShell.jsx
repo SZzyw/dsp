@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
     LayoutDashboard,
     Upload,
@@ -47,6 +47,29 @@ export default function DashboardShell({ token, onLogout, config, fetchConfig, s
         return res
     }, [onLogout, t, token])
 
+
+    const [versionInfo, setVersionInfo] = useState(null)
+
+    useEffect(() => {
+        let disposed = false
+        async function loadVersion() {
+            try {
+                const res = await authFetch('/admin/version')
+                const data = await res.json()
+                if (!disposed) {
+                    setVersionInfo(data)
+                }
+            } catch (_err) {
+                if (!disposed) {
+                    setVersionInfo(null)
+                }
+            }
+        }
+        loadVersion()
+        return () => {
+            disposed = true
+        }
+    }, [authFetch])
     const renderTab = () => {
         switch (activeTab) {
             case 'accounts':
@@ -134,6 +157,20 @@ export default function DashboardShell({ token, onLogout, config, fetchConfig, s
                                 <div className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-0.5 opacity-70">{t('sidebar.keys')}</div>
                                 <div className="text-lg font-bold text-foreground">{config.keys?.length || 0}</div>
                             </div>
+                        </div>
+                        <div className="bg-background rounded-lg p-3 border border-border shadow-sm">
+                            <div className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider mb-1 opacity-70">{t('sidebar.version')}</div>
+                            <div className="text-xs font-semibold text-foreground">{versionInfo?.current_tag || '-'}</div>
+                            {versionInfo?.has_update && (
+                                <a
+                                    className="inline-flex mt-1 text-[10px] text-amber-500 hover:text-amber-400"
+                                    href={versionInfo?.release_url || 'https://github.com/CJackHwang/ds2api/releases/latest'}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    {t('sidebar.updateAvailable', { latest: versionInfo.latest_tag || '' })}
+                                </a>
+                            )}
                         </div>
                         <button
                             onClick={onLogout}

@@ -32,7 +32,9 @@
         "statusOnline": "在线",
         "accounts": "账号",
         "keys": "密钥",
-        "signOut": "退出登录"
+        "signOut": "退出登录",
+        "version": "版本",
+        "updateAvailable": "发现新版本 {latest}"
     },
     "auth": {
         "expired": "认证已过期，请重新登录",

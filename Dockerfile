@@ -10,13 +10,16 @@ FROM golang:1.24 AS go-builder
 WORKDIR /app
 ARG TARGETOS
 ARG TARGETARCH
+ARG BUILD_VERSION
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
 RUN set -eux; \
     GOOS="${TARGETOS:-$(go env GOOS)}"; \
     GOARCH="${TARGETARCH:-$(go env GOARCH)}"; \
-    CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build -o /out/ds2api ./cmd/ds2api
+    BUILD_VERSION_RESOLVED="${BUILD_VERSION}"; \
+    if [ -z "${BUILD_VERSION_RESOLVED}" ] && [ -f VERSION ]; then BUILD_VERSION_RESOLVED="$(cat VERSION | tr -d "[:space:]")"; fi; \
+    CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build -ldflags="-s -w -X ds2api/internal/version.BuildVersion=${BUILD_VERSION_RESOLVED}" -o /out/ds2api ./cmd/ds2api
 
 FROM busybox:1.36.1-musl AS busybox-tools
 

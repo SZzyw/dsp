@@ -32,7 +32,9 @@
         "statusOnline": "Online",
         "accounts": "Accounts",
         "keys": "Keys",
-        "signOut": "Sign out"
+        "signOut": "Sign out",
+        "version": "Version",
+        "updateAvailable": "Update available: {latest}"
     },
     "auth": {
         "expired": "Authentication expired. Please sign in again.",
