@@ -60,6 +60,9 @@ function formatIncrementalToolCallDeltas(deltas, idStore) {
     if (typeof d.arguments === 'string' && d.arguments !== '') {
       fn.arguments = d.arguments;
     }
+    if (Object.keys(fn).length === 0) {
+      continue;
+    }
     if (Object.keys(fn).length > 0) {
       item.function = fn;
     }

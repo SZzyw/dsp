@@ -17,15 +17,18 @@ function extractToolNames(tools) {
     return [];
   }
   const out = [];
+  const seen = new Set();
   for (const t of tools) {
     if (!t || typeof t !== 'object') {
       continue;
     }
     const fn = t.function && typeof t.function === 'object' ? t.function : t;
     const name = toStringSafe(fn.name);
-    // Keep parity with Go injectToolPrompt: object tools without name still
-    // enter tool mode via fallback name "unknown".
-    out.push(name || 'unknown');
+    if (!name || seen.has(name)) {
+      continue;
+    }
+    seen.add(name);
+    out.push(name);
   }
   return out;
 }

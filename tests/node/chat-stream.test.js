@@ -98,6 +98,12 @@ test('incremental and final tool formatting share stable id via idStore', () => 
   assert.equal(incremental[0].id, finalCalls[0].id);
 });
 
+test('formatIncrementalToolCallDeltas drops empty deltas (Go parity)', () => {
+  const idStore = new Map();
+  const formatted = formatIncrementalToolCallDeltas([{ index: 0 }], idStore);
+  assert.deepEqual(formatted, []);
+});
+
 test('parseChunkForContent keeps split response/content fragments inside response array', () => {
   const chunk = {
     p: 'response',

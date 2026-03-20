@@ -31,13 +31,14 @@ function collectText(events) {
     .join('');
 }
 
-test('extractToolNames keeps tool mode enabled with unknown fallback', () => {
+test('extractToolNames keeps only declared tool names (Go parity)', () => {
   const names = extractToolNames([
     { function: { description: 'no name tool' } },
     { function: { name: ' read_file ' } },
+    { function: { name: 'read_file' } },
     {},
   ]);
-  assert.deepEqual(names, ['unknown', 'read_file', 'unknown']);
+  assert.deepEqual(names, ['read_file']);
 });
 
 test('parseToolCalls keeps non-object argument strings as _raw (Go parity)', () => {
