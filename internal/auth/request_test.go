@@ -58,7 +58,7 @@ func TestDetermineWithXAPIKeyManagedKeyAcquiresAccount(t *testing.T) {
 	if auth.AccountID != "acc@example.com" {
 		t.Fatalf("unexpected account id: %q", auth.AccountID)
 	}
-	if auth.DeepSeekToken != "account-token" {
+	if auth.DeepSeekToken != "fresh-token" {
 		t.Fatalf("unexpected account token: %q", auth.DeepSeekToken)
 	}
 	if auth.CallerID == "" {

@@ -39,6 +39,8 @@ func loadConfig() (Config, bool, error) {
 	}
 	if rawCfg != "" {
 		cfg, err := parseConfigString(rawCfg)
+		cfg.ClearAccountTokens()
+		cfg.DropInvalidAccounts()
 		return cfg, true, err
 	}
 
@@ -55,6 +57,8 @@ func loadConfig() (Config, bool, error) {
 	if err := json.Unmarshal(content, &cfg); err != nil {
 		return Config{}, false, err
 	}
+	cfg.ClearAccountTokens()
+	cfg.DropInvalidAccounts()
 	if IsVercel() {
 		// Vercel filesystem is ephemeral/read-only for runtime writes; avoid save errors.
 		return cfg, true, nil
@@ -161,7 +165,9 @@ func (s *Store) Save() error {
 		Logger.Info("[save_config] source from env, skip write")
 		return nil
 	}
-	b, err := json.MarshalIndent(s.cfg, "", "  ")
+	persistCfg := s.cfg.Clone()
+	persistCfg.ClearAccountTokens()
+	b, err := json.MarshalIndent(persistCfg, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -173,7 +179,9 @@ func (s *Store) saveLocked() error {
 		Logger.Info("[save_config] source from env, skip write")
 		return nil
 	}
-	b, err := json.MarshalIndent(s.cfg, "", "  ")
+	persistCfg := s.cfg.Clone()
+	persistCfg.ClearAccountTokens()
+	b, err := json.MarshalIndent(persistCfg, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -197,7 +205,9 @@ func (s *Store) SetVercelSync(hash string, ts int64) error {
 func (s *Store) ExportJSONAndBase64() (string, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	b, err := json.Marshal(s.cfg)
+	exportCfg := s.cfg.Clone()
+	exportCfg.ClearAccountTokens()
+	b, err := json.Marshal(exportCfg)
 	if err != nil {
 		return "", "", err
 	}
