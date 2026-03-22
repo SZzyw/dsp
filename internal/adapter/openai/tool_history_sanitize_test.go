@@ -43,6 +43,14 @@ func TestSanitizeLeakedToolHistoryPreservesChunkWhitespace(t *testing.T) {
 	}
 }
 
+func TestSanitizeLeakedToolHistoryRemovesEmptyJSONFence(t *testing.T) {
+	raw := "before\n```json\n```\nafter"
+	got := sanitizeLeakedToolHistory(raw)
+	if got != "before\n\nafter" {
+		t.Fatalf("unexpected sanitized empty json fence: %q", got)
+	}
+}
+
 func TestFlushToolSieveDropsToolHistoryLeak(t *testing.T) {
 	var state toolStreamSieveState
 	chunk := "[TOOL_CALL_HISTORY]\nstatus: already_called\nfunction.name: exec\nfunction.arguments: {}\n[/TOOL_CALL_HISTORY]"
