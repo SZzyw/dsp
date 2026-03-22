@@ -12,11 +12,11 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 
-import AccountManager from '../components/AccountManager'
-import ApiTester from '../components/ApiTester'
+import AccountManagerContainer from '../features/account/AccountManagerContainer'
+import ApiTesterContainer from '../features/apiTester/ApiTesterContainer'
 import BatchImport from '../components/BatchImport'
-import VercelSync from '../components/VercelSync'
-import Settings from '../components/Settings'
+import VercelSyncContainer from '../features/vercel/VercelSyncContainer'
+import SettingsContainer from '../features/settings/SettingsContainer'
 import LanguageToggle from '../components/LanguageToggle'
 import { useI18n } from '../i18n'
 
@@ -73,15 +73,15 @@ export default function DashboardShell({ token, onLogout, config, fetchConfig, s
     const renderTab = () => {
         switch (activeTab) {
             case 'accounts':
-                return <AccountManager config={config} onRefresh={fetchConfig} onMessage={showMessage} authFetch={authFetch} />
+                return <AccountManagerContainer config={config} onRefresh={fetchConfig} onMessage={showMessage} authFetch={authFetch} />
             case 'test':
-                return <ApiTester config={config} onMessage={showMessage} authFetch={authFetch} />
+                return <ApiTesterContainer config={config} onMessage={showMessage} authFetch={authFetch} />
             case 'import':
                 return <BatchImport onRefresh={fetchConfig} onMessage={showMessage} authFetch={authFetch} />
             case 'vercel':
-                return <VercelSync onMessage={showMessage} authFetch={authFetch} isVercel={isVercel} config={config} />
+                return <VercelSyncContainer onMessage={showMessage} authFetch={authFetch} isVercel={isVercel} config={config} />
             case 'settings':
-                return <Settings onRefresh={fetchConfig} onMessage={showMessage} authFetch={authFetch} onForceLogout={onForceLogout} isVercel={isVercel} />
+                return <SettingsContainer onRefresh={fetchConfig} onMessage={showMessage} authFetch={authFetch} onForceLogout={onForceLogout} isVercel={isVercel} />
             default:
                 return null
         }

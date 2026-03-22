@@ -77,4 +77,10 @@ func TestBuildOpenAIFinalPrompt_VercelPreparePathKeepsFinalAnswerInstruction(t *
 	if !strings.Contains(finalPrompt, "Only call another tool when the previous result is missing required data or returned an error.") {
 		t.Fatalf("vercel prepare finalPrompt missing retry guard instruction: %q", finalPrompt)
 	}
+	if !strings.Contains(finalPrompt, "Do NOT wrap tool-call JSON in markdown/code fences") {
+		t.Fatalf("vercel prepare finalPrompt missing no-fence instruction: %q", finalPrompt)
+	}
+	if strings.Contains(finalPrompt, "```json") {
+		t.Fatalf("vercel prepare finalPrompt should not require fenced json tool calls: %q", finalPrompt)
+	}
 }

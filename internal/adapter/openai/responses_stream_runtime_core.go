@@ -32,7 +32,6 @@ type responsesStreamRuntime struct {
 	toolCallsDoneEmitted bool
 
 	sieve             toolStreamSieveState
-	thinkingSieve     toolStreamSieveState
 	thinking          strings.Builder
 	text              strings.Builder
 	visibleText       strings.Builder
@@ -167,15 +166,6 @@ func (s *responsesStreamRuntime) logToolPolicyRejections(textParsed util.ToolCal
 		)
 	}
 	logRejected(textParsed, "text")
-}
-
-func (s *responsesStreamRuntime) hasFunctionCallDone() bool {
-	for _, done := range s.functionDone {
-		if done {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *responsesStreamRuntime) onParsed(parsed sse.LineResult) streamengine.ParsedDecision {

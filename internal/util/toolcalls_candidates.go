@@ -7,7 +7,6 @@ import (
 
 var toolCallPattern = regexp.MustCompile(`\{\s*["']tool_calls["']\s*:\s*\[(.*?)\]\s*\}`)
 var fencedJSONPattern = regexp.MustCompile("(?s)```(?:json)?\\s*(.*?)\\s*```")
-var fencedBlockPattern = regexp.MustCompile("(?s)```.*?```")
 
 func buildToolCallCandidates(text string) []string {
 	trimmed := strings.TrimSpace(text)
@@ -82,12 +81,12 @@ func extractToolCallObjects(text string) []string {
 		if searchLimit < offset {
 			searchLimit = offset
 		}
-		
+
 		start := strings.LastIndex(text[searchLimit:idx], "{")
 		if start >= 0 {
 			start += searchLimit
 		}
-		
+
 		if start < 0 {
 			offset = idx + len(matchedKeyword)
 			continue
@@ -113,7 +112,7 @@ func extractToolCallObjects(text string) []string {
 			}
 			break
 		}
-		
+
 		if !foundObj {
 			offset = idx + len(matchedKeyword)
 		}
@@ -173,11 +172,4 @@ func looksLikeToolExampleContext(text string) bool {
 		return false
 	}
 	return strings.Contains(t, "```")
-}
-
-func stripFencedCodeBlocks(text string) string {
-	if strings.TrimSpace(text) == "" {
-		return ""
-	}
-	return fencedBlockPattern.ReplaceAllString(text, " ")
 }

@@ -236,6 +236,20 @@ func TestParseToolCallsSupportsInvokeFunctionCallStyle(t *testing.T) {
 	}
 }
 
+func TestParseToolCallsSupportsToolUseFunctionParameterStyle(t *testing.T) {
+	text := `<tool_use><function name="search_web"><parameter name="query">test</parameter></function></tool_use>`
+	calls := ParseToolCalls(text, []string{"search_web"})
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %#v", calls)
+	}
+	if calls[0].Name != "search_web" {
+		t.Fatalf("expected canonical tool name search_web, got %q", calls[0].Name)
+	}
+	if calls[0].Input["query"] != "test" {
+		t.Fatalf("expected query argument, got %#v", calls[0].Input)
+	}
+}
+
 func TestParseToolCallsSupportsNestedToolTagStyle(t *testing.T) {
 	text := `<tool_call><tool name="Bash"><command>pwd</command><description>show cwd</description></tool></tool_call>`
 	calls := ParseToolCalls(text, []string{"bash"})
