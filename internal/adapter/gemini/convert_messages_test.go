@@ -60,7 +60,7 @@ func TestGeminiMessagesFromRequestPreservesUnknownPartAsRawJSONText(t *testing.T
 				"role": "user",
 				"parts": []any{
 					map[string]any{"text": "hello"},
-					map[string]any{"inlineData": map[string]any{"mimeType": "image/png"}},
+					map[string]any{"inlineData": map[string]any{"mimeType": "image/png", "data": strings.Repeat("A", 2048)}},
 				},
 			},
 		},
@@ -74,5 +74,11 @@ func TestGeminiMessagesFromRequestPreservesUnknownPartAsRawJSONText(t *testing.T
 	content, _ := msg["content"].(string)
 	if !strings.Contains(content, "hello") || !strings.Contains(content, "inlineData") {
 		t.Fatalf("expected unknown part preserved as raw json text, got %q", content)
+	}
+	if !strings.Contains(content, "[omitted_binary_payload]") {
+		t.Fatalf("expected inlineData payload to be redacted, got %q", content)
+	}
+	if strings.Contains(content, strings.Repeat("A", 100)) {
+		t.Fatalf("expected raw base64 payload not to be embedded, got %q", content)
 	}
 }

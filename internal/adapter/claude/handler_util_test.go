@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -91,6 +92,10 @@ func TestNormalizeClaudeMessagesToolUseToAssistantToolCalls(t *testing.T) {
 	if call["id"] != "call_1" {
 		t.Fatalf("expected call id preserved, got %#v", call)
 	}
+	content, _ := m["content"].(string)
+	if !containsStr(content, "search_web") || !containsStr(content, `"arguments":"{\"query\":\"latest\"}"`) {
+		t.Fatalf("expected assistant content to include serialized tool call for prompt roundtrip, got %q", content)
+	}
 }
 
 func TestNormalizeClaudeMessagesSkipsNonMap(t *testing.T) {
@@ -125,7 +130,7 @@ func TestNormalizeClaudeMessagesMixedContentBlocks(t *testing.T) {
 			"role": "user",
 			"content": []any{
 				map[string]any{"type": "text", "text": "Hello"},
-				map[string]any{"type": "image", "source": "data:..."},
+				map[string]any{"type": "image", "source": map[string]any{"type": "base64", "data": strings.Repeat("A", 2048)}},
 				map[string]any{"type": "text", "text": "World"},
 			},
 		},
@@ -134,7 +139,13 @@ func TestNormalizeClaudeMessagesMixedContentBlocks(t *testing.T) {
 	m := got[0].(map[string]any)
 	content, _ := m["content"].(string)
 	if !containsStr(content, "Hello") || !containsStr(content, "World") || !containsStr(content, `"type":"image"`) {
-		t.Fatalf("expected text plus raw non-text block preserved, got %q", content)
+		t.Fatalf("expected text plus non-text block marker preserved, got %q", content)
+	}
+	if !containsStr(content, omittedBinaryMarker) {
+		t.Fatalf("expected binary payload omitted marker, got %q", content)
+	}
+	if containsStr(content, strings.Repeat("A", 100)) {
+		t.Fatalf("expected raw base64 payload not to be included, got %q", content)
 	}
 }
 
