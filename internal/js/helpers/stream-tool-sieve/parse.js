@@ -10,8 +10,10 @@ const {
   parseTextKVToolCalls,
   stripFencedCodeBlocks,
 } = require('./parse_payload');
+const { TOOL_SEGMENT_KEYWORDS } = require('./tool-keywords');
 
 const TOOL_NAME_LOOSE_PATTERN = /[^a-z0-9]+/g;
+const TOOL_MARKUP_PREFIXES = ['<tool_call', '<function_call', '<invoke'];
 
 function extractToolNames(tools) {
   if (!Array.isArray(tools) || tools.length === 0) {
@@ -230,24 +232,11 @@ function resolveAllowedToolName(name, allowed, allowedCanonical) {
 
 function looksLikeToolCallSyntax(text) {
   const lower = toStringSafe(text).toLowerCase();
-  return lower.includes('tool_calls')
-    || lower.includes('<tool_call')
-    || lower.includes('<function_call')
-    || lower.includes('<invoke')
-    || lower.includes('function.name:');
+  return TOOL_SEGMENT_KEYWORDS.some((kw) => lower.includes(kw))
+    || TOOL_MARKUP_PREFIXES.some((prefix) => lower.includes(prefix));
 }
 
 function shouldSkipToolCallParsingForCodeFenceExample(text) {
-  if (!looksLikeToolCallSyntax(text) || looksLikeMarkupToolSyntax(text)) {
-    return false;
-  }
-  const stripped = stripFencedCodeBlocks(text);
-  return !looksLikeToolCallSyntax(stripped);
-}
-
-function looksLikeMarkupToolSyntax(text) {
-  const raw = toStringSafe(text);
-  if (!raw) {
     return false;
   }
   return /<(?:(?:[a-z0-9_:-]+:)?(?:tool_call|function_call|invoke)\b)/i.test(raw)
