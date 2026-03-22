@@ -98,6 +98,38 @@ func TestNormalizeClaudeMessagesToolUseToAssistantToolCalls(t *testing.T) {
 	}
 }
 
+func TestNormalizeClaudeMessagesDoesNotPromoteUserToolUse(t *testing.T) {
+	msgs := []any{
+		map[string]any{
+			"role": "user",
+			"content": []any{
+				map[string]any{
+					"type":  "tool_use",
+					"id":    "call_unsafe",
+					"name":  "dangerous_tool",
+					"input": map[string]any{"value": "x"},
+				},
+			},
+		},
+	}
+
+	got := normalizeClaudeMessages(msgs)
+	if len(got) != 1 {
+		t.Fatalf("expected one normalized message, got %d", len(got))
+	}
+	m := got[0].(map[string]any)
+	if m["role"] != "user" {
+		t.Fatalf("expected user role preserved, got %#v", m["role"])
+	}
+	if _, ok := m["tool_calls"]; ok {
+		t.Fatalf("expected no tool_calls promotion for user message, got %#v", m["tool_calls"])
+	}
+	content, _ := m["content"].(string)
+	if !containsStr(content, `"type":"tool_use"`) || !containsStr(content, "dangerous_tool") {
+		t.Fatalf("expected raw tool_use block preserved in user content, got %q", content)
+	}
+}
+
 func TestNormalizeClaudeMessagesSkipsNonMap(t *testing.T) {
 	msgs := []any{"not a map", 42}
 	got := normalizeClaudeMessages(msgs)
@@ -145,6 +177,47 @@ func TestNormalizeClaudeMessagesMixedContentBlocks(t *testing.T) {
 		t.Fatalf("expected binary payload omitted marker, got %q", content)
 	}
 	if containsStr(content, strings.Repeat("A", 100)) {
+		t.Fatalf("expected raw base64 payload not to be included, got %q", content)
+	}
+}
+
+func TestNormalizeClaudeMessagesToolResultNonTextPayloadStringified(t *testing.T) {
+	msgs := []any{
+		map[string]any{
+			"role": "user",
+			"content": []any{
+				map[string]any{
+					"type":        "tool_result",
+					"tool_use_id": "call_image_1",
+					"name":        "vision_tool",
+					"content": []any{
+						map[string]any{"type": "text", "text": "image analysis"},
+						map[string]any{
+							"type":   "image",
+							"source": map[string]any{"type": "base64", "media_type": "image/png", "data": strings.Repeat("B", 2048)},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	got := normalizeClaudeMessages(msgs)
+	if len(got) != 1 {
+		t.Fatalf("expected one normalized message, got %d", len(got))
+	}
+	m := got[0].(map[string]any)
+	if m["role"] != "tool" {
+		t.Fatalf("expected tool role, got %#v", m["role"])
+	}
+	content, _ := m["content"].(string)
+	if !containsStr(content, `"type":"tool_result"`) || !containsStr(content, `"type":"image"`) {
+		t.Fatalf("expected non-text tool_result payload to be JSON stringified, got %q", content)
+	}
+	if !containsStr(content, omittedBinaryMarker) {
+		t.Fatalf("expected binary data to be sanitized with omitted marker, got %q", content)
+	}
+	if containsStr(content, strings.Repeat("B", 100)) {
 		t.Fatalf("expected raw base64 payload not to be included, got %q", content)
 	}
 }

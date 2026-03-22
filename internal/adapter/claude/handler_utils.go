@@ -39,9 +39,15 @@ func normalizeClaudeMessages(messages []any) []any {
 						textParts = append(textParts, t)
 					}
 				case "tool_use":
-					flushText()
-					if toolMsg := normalizeClaudeToolUseToAssistant(b); toolMsg != nil {
-						out = append(out, toolMsg)
+					if role == "assistant" {
+						flushText()
+						if toolMsg := normalizeClaudeToolUseToAssistant(b); toolMsg != nil {
+							out = append(out, toolMsg)
+						}
+						continue
+					}
+					if raw := strings.TrimSpace(formatClaudeUnknownBlockForPrompt(b)); raw != "" {
+						textParts = append(textParts, raw)
 					}
 				case "tool_result":
 					flushText()
@@ -159,12 +165,27 @@ func normalizeClaudeToolResultToToolMessage(block map[string]any) map[string]any
 	out := map[string]any{
 		"role":         "tool",
 		"tool_call_id": toolCallID,
-		"content":      block["content"],
+		"content":      normalizeClaudeToolResultContent(block["content"]),
 	}
 	if name := strings.TrimSpace(fmt.Sprintf("%v", block["name"])); name != "" {
 		out["name"] = name
 	}
 	return out
+}
+
+func normalizeClaudeToolResultContent(content any) any {
+	if text, ok := content.(string); ok {
+		return text
+	}
+	payload := map[string]any{
+		"type":    "tool_result",
+		"content": content,
+	}
+	b, err := json.Marshal(sanitizeClaudeBlockForPrompt(payload))
+	if err != nil {
+		return strings.TrimSpace(fmt.Sprintf("%v", content))
+	}
+	return string(b)
 }
 
 func formatClaudeBlockRaw(block map[string]any) string {
