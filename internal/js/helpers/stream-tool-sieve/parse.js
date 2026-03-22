@@ -237,11 +237,11 @@ function looksLikeToolCallSyntax(text) {
 }
 
 function shouldSkipToolCallParsingForCodeFenceExample(text) {
+  if (!looksLikeToolCallSyntax(text)) {
     return false;
   }
-  return /<(?:(?:[a-z0-9_:-]+:)?(?:tool_call|function_call|invoke)\b)/i.test(raw)
-    || /<(?:[a-z0-9_:-]+:)?function_calls\b/i.test(raw)
-    || /<(?:[a-z0-9_:-]+:)?tool_use\b/i.test(raw);
+  const stripped = stripFencedCodeBlocks(text);
+  return !looksLikeToolCallSyntax(stripped);
 }
 
 module.exports = {

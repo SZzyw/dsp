@@ -177,7 +177,7 @@ func looksLikeToolExampleContext(text string) bool {
 }
 
 func shouldSkipToolCallParsingForCodeFenceExample(text string) bool {
-	if !looksLikeToolCallSyntax(text) || looksLikeMarkupToolSyntax(text) {
+	if !looksLikeToolCallSyntax(text) {
 		return false
 	}
 	stripped := strings.TrimSpace(stripFencedCodeBlocks(text))
