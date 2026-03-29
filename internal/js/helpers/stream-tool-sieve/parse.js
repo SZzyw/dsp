@@ -54,9 +54,9 @@ function parseToolCallsDetailed(text, toolNames) {
   const candidates = buildToolCallCandidates(normalized);
   let parsed = [];
   for (const c of candidates) {
-    parsed = parseToolCallsPayload(c);
+    parsed = parseMarkupToolCalls(c);
     if (parsed.length === 0) {
-      parsed = parseMarkupToolCalls(c);
+      parsed = parseToolCallsPayload(c);
     }
     if (parsed.length === 0) {
       parsed = parseTextKVToolCalls(c);
@@ -101,9 +101,9 @@ function parseStandaloneToolCallsDetailed(text, toolNames) {
   const candidates = buildToolCallCandidates(trimmed);
   let parsed = [];
   for (const c of candidates) {
-    parsed = parseToolCallsPayload(c);
+    parsed = parseMarkupToolCalls(c);
     if (parsed.length === 0) {
-      parsed = parseMarkupToolCalls(c);
+      parsed = parseToolCallsPayload(c);
     }
     if (parsed.length === 0) {
       parsed = parseTextKVToolCalls(c);

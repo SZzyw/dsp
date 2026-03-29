@@ -356,13 +356,17 @@ cp opencode.json.example opencode.json
 
 ## Tool Call 适配
 
-当请求中带 `tools` 时，DS2API 会做防泄漏处理：
+当请求中带 `tools` 时，DS2API 会做防泄漏处理与结构化转译：
 
-1. 只在**非代码块上下文**启用 toolcall 特征识别（代码块示例不会触发）
-2. `responses` 流式严格使用官方 item 生命周期事件（`response.output_item.*`、`response.content_part.*`、`response.function_call_arguments.*`）
-3. 未在 `tools` 声明中的工具名会被严格拒绝，不会下发为有效 tool call
+1. 只在**非代码块上下文**启用执行型 toolcall 识别（代码块示例默认不触发）
+2. 解析层以 XML/Markup 为最高优先级，同时兼容 JSON / ANTML / invoke / text-kv，并统一归一到内部工具调用结构
+3. `responses` 流式严格使用官方 item 生命周期事件（`response.output_item.*`、`response.content_part.*`、`response.function_call_arguments.*`）
 4. `responses` 支持并执行 `tool_choice`（`auto`/`none`/`required`/强制函数）；`required` 违规时非流式返回 `422`，流式返回 `response.failed`
-5. 仅在通过策略校验后才会发出有效工具调用事件，避免错误工具名进入客户端执行链
+5. 客户端请求哪种协议，就按该协议返回工具调用（OpenAI/Claude/Gemini 各自原生结构）；模型侧优先约束输出规范 XML，再由兼容层转译
+
+> 说明：当前版本在 parser 层仍以“尽量解析成功”为优先，未启用基于 allow-list 的工具名硬拒绝。
+>
+> 想评估“把工具调用封装成 XML 再输入模型”的方案，可参考：`docs/toolcall-semantics.md`。
 
 ## 本地开发抓包工具
 

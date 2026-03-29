@@ -34,12 +34,12 @@ func ParseToolCallsDetailed(text string, availableToolNames []string) ToolCallPa
 	candidates := buildToolCallCandidates(text)
 	var parsed []ParsedToolCall
 	for _, candidate := range candidates {
-		tc := parseToolCallsPayload(candidate)
-		if len(tc) == 0 {
-			tc = parseXMLToolCalls(candidate)
-		}
+		tc := parseXMLToolCalls(candidate)
 		if len(tc) == 0 {
 			tc = parseMarkupToolCalls(candidate)
+		}
+		if len(tc) == 0 {
+			tc = parseToolCallsPayload(candidate)
 		}
 		if len(tc) == 0 {
 			tc = parseTextKVToolCalls(candidate)
@@ -88,12 +88,12 @@ func ParseStandaloneToolCallsDetailed(text string, availableToolNames []string) 
 		if candidate == "" {
 			continue
 		}
-		parsed = parseToolCallsPayload(candidate)
-		if len(parsed) == 0 {
-			parsed = parseXMLToolCalls(candidate)
-		}
+		parsed = parseXMLToolCalls(candidate)
 		if len(parsed) == 0 {
 			parsed = parseMarkupToolCalls(candidate)
+		}
+		if len(parsed) == 0 {
+			parsed = parseToolCallsPayload(candidate)
 		}
 		if len(parsed) == 0 {
 			parsed = parseTextKVToolCalls(candidate)
