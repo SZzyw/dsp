@@ -116,8 +116,11 @@ function flushToolSieve(state, toolNames) {
         events.push({ type: 'text', text: consumed.suffix });
       }
     } else if (state.capture) {
-      noteText(state, state.capture);
-      events.push({ type: 'text', text: state.capture });
+      const content = state.capture;
+      if (!hasOpenXMLToolTag(content) && !looksLikeXMLToolTagFragment(content)) {
+        noteText(state, content);
+        events.push({ type: 'text', text: content });
+      }
     }
     state.capture = '';
     state.capturing = false;
