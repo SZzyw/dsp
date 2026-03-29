@@ -1,63 +1,58 @@
 'use strict';
 const { parseToolCalls } = require('./parse');
-const {
-  XML_TOOL_OPENING_TAGS,
-  XML_TOOL_CLOSING_TAGS,
-} = require('./tool-keywords');
+
+// Tag pairs ordered longest-first: wrapper tags checked before inner tags.
+const XML_TOOL_TAG_PAIRS = [
+  { open: '<tool_calls', close: '</tool_calls>' },
+  { open: '<tool_call', close: '</tool_call>' },
+  { open: '<function_calls', close: '</function_calls>' },
+  { open: '<function_call', close: '</function_call>' },
+  { open: '<invoke', close: '</invoke>' },
+  { open: '<tool_use', close: '</tool_use>' },
+];
+
+const XML_TOOL_OPENING_TAGS = XML_TOOL_TAG_PAIRS.map(p => p.open);
 
 function consumeXMLToolCapture(captured, toolNames, trimWrappingJSONFence) {
   const lower = captured.toLowerCase();
-  let openIdx = -1;
-  for (const tag of XML_TOOL_OPENING_TAGS) {
-    const idx = lower.indexOf(tag);
-    if (idx >= 0 && (openIdx < 0 || idx < openIdx)) {
-      openIdx = idx;
+  // Find the FIRST matching open/close pair, preferring wrapper tags.
+  for (const pair of XML_TOOL_TAG_PAIRS) {
+    const openIdx = lower.indexOf(pair.open);
+    if (openIdx < 0) {
+      continue;
     }
-  }
-  if (openIdx < 0) {
-    return { ready: false, prefix: '', calls: [], suffix: '' };
-  }
-  let closeIdx = -1;
-  for (const tag of XML_TOOL_CLOSING_TAGS) {
-    const idx = lower.indexOf(tag, openIdx);
-    if (idx >= 0) {
-      const absEnd = idx + tag.length;
-      if (closeIdx < 0 || absEnd > closeIdx) {
-        closeIdx = absEnd;
-      }
+    // Find the LAST occurrence of the specific closing tag.
+    const closeIdx = lower.lastIndexOf(pair.close);
+    if (closeIdx < openIdx) {
+      // Opening tag present but specific closing tag hasn't arrived.
+      // Return not-ready — do NOT fall through to inner pairs.
+      return { ready: false, prefix: '', calls: [], suffix: '' };
     }
+    const closeEnd = closeIdx + pair.close.length;
+    const xmlBlock = captured.slice(openIdx, closeEnd);
+    let prefixPart = captured.slice(0, openIdx);
+    let suffixPart = captured.slice(closeEnd);
+    const parsed = parseToolCalls(xmlBlock, toolNames);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const trimmedFence = trimWrappingJSONFence(prefixPart, suffixPart);
+      return {
+        ready: true,
+        prefix: trimmedFence.prefix,
+        calls: parsed,
+        suffix: trimmedFence.suffix,
+      };
+    }
+    // XML tool syntax but failed to parse — consume to avoid leak.
+    return { ready: true, prefix: prefixPart, calls: [], suffix: suffixPart };
   }
-  if (closeIdx <= 0) {
-    return { ready: false, prefix: '', calls: [], suffix: '' };
-  }
-  const xmlBlock = captured.slice(openIdx, closeIdx);
-  let prefixPart = captured.slice(0, openIdx);
-  let suffixPart = captured.slice(closeIdx);
-  const parsed = parseToolCalls(xmlBlock, toolNames);
-  if (Array.isArray(parsed) && parsed.length > 0) {
-    const trimmedFence = trimWrappingJSONFence(prefixPart, suffixPart);
-    return {
-      ready: true,
-      prefix: trimmedFence.prefix,
-      calls: parsed,
-      suffix: trimmedFence.suffix,
-    };
-  }
-  return { ready: true, prefix: prefixPart, calls: [], suffix: suffixPart };
+  return { ready: false, prefix: '', calls: [], suffix: '' };
 }
 
 function hasOpenXMLToolTag(captured) {
   const lower = captured.toLowerCase();
-  for (const tag of XML_TOOL_OPENING_TAGS) {
-    if (lower.includes(tag)) {
-      let hasClosed = false;
-      for (const ct of XML_TOOL_CLOSING_TAGS) {
-        if (lower.includes(ct)) {
-          hasClosed = true;
-          break;
-        }
-      }
-      if (!hasClosed) {
+  for (const pair of XML_TOOL_TAG_PAIRS) {
+    if (lower.includes(pair.open)) {
+      if (!lower.includes(pair.close)) {
         return true;
       }
     }

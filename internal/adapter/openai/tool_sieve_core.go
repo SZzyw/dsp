@@ -114,8 +114,14 @@ func flushToolSieve(state *toolStreamSieveState, toolNames []string) []toolStrea
 		} else {
 			content := state.capture.String()
 			if content != "" {
-				state.noteText(content)
-				events = append(events, toolStreamEvent{Content: content})
+				// If the captured text looks like an incomplete XML tool call block,
+				// swallow it to prevent leaking raw XML tags to the client.
+				if hasOpenXMLToolTag(content) {
+					// Drop it silently — incomplete tool call.
+				} else {
+					state.noteText(content)
+					events = append(events, toolStreamEvent{Content: content})
+				}
 			}
 		}
 		state.capture.Reset()
@@ -199,6 +205,11 @@ func findToolSegmentStart(s string) int {
 	start := strings.LastIndex(s[:bestKeyIdx], "{")
 	if start < 0 {
 		start = bestKeyIdx
+	}
+	// If the keyword matched inside an XML tag (e.g. "tool_calls" in "<tool_calls>"),
+	// back up past the '<' to capture the full tag.
+	if start > 0 && s[start-1] == '<' {
+		start--
 	}
 	if fenceStart, ok := openFenceStartBefore(s, start); ok {
 		return fenceStart

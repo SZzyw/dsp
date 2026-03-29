@@ -153,3 +153,135 @@ func TestHasOpenXMLToolTag(t *testing.T) {
 		t.Fatal("should return false for plain text")
 	}
 }
+
+// Test the EXACT scenario the user reports: token-by-token streaming where
+// <tool_calls> tag arrives in small pieces.
+func TestProcessToolSieveTokenByTokenXMLNoLeak(t *testing.T) {
+	var state toolStreamSieveState
+	// Simulate DeepSeek model generating tokens one at a time.
+	chunks := []string{
+		"<",
+		"tool",
+		"_calls",
+		">\n",
+		"  <",
+		"tool",
+		"_call",
+		">\n",
+		"    <",
+		"tool",
+		"_name",
+		">",
+		"read",
+		"_file",
+		"</",
+		"tool",
+		"_name",
+		">\n",
+		"    <",
+		"parameters",
+		">",
+		`{"path"`,
+		`: "README.MD"`,
+		`}`,
+		"</",
+		"parameters",
+		">\n",
+		"  </",
+		"tool",
+		"_call",
+		">\n",
+		"</",
+		"tool",
+		"_calls",
+		">",
+	}
+	var events []toolStreamEvent
+	for _, c := range chunks {
+		events = append(events, processToolSieveChunk(&state, c, []string{"read_file"})...)
+	}
+	events = append(events, flushToolSieve(&state, []string{"read_file"})...)
+
+	var textContent string
+	var toolCalls int
+	for _, evt := range events {
+		if evt.Content != "" {
+			textContent += evt.Content
+		}
+		toolCalls += len(evt.ToolCalls)
+	}
+
+	if strings.Contains(textContent, "<tool_call") {
+		t.Fatalf("XML tool call content leaked to text in token-by-token mode: %q", textContent)
+	}
+	if strings.Contains(textContent, "tool_calls>") {
+		t.Fatalf("closing tag fragment leaked to text: %q", textContent)
+	}
+	if strings.Contains(textContent, "read_file") {
+		t.Fatalf("tool name leaked to text: %q", textContent)
+	}
+	if toolCalls == 0 {
+		t.Fatal("expected tool calls to be extracted, got none")
+	}
+}
+
+// Test that flushToolSieve on incomplete XML does NOT leak the raw XML content.
+func TestFlushToolSieveIncompleteXMLDoesNotLeak(t *testing.T) {
+	var state toolStreamSieveState
+	// XML block starts but stream ends before completion.
+	chunks := []string{
+		"<tool_calls>\n",
+		"  <tool_call>\n",
+		"    <tool_name>read_file</tool_name>\n",
+	}
+	var events []toolStreamEvent
+	for _, c := range chunks {
+		events = append(events, processToolSieveChunk(&state, c, []string{"read_file"})...)
+	}
+	// Stream ends abruptly - flush should NOT dump raw XML.
+	events = append(events, flushToolSieve(&state, []string{"read_file"})...)
+
+	var textContent string
+	for _, evt := range events {
+		if evt.Content != "" {
+			textContent += evt.Content
+		}
+	}
+
+	if strings.Contains(textContent, "<tool_call") {
+		t.Fatalf("incomplete XML leaked on flush: %q", textContent)
+	}
+}
+
+// Test that the opening tag "<tool_calls>\n  " is NOT emitted as text content.
+func TestOpeningXMLTagNotLeakedAsContent(t *testing.T) {
+	var state toolStreamSieveState
+	// First chunk is the opening tag - should be held, not emitted.
+	evts1 := processToolSieveChunk(&state, "<tool_calls>\n  ", []string{"read_file"})
+	for _, evt := range evts1 {
+		if strings.Contains(evt.Content, "<tool_calls>") {
+			t.Fatalf("opening tag leaked on first chunk: %q", evt.Content)
+		}
+	}
+
+	// Remaining content arrives.
+	evts2 := processToolSieveChunk(&state, "<tool_call>\n    <tool_name>read_file</tool_name>\n    <parameters>{\"path\":\"README.MD\"}</parameters>\n  </tool_call>\n</tool_calls>", []string{"read_file"})
+	evts2 = append(evts2, flushToolSieve(&state, []string{"read_file"})...)
+
+	var textContent string
+	var toolCalls int
+	allEvents := append(evts1, evts2...)
+	for _, evt := range allEvents {
+		if evt.Content != "" {
+			textContent += evt.Content
+		}
+		toolCalls += len(evt.ToolCalls)
+	}
+
+	if strings.Contains(textContent, "<tool_call") {
+		t.Fatalf("XML content leaked: %q", textContent)
+	}
+	if toolCalls == 0 {
+		t.Fatal("expected tool calls to be extracted")
+	}
+}
