@@ -286,7 +286,8 @@ data: [DONE]
 
 补充说明：
 
-- **非代码块上下文**下，工具 JSON 即使与普通文本混合，也会按特征识别并产出可执行 tool call（前后普通文本仍可透传）。
+- **非代码块上下文**下，工具负载即使与普通文本混合，也会按特征识别并产出可执行 tool call（前后普通文本仍可透传）。
+- 解析器以 XML/Markup 为最高优先级，并兼容 JSON、ANTML、text-kv 等格式输入；最终按客户端协议转译为对应 tool call 结构（OpenAI/Claude/Gemini）。
 - Markdown fenced code block（例如 ```json ... ```）中的 `tool_calls` 仅视为示例文本，不会被执行。
 
 ---
@@ -346,7 +347,8 @@ data: [DONE]
 ```
 
 流式场景下若 `tool_choice=required` 违规，会返回 `response.failed` 后结束（不再发送 `response.completed`）。
-未在 `tools` 声明中的工具名会被严格拒绝，不会作为有效 tool call 下发。
+
+> 当前版本说明：解析层默认“尽量提取结构化 tool call”，未启用基于 `tools` allow-list 的硬拒绝；是否执行仍应由你的工具执行器做白名单校验。
 
 ### `GET /v1/responses/{response_id}`
 
