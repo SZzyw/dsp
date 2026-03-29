@@ -37,25 +37,28 @@
 
 ## 4) 关于“是否可以封装成 XML 再喂给模型”
 
-结论：**可以做，而且建议把 XML 作为模型侧第一优先格式**，同时保持“输入兼容层 + 输出按客户端协议渲染”。
+结论：**可以做，而且当前解析器已经能兼容 XML 作为输入格式之一**，但代码里并没有 `toolcall.prefer_xml_output` 这个开关。现有可调配置只有：
 
-推荐架构：
+- `toolcall.mode`：`feature_match` / `off`
+- `toolcall.early_emit_confidence`：`high` / `low` / `off`
 
-1. **Prompt 约束层**（默认开启）：强约束模型优先输出规范 XML tool block（例如 `<tool_calls><tool_call>...</tool_call></tool_calls>`）。
-2. **解析兼容层**（已具备基础）：继续在 parser 中同时接受 JSON/XML/ANTML/invoke/text-kv。
-3. **协议归一层**（必须）：无论模型输出什么格式，统一落到内部 `ParsedToolCall`。
-4. **对外渲染层**：根据客户端请求协议渲染（OpenAI/Claude/Gemini 各自格式）。
+推荐思路仍然是“输入兼容层 + 输出按客户端协议渲染”：
+
+1. **Prompt 约束层**：如果你要尝试 XML-first，可以在系统提示词里约束模型输出规范 XML tool block（例如 `<tool_calls><tool_call>...</tool_call></tool_calls>`）。
+2. **解析兼容层**：继续在 parser 中同时接受 JSON / XML / ANTML / invoke / text-kv。
+3. **协议归一层**：无论模型输出什么格式，统一落到内部 `ParsedToolCall`。
+4. **对外渲染层**：根据客户端请求协议渲染（OpenAI / Claude / Gemini 各自格式）。
 
 这样可以同时获得：
 
 - 减少模型端 JSON 转义/引号错误；
-- 不破坏现有 SDK/客户端生态；
+- 不破坏现有 SDK / 客户端生态；
 - 逐步灰度（按模型、按租户、按请求开关）。
 
 ## 5) 落地建议（低风险迭代）
 
-- 新增配置项：`toolcall.prefer_xml_output`（默认 `false`）。
-- 对 `true` 场景在系统提示词里加入 XML 模板；保留 JSON 模板作为回退。
+- 继续使用现有的 `toolcall.mode=feature_match` 和 `toolcall.early_emit_confidence=high` 作为默认策略。
+- 如果要试 XML-first，把它放在 prompt 层或上游模板层，不要假设代码里已有专门的 XML 输出开关。
 - 增加观测指标：
   - `toolcall_parse_source`（json/xml/markup/textkv）；
   - `toolcall_parse_success_rate`；
