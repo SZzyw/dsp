@@ -285,3 +285,35 @@ func TestOpeningXMLTagNotLeakedAsContent(t *testing.T) {
 		t.Fatal("expected tool calls to be extracted")
 	}
 }
+
+func TestProcessToolSieveInterceptsAttemptCompletionLeak(t *testing.T) {
+	var state toolStreamSieveState
+	// Simulate an agent outputting attempt_completion XML tag 
+	// which shouldn't leak to text output, even if it fails to parse as a valid tool.
+	chunks := []string{
+		"Done with task.\n",
+		"<attempt_completion>\n",
+		"  <result>Here is the answer</result>\n",
+		"</attempt_completion>",
+	}
+	var events []toolStreamEvent
+	for _, c := range chunks {
+		events = append(events, processToolSieveChunk(&state, c, []string{"attempt_completion"})...)
+	}
+	events = append(events, flushToolSieve(&state, []string{"attempt_completion"})...)
+
+	var textContent string
+	for _, evt := range events {
+		if evt.Content != "" {
+			textContent += evt.Content
+		}
+	}
+
+	if !strings.Contains(textContent, "Done with task.\n") {
+		t.Fatalf("expected leading text to be emitted, got %q", textContent)
+	}
+
+	if strings.Contains(textContent, "<attempt_completion>") || strings.Contains(textContent, "result>") {
+		t.Fatalf("agent XML tag content leaked to text: %q", textContent)
+	}
+}

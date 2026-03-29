@@ -86,10 +86,18 @@ func TestSanitizeLeakedToolHistoryRemovesLeakedWireToolCallAndResult(t *testing.
 }
 
 func TestSanitizeLeakedToolHistoryRemovesStandaloneMetaMarkers(t *testing.T) {
-	raw := "A<| end_of_sentence |><| Assistant |>B<| end_of_thinking |>C"
+	raw := "A<| end_of_sentence |><| Assistant |>B<| end_of_thinking |>C<｜end▁of▁thinking｜>D<｜end▁of▁sentence｜>E"
 	got := sanitizeLeakedToolHistory(raw)
-	if got != "ABC" {
+	if got != "ABCDE" {
 		t.Fatalf("unexpected sanitize result for meta markers: %q", got)
+	}
+}
+
+func TestSanitizeLeakedToolHistoryRemovesAgentXMLLeaks(t *testing.T) {
+	raw := "Done.<attempt_completion><result>Some final answer</result></attempt_completion>"
+	got := sanitizeLeakedToolHistory(raw)
+	if got != "Done.Some final answer" {
+		t.Fatalf("unexpected sanitize result for agent XML leak: %q", got)
 	}
 }
 
