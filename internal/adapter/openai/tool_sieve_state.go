@@ -34,7 +34,8 @@ type toolCallDelta struct {
 	Arguments string
 }
 
-const toolSieveContextTailLimit = 256
+// Keep in sync with JS TOOL_SIEVE_CONTEXT_TAIL_LIMIT.
+const toolSieveContextTailLimit = 2048
 
 func (s *toolStreamSieveState) resetIncrementalToolState() {
 	s.disableDeltas = false

@@ -102,7 +102,10 @@ function extractToolCallObjects(text) {
       const obj = extractJSONObjectFrom(raw, start);
       if (obj.ok) {
         out.push(raw.slice(start, obj.end).trim());
-        offset = obj.end;
+        // Ensure forward progress even when the matched keyword is outside
+        // the extracted JSON object (e.g. closing XML wrapper tags containing
+        // "tool_calls" after an earlier JSON arguments object).
+        offset = Math.max(obj.end, idx + matched.length);
         idx = -1;
         break;
       }
