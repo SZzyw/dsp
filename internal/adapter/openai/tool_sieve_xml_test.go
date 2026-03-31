@@ -104,6 +104,7 @@ func TestFindToolSegmentStartDetectsXMLToolCalls(t *testing.T) {
 		want  int
 	}{
 		{"tool_calls_tag", "some text <tool_calls>\n", 10},
+		{"gemini_function_call_json", `some text {"functionCall":{"name":"search","args":{"q":"latest"}}}`, 10},
 		{"tool_call_tag", "prefix <tool_call>\n", 7},
 		{"invoke_tag", "text <invoke name=\"foo\">body</invoke>", 5},
 		{"function_call_tag", "<function_call name=\"foo\">body</function_call>", 0},
@@ -116,6 +117,27 @@ func TestFindToolSegmentStartDetectsXMLToolCalls(t *testing.T) {
 				t.Fatalf("findToolSegmentStart(%q) = %d, want %d", tc.input, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestProcessToolSieveDetectsGeminiFunctionCallPayload(t *testing.T) {
+	var state toolStreamSieveState
+	events := processToolSieveChunk(&state, `{"functionCall":{"name":"search_web","args":{"query":"latest"}}}`, []string{"search_web"})
+	events = append(events, flushToolSieve(&state, []string{"search_web"})...)
+
+	var textContent string
+	var toolCalls int
+	for _, evt := range events {
+		if evt.Content != "" {
+			textContent += evt.Content
+		}
+		toolCalls += len(evt.ToolCalls)
+	}
+	if toolCalls != 1 {
+		t.Fatalf("expected one tool call from functionCall payload, got events=%#v", events)
+	}
+	if strings.Contains(strings.ToLower(textContent), "functioncall") {
+		t.Fatalf("functionCall json leaked into text content: %q", textContent)
 	}
 }
 
