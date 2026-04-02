@@ -143,6 +143,14 @@ func TestFindToolSegmentStartDetectsLooseFunctionCallKey(t *testing.T) {
 	}
 }
 
+func TestFindToolSegmentStartPrefersQuotedFunctionCallOverEarlierBareProse(t *testing.T) {
+	input := `prefix {note} functionCall: docs hint {"functionCall":{"name":"search_web","args":{"query":"x"}}}`
+	want := strings.Index(input, `{"functionCall"`)
+	if got := findToolSegmentStart(input); got != want {
+		t.Fatalf("expected quoted functionCall JSON start %d, got %d", want, got)
+	}
+}
+
 func TestFindToolSegmentStartIgnoresLooseFunctionCallProse(t *testing.T) {
 	input := "Please explain why functionCall: is used in documentation examples."
 	if got := findToolSegmentStart(input); got != -1 {

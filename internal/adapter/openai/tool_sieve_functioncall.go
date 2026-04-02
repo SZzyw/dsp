@@ -5,18 +5,18 @@ import "strings"
 func findQuotedFunctionCallKeyStart(s string) int {
 	lower := strings.ToLower(s)
 	quotedIdx := findFunctionCallKeyStart(lower, `"functioncall"`)
-	baretIdx := findFunctionCallKeyStart(lower, "functioncall")
+	bareIdx := findFunctionCallKeyStart(lower, "functioncall")
 
-	switch {
-	case quotedIdx < 0:
-		return baretIdx
-	case baretIdx < 0:
+	// Prefer quoted JSON keys when present. Bare-key detection is a fallback
+	// for loose payloads like {functionCall:{...}}.
+	//
+	// This avoids anchoring on earlier prose such as:
+	//   "... {note} functionCall: ... {\"functionCall\":{...}}"
+	// where choosing the earliest bare match can hide the real tool payload.
+	if quotedIdx >= 0 {
 		return quotedIdx
-	case quotedIdx < baretIdx:
-		return quotedIdx
-	default:
-		return baretIdx
 	}
+	return bareIdx
 }
 
 func findFunctionCallKeyStart(lower, key string) int {
