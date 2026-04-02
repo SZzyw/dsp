@@ -10,6 +10,7 @@ type LineResult struct {
 	ErrorMessage  string
 	Parts         []ContentPart
 	NextType      string
+	OutputTokens  int
 }
 
 // ParseDeepSeekContentLine centralizes one-line DeepSeek SSE parsing for both
@@ -39,6 +40,16 @@ func ParseDeepSeekContentLine(raw []byte, thinkingEnabled bool, currentType stri
 			NextType:      currentType,
 		}
 	}
+	if hasContentFilterStatus(chunk) {
+		return LineResult{
+			Parsed:        true,
+			Stop:          true,
+			ContentFilter: true,
+			ErrorMessage:  "content filtered by upstream",
+			NextType:      currentType,
+			OutputTokens:  extractAccumulatedTokenUsage(chunk),
+		}
+	}
 	parts, finished, nextType := ParseSSEChunkForContent(chunk, thinkingEnabled, currentType)
 	parts = filterLeakedContentFilterParts(parts)
 	return LineResult{
@@ -46,5 +57,6 @@ func ParseDeepSeekContentLine(raw []byte, thinkingEnabled bool, currentType stri
 		Stop:     finished,
 		Parts:    parts,
 		NextType: nextType,
+		OutputTokens: extractAccumulatedTokenUsage(chunk),
 	}
 }

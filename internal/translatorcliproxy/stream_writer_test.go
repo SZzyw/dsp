@@ -42,3 +42,16 @@ func TestOpenAIStreamTranslatorWriterGemini(t *testing.T) {
 		t.Fatalf("expected gemini stream payload, got: %s", body)
 	}
 }
+
+func TestOpenAIStreamTranslatorWriterPreservesKeepAliveComment(t *testing.T) {
+	rec := httptest.NewRecorder()
+	w := NewOpenAIStreamTranslatorWriter(rec, sdktranslator.FormatGemini, "gemini-2.5-pro", []byte(`{}`), []byte(`{}`))
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.WriteHeader(200)
+	_, _ = w.Write([]byte(": keep-alive\n\n"))
+
+	body := rec.Body.String()
+	if !strings.Contains(body, ": keep-alive\n\n") {
+		t.Fatalf("expected keep-alive comment passthrough, got %q", body)
+	}
+}

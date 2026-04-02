@@ -26,6 +26,20 @@ func TestParseDeepSeekContentLineContentFilter(t *testing.T) {
 	}
 }
 
+func TestParseDeepSeekContentLineContentFilterStatus(t *testing.T) {
+	res := ParseDeepSeekContentLine([]byte(`data: {"p":"response/status","v":"CONTENT_FILTER"}`), false, "text")
+	if !res.Parsed || !res.Stop || !res.ContentFilter {
+		t.Fatalf("expected status-based content-filter stop result: %#v", res)
+	}
+}
+
+func TestParseDeepSeekContentLineCapturesAccumulatedTokenUsage(t *testing.T) {
+	res := ParseDeepSeekContentLine([]byte(`data: {"p":"response","o":"BATCH","v":[{"p":"accumulated_token_usage","v":1383},{"p":"quasi_status","v":"FINISHED"}]}`), false, "text")
+	if res.OutputTokens != 1383 {
+		t.Fatalf("expected output token usage 1383, got %d", res.OutputTokens)
+	}
+}
+
 func TestParseDeepSeekContentLineContent(t *testing.T) {
 	res := ParseDeepSeekContentLine([]byte(`data: {"p":"response/content","v":"hi"}`), false, "text")
 	if !res.Parsed || res.Stop {

@@ -3,6 +3,7 @@ package sse
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"strings"
 
 	"ds2api/internal/deepseek"
@@ -286,4 +287,87 @@ func extractContentRecursive(items []any, defaultType string) ([]ContentPart, bo
 
 func IsCitation(text string) bool {
 	return bytes.HasPrefix([]byte(strings.TrimSpace(text)), []byte("[citation:"))
+}
+
+func hasContentFilterStatus(chunk map[string]any) bool {
+	return hasContentFilterValue(chunk)
+}
+
+func hasContentFilterValue(v any) bool {
+	switch x := v.(type) {
+	case string:
+		return strings.EqualFold(strings.TrimSpace(x), "content_filter")
+	case []any:
+		for _, item := range x {
+			if hasContentFilterValue(item) {
+				return true
+			}
+		}
+	case map[string]any:
+		if p, _ := x["p"].(string); strings.Contains(strings.ToLower(p), "status") {
+			if s, _ := x["v"].(string); strings.EqualFold(strings.TrimSpace(s), "content_filter") {
+				return true
+			}
+		}
+		for _, vv := range x {
+			if hasContentFilterValue(vv) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func extractAccumulatedTokenUsage(chunk map[string]any) int {
+	return findAccumulatedTokenUsage(chunk)
+}
+
+func findAccumulatedTokenUsage(v any) int {
+	switch x := v.(type) {
+	case map[string]any:
+		if p, _ := x["p"].(string); strings.Contains(strings.ToLower(p), "accumulated_token_usage") {
+			if n, ok := toInt(x["v"]); ok && n > 0 {
+				return n
+			}
+		}
+		if n, ok := toInt(x["accumulated_token_usage"]); ok && n > 0 {
+			return n
+		}
+		for _, vv := range x {
+			if n := findAccumulatedTokenUsage(vv); n > 0 {
+				return n
+			}
+		}
+	case []any:
+		for _, item := range x {
+			if n := findAccumulatedTokenUsage(item); n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+func toInt(v any) (int, bool) {
+	switch x := v.(type) {
+	case int:
+		return x, true
+	case int32:
+		return int(x), true
+	case int64:
+		return int(x), true
+	case float64:
+		if math.IsNaN(x) || math.IsInf(x, 0) {
+			return 0, false
+		}
+		return int(x), true
+	case json.Number:
+		i, err := x.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int(i), true
+	default:
+		return 0, false
+	}
 }
