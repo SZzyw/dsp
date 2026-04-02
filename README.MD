@@ -44,6 +44,8 @@ flowchart LR
         subgraph Support["支撑模块"]
             Pool["📦 账号池 / 并发队列"]
             PoW["⚙️ PoW WASM\n(wazero)"]
+            Stream["🌊 统一流式引擎\nstream + sse"]
+            Sieve["🧰 Tool Sieve\nGo + Node 对齐"]
         end
 
         Admin["🛠️ Admin API\n/admin/*"]
@@ -58,12 +60,23 @@ flowchart LR
     Auth --> Admin
     OA & CA & GA -. "轮询选账号" .-> Pool
     OA & CA & GA -. "计算 PoW" .-> PoW
+    OA & CA & GA -. "流式解析" .-> Stream
+    OA & CA & GA -. "工具调用防泄漏" .-> Sieve
     DS -- "响应" --> Client
 ```
 
 - **后端**：Go（`cmd/ds2api/`、`api/`、`internal/`），不依赖 Python 运行时
 - **前端**：React 管理台（`webui/`），运行时托管静态构建产物
 - **部署**：本地运行、Docker、Vercel Serverless、Linux systemd
+
+### 3.0 底层架构调整（相较旧版本）
+
+- **统一路由内核**：所有协议入口统一汇聚到 `internal/server/router.go`，并在同一路由树中注册 OpenAI / Claude / Gemini / Admin / WebUI 路由，避免多入口行为漂移。
+- **适配器分层更清晰**：`internal/adapter/{openai,claude,gemini}` 只负责协议形态、错误格式和流式事件语义，DeepSeek 侧调用统一收敛到共享调用层。
+- **Tool Calling 双运行时对齐**：Go 侧（`internal/util`）与 Vercel Node 侧（`internal/js/helpers/stream-tool-sieve`）保持一致的解析/防泄漏语义，覆盖 JSON / XML / invoke / text-kv 多风格输入。
+- **配置与运行时设置解耦**：静态配置（`config`）与运行时策略（`settings`）通过 Admin API 分离管理，支持热更新和密码轮换失效旧 JWT。
+- **流式能力升级**：`/v1/responses` 与 `/v1/chat/completions` 共享更一致的工具调用增量输出策略，降低不同 SDK 下的行为差异。
+- **可观测与可运维增强**：`/healthz`、`/readyz`、`/admin/version`、`/admin/dev/captures` 形成排障闭环，便于发布后验证。
 
 ## 核心能力
 
@@ -144,7 +157,7 @@ cp config.example.json config.json
 
 ### 方式一：本地运行
 
-**前置要求**：Go 1.24+，Node.js 20+（仅在需要构建 WebUI 时）
+**前置要求**：Go 1.26+，Node.js 20+（仅在需要构建 WebUI 时）
 
 ```bash
 # 1. 克隆仓库
@@ -415,6 +428,7 @@ ds2api/
 ├── cmd/
 │   ├── ds2api/              # 本地 / 容器启动入口
 │   └── ds2api-tests/        # 端到端测试集入口
+├── app/                     # 统一 HTTP Handler 组装层（供本地与 Serverless 复用）
 ├── api/
 │   ├── index.go             # Vercel Serverless Go 入口
 │   ├── chat-stream.js       # Vercel Node.js 流式转发
@@ -438,7 +452,10 @@ ds2api/
 │   ├── server/              # HTTP 路由与中间件（chi router）
 │   ├── sse/                 # SSE 解析工具
 │   ├── stream/              # 统一流式消费引擎
+│   ├── testsuite/           # 端到端测试框架与用例编排
+│   ├── translatorcliproxy/  # CLIProxy 桥接与流写入组件
 │   ├── util/                # 通用工具函数
+│   ├── version/             # 版本解析 / 比较与 tag 规范化
 │   └── webui/               # WebUI 静态文件托管与自动构建
 ├── webui/                   # React WebUI 源码（Vite + Tailwind）
 │   └── src/

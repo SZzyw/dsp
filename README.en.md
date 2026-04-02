@@ -44,6 +44,8 @@ flowchart LR
         subgraph Support["Support Modules"]
             Pool["📦 Account Pool / Queue"]
             PoW["⚙️ PoW WASM\n(wazero)"]
+            Stream["🌊 Unified Streaming\nstream + sse"]
+            Sieve["🧰 Tool Sieve\nGo + Node parity"]
         end
 
         Admin["🛠️ Admin API\n/admin/*"]
@@ -58,12 +60,23 @@ flowchart LR
     Auth --> Admin
     OA & CA & GA -. "Rotate accounts" .-> Pool
     OA & CA & GA -. "Compute PoW" .-> PoW
+    OA & CA & GA -. "Parse streams" .-> Stream
+    OA & CA & GA -. "Tool anti-leak" .-> Sieve
     DS -- "Response" --> Client
 ```
 
 - **Backend**: Go (`cmd/ds2api/`, `api/`, `internal/`), no Python runtime
 - **Frontend**: React admin panel (`webui/`), served as static build at runtime
 - **Deployment**: local run, Docker, Vercel serverless, Linux systemd
+
+### 3.0 Architecture Changes (vs older releases)
+
+- **Unified routing core**: all protocol entries are now centralized through `internal/server/router.go`, with OpenAI / Claude / Gemini / Admin / WebUI routes registered in one tree to avoid multi-entry drift.
+- **Cleaner adapter boundaries**: `internal/adapter/{openai,claude,gemini}` focuses on protocol shapes, error contracts, and streaming semantics, while upstream DeepSeek invocation stays shared.
+- **Tool-calling parity across runtimes**: Go (`internal/util`) and Vercel Node (`internal/js/helpers/stream-tool-sieve`) follow aligned parsing/anti-leak semantics across JSON / XML / invoke / text-kv inputs.
+- **Config/runtime separation**: static config (`config`) and runtime policy (`settings`) are managed independently via Admin APIs, enabling hot updates and password rotation with JWT invalidation.
+- **Streaming behavior upgrade**: `/v1/responses` and `/v1/chat/completions` now share a more consistent incremental tool-call emission strategy across SDK ecosystems.
+- **Improved operability**: `/healthz`, `/readyz`, `/admin/version`, and `/admin/dev/captures` form a tighter post-deploy diagnostics loop.
 
 ## Key Capabilities
 
@@ -144,7 +157,7 @@ Recommended per deployment mode:
 
 ### Option 1: Local Run
 
-**Prerequisites**: Go 1.24+, Node.js 20+ (only if building WebUI locally)
+**Prerequisites**: Go 1.26+, Node.js 20+ (only if building WebUI locally)
 
 ```bash
 # 1. Clone
@@ -409,6 +422,7 @@ ds2api/
 ├── cmd/
 │   ├── ds2api/              # Local / container entrypoint
 │   └── ds2api-tests/        # End-to-end testsuite entrypoint
+├── app/                     # Unified HTTP handler assembly (shared by local + serverless)
 ├── api/
 │   ├── index.go             # Vercel Serverless Go entry
 │   ├── chat-stream.js       # Vercel Node.js stream relay
@@ -432,7 +446,10 @@ ds2api/
 │   ├── server/              # HTTP routing and middleware (chi router)
 │   ├── sse/                 # SSE parsing utilities
 │   ├── stream/              # Unified stream consumption engine
+│   ├── testsuite/           # End-to-end testsuite framework and case orchestration
+│   ├── translatorcliproxy/  # CLIProxy bridge and stream writer components
 │   ├── util/                # Common utilities
+│   ├── version/             # Version parsing/comparison and tag normalization
 │   └── webui/               # WebUI static file serving and auto-build
 ├── webui/                   # React WebUI source (Vite + Tailwind)
 │   └── src/

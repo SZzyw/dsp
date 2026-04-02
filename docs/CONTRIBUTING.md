@@ -8,7 +8,7 @@
 
 ### 前置要求
 
-- Go 1.24+
+- Go 1.26+
 - Node.js 20+（WebUI 开发时）
 - npm（随 Node.js 提供）
 
@@ -97,6 +97,7 @@ ds2api/
 ├── cmd/
 │   ├── ds2api/              # 本地/容器启动入口
 │   └── ds2api-tests/        # 端到端测试集入口
+├── app/                     # 统一 Handler 装配（本地 + Serverless）
 ├── api/
 │   ├── index.go             # Vercel Serverless Go 入口
 │   ├── chat-stream.js       # Vercel Node.js 流式转发
@@ -110,7 +111,6 @@ ds2api/
 │   ├── admin/               # Admin API handlers
 │   ├── auth/                # 鉴权与 JWT
 │   ├── claudeconv/          # Claude 消息格式转换
-│   ├── compat/              # 兼容性辅助
 │   ├── config/              # 配置加载与热更新
 │   ├── deepseek/            # DeepSeek 客户端、PoW WASM
 │   ├── js/                  # Node 运行时流式/兼容逻辑
@@ -120,8 +120,10 @@ ds2api/
 │   ├── server/              # HTTP 路由（chi router）
 │   ├── sse/                 # SSE 解析工具
 │   ├── stream/              # 统一流式消费引擎
-│   ├── testsuite/           # 测试集核心逻辑
+│   ├── testsuite/           # 测试集框架与场景编排
+│   ├── translatorcliproxy/  # CLIProxy 桥接与流式写入
 │   ├── util/                # 通用工具
+│   ├── version/             # 版本解析与比较
 │   └── webui/               # WebUI 静态托管
 ├── webui/                   # React WebUI 源码
 │   └── src/
