@@ -98,6 +98,7 @@ ds2api/
 ├── cmd/
 │   ├── ds2api/              # Local/container entrypoint
 │   └── ds2api-tests/        # End-to-end testsuite entrypoint
+├── app/                     # Shared handler assembly (local + serverless)
 ├── api/
 │   ├── index.go             # Vercel Serverless Go entry
 │   ├── chat-stream.js       # Vercel Node.js stream relay
@@ -111,7 +112,6 @@ ds2api/
 │   ├── admin/               # Admin API handlers
 │   ├── auth/                # Auth and JWT
 │   ├── claudeconv/          # Claude message conversion
-│   ├── compat/              # Compatibility helpers
 │   ├── config/              # Config loading and hot-reload
 │   ├── deepseek/            # DeepSeek client, PoW WASM
 │   ├── js/                  # Node runtime stream/compat logic
@@ -121,8 +121,10 @@ ds2api/
 │   ├── server/              # HTTP routing (chi router)
 │   ├── sse/                 # SSE parsing utilities
 │   ├── stream/              # Unified stream consumption engine
-│   ├── testsuite/           # Testsuite core logic
+│   ├── testsuite/           # Testsuite framework and scenario orchestration
+│   ├── translatorcliproxy/  # CLIProxy bridge and stream writer
 │   ├── util/                # Common utilities
+│   ├── version/             # Version parsing and comparison
 │   └── webui/               # WebUI static hosting
 ├── webui/                   # React WebUI source
 │   └── src/

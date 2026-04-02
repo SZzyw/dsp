@@ -52,19 +52,17 @@ flowchart LR
         WebUI["WebUI Static\n/admin"]
     end
 
-    Upstream["☁️ DeepSeek Upstream"]
+    DS["☁️ DeepSeek API"]
 
-    Client --> Router
-    Router --> OA & CA & GA
-    Router --> Admin
-    Router --> WebUI
-    OA --> Auth --> Pool --> DS
-    CA --> Auth
-    GA --> Auth
-    DS --> Pow
-    DS --> Tool --> Format
-    DS --> Upstream
-    Upstream --> DS
+    Client -- "Request" --> CORS --> Auth
+    Auth --> OA & CA & GA
+    OA & CA & GA -- "Call" --> DS
+    Auth --> Admin
+    OA & CA & GA -. "Rotate accounts" .-> Pool
+    OA & CA & GA -. "Compute PoW" .-> PoW
+    OA & CA & GA -. "Parse streams" .-> Stream
+    OA & CA & GA -. "Tool anti-leak" .-> Sieve
+    DS -- "Response" --> Client
 ```
 
 - **Backend**: Go (`cmd/ds2api/`, `api/`, `internal/`), no Python runtime
@@ -425,6 +423,7 @@ ds2api/
 ├── cmd/
 │   ├── ds2api/              # Local / container entrypoint
 │   └── ds2api-tests/        # End-to-end testsuite entrypoint
+├── app/                     # Unified HTTP handler assembly (shared by local + serverless)
 ├── api/
 │   ├── index.go             # Vercel Serverless Go entry
 │   ├── chat-stream.js       # Vercel Node.js stream relay
@@ -448,7 +447,10 @@ ds2api/
 │   ├── server/              # HTTP routing and middleware (chi router)
 │   ├── sse/                 # SSE parsing utilities
 │   ├── stream/              # Unified stream consumption engine
+│   ├── testsuite/           # End-to-end testsuite framework and case orchestration
+│   ├── translatorcliproxy/  # CLIProxy bridge and stream writer components
 │   ├── util/                # Common utilities
+│   ├── version/             # Version parsing/comparison and tag normalization
 │   └── webui/               # WebUI static file serving and auto-build
 ├── webui/                   # React WebUI source (Vite + Tailwind)
 │   └── src/

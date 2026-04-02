@@ -52,19 +52,17 @@ flowchart LR
         WebUI["WebUI Static\n/admin"]
     end
 
-    Upstream["☁️ DeepSeek Upstream"]
+    DS["☁️ DeepSeek API"]
 
-    Client --> Router
-    Router --> OA & CA & GA
-    Router --> Admin
-    Router --> WebUI
-    OA --> Auth --> Pool --> DS
-    CA --> Auth
-    GA --> Auth
-    DS --> Pow
-    DS --> Tool --> Format
-    DS --> Upstream
-    Upstream --> DS
+    Client -- "请求" --> CORS --> Auth
+    Auth --> OA & CA & GA
+    OA & CA & GA -- "调用" --> DS
+    Auth --> Admin
+    OA & CA & GA -. "轮询选账号" .-> Pool
+    OA & CA & GA -. "计算 PoW" .-> PoW
+    OA & CA & GA -. "流式解析" .-> Stream
+    OA & CA & GA -. "工具调用防泄漏" .-> Sieve
+    DS -- "响应" --> Client
 ```
 
 - **后端**：Go（`cmd/ds2api/`、`api/`、`internal/`），不依赖 Python 运行时
@@ -431,6 +429,7 @@ ds2api/
 ├── cmd/
 │   ├── ds2api/              # 本地 / 容器启动入口
 │   └── ds2api-tests/        # 端到端测试集入口
+├── app/                     # 统一 HTTP Handler 组装层（供本地与 Serverless 复用）
 ├── api/
 │   ├── index.go             # Vercel Serverless Go 入口
 │   ├── chat-stream.js       # Vercel Node.js 流式转发
@@ -454,7 +453,10 @@ ds2api/
 │   ├── server/              # HTTP 路由与中间件（chi router）
 │   ├── sse/                 # SSE 解析工具
 │   ├── stream/              # 统一流式消费引擎
+│   ├── testsuite/           # 端到端测试框架与用例编排
+│   ├── translatorcliproxy/  # CLIProxy 桥接与流写入组件
 │   ├── util/                # 通用工具函数
+│   ├── version/             # 版本解析 / 比较与 tag 规范化
 │   └── webui/               # WebUI 静态文件托管与自动构建
 ├── webui/                   # React WebUI 源码（Vite + Tailwind）
 │   └── src/
