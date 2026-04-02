@@ -98,7 +98,9 @@ Gemini-compatible clients can also send `x-goog-api-key`, `?key=`, or `?api_key=
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/healthz` | None | Liveness probe |
+| HEAD | `/healthz` | None | Liveness probe (no body) |
 | GET | `/readyz` | None | Readiness probe |
+| HEAD | `/readyz` | None | Readiness probe (no body) |
 | GET | `/v1/models` | None | OpenAI model list |
 | GET | `/v1/models/{id}` | None | OpenAI single-model query (alias accepted) |
 | POST | `/v1/chat/completions` | Business | OpenAI chat completions |

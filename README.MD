@@ -28,28 +28,28 @@
 
 ```mermaid
 flowchart LR
-    Client["🖥️ 客户端\n(OpenAI / Claude / Gemini 兼容)"]
+    Client["🖥️ 客户端 / SDK\n(OpenAI / Claude / Gemini)"]
 
-    subgraph DS2API["DS2API 服务"]
-        direction TB
-        CORS["CORS 中间件"]
-        Auth["🔐 鉴权中间件"]
+    subgraph DS2API["DS2API 3.0（统一 Go 路由内核）"]
+        Router["chi Router + 中间件\n(RequestID / Recoverer / CORS / Timeout)"]
 
-        subgraph Adapters["适配器层"]
-            OA["OpenAI 适配器\n/v1/*"]
-            CA["Claude 适配器\n/anthropic/*"]
-            GA["Gemini 适配器\n/v1beta/models/*"]
+        subgraph Adapters["协议适配层"]
+            OA["OpenAI\n/v1/*"]
+            CA["Claude\n/anthropic/* + /v1/messages"]
+            GA["Gemini\n/v1beta/models/* + /v1/models/*"]
         end
 
-        subgraph Support["支撑模块"]
-            Pool["📦 账号池 / 并发队列"]
-            PoW["⚙️ PoW WASM\n(wazero)"]
-            Stream["🌊 统一流式引擎\nstream + sse"]
-            Sieve["🧰 Tool Sieve\nGo + Node 对齐"]
+        subgraph Runtime["运行时与核心能力"]
+            Auth["Auth Resolver\n(API key / bearer / x-goog-api-key)"]
+            Pool["Account Pool + Queue\n(并发与轮询)"]
+            DS["DeepSeek Client\n(Session / Auth / HTTP)"]
+            Pow["PoW WASM (wazero)"]
+            Tool["Tool Sieve\n(Go/Node 语义对齐)"]
+            Format["Response Render\n(OpenAI/Claude/Gemini)"]
         end
 
-        Admin["🛠️ Admin API\n/admin/*"]
-        WebUI["🌐 WebUI\n(/admin)"]
+        Admin["Admin API\n/admin/*"]
+        WebUI["WebUI Static\n/admin"]
     end
 
     DS["☁️ DeepSeek API"]
@@ -425,6 +425,7 @@ go run ./cmd/ds2api
 
 ```text
 ds2api/
+├── app/                    # 统一 Handler 入口（供 Vercel / 本地共用）
 ├── cmd/
 │   ├── ds2api/              # 本地 / 容器启动入口
 │   └── ds2api-tests/        # 端到端测试集入口

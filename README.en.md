@@ -28,28 +28,28 @@ DS2API converts DeepSeek Web chat capability into OpenAI-compatible, Claude-comp
 
 ```mermaid
 flowchart LR
-    Client["🖥️ Clients\n(OpenAI / Claude / Gemini compat)"]
+    Client["🖥️ Clients / SDKs\n(OpenAI / Claude / Gemini)"]
 
-    subgraph DS2API["DS2API Service"]
-        direction TB
-        CORS["CORS Middleware"]
-        Auth["🔐 Auth Middleware"]
+    subgraph DS2API["DS2API 3.0 (Unified Go Routing Core)"]
+        Router["chi Router + Middleware\n(RequestID / Recoverer / CORS / Timeout)"]
 
-        subgraph Adapters["Adapter Layer"]
-            OA["OpenAI Adapter\n/v1/*"]
-            CA["Claude Adapter\n/anthropic/*"]
-            GA["Gemini Adapter\n/v1beta/models/*"]
+        subgraph Adapters["Protocol Adapters"]
+            OA["OpenAI\n/v1/*"]
+            CA["Claude\n/anthropic/* + /v1/messages"]
+            GA["Gemini\n/v1beta/models/* + /v1/models/*"]
         end
 
-        subgraph Support["Support Modules"]
-            Pool["📦 Account Pool / Queue"]
-            PoW["⚙️ PoW WASM\n(wazero)"]
-            Stream["🌊 Unified Streaming\nstream + sse"]
-            Sieve["🧰 Tool Sieve\nGo + Node parity"]
+        subgraph Runtime["Runtime + Core Capabilities"]
+            Auth["Auth Resolver\n(API key / bearer / x-goog-api-key)"]
+            Pool["Account Pool + Queue\n(concurrency and rotation)"]
+            DS["DeepSeek Client\n(session / auth / HTTP)"]
+            Pow["PoW WASM (wazero)"]
+            Tool["Tool Sieve\n(Go/Node semantic parity)"]
+            Format["Response Render\n(OpenAI/Claude/Gemini)"]
         end
 
-        Admin["🛠️ Admin API\n/admin/*"]
-        WebUI["🌐 WebUI\n(/admin)"]
+        Admin["Admin API\n/admin/*"]
+        WebUI["WebUI Static\n/admin"]
     end
 
     DS["☁️ DeepSeek API"]
@@ -419,6 +419,7 @@ Response fields include:
 
 ```text
 ds2api/
+├── app/                    # Unified handler entry (shared by Vercel/local)
 ├── cmd/
 │   ├── ds2api/              # Local / container entrypoint
 │   └── ds2api-tests/        # End-to-end testsuite entrypoint

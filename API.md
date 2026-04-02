@@ -98,7 +98,9 @@ Gemini 兼容客户端还可以使用 `x-goog-api-key`、`?key=` 或 `?api_key=`
 | 方法 | 路径 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/healthz` | 无 | 存活探针 |
+| HEAD | `/healthz` | 无 | 存活探针（无响应体） |
 | GET | `/readyz` | 无 | 就绪探针 |
+| HEAD | `/readyz` | 无 | 就绪探针（无响应体） |
 | GET | `/v1/models` | 无 | OpenAI 模型列表 |
 | GET | `/v1/models/{id}` | 无 | OpenAI 单模型查询（支持 alias 入参） |
 | POST | `/v1/chat/completions` | 业务 | OpenAI 对话补全 |

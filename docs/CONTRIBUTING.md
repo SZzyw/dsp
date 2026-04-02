@@ -94,6 +94,7 @@ docker-compose -f docker-compose.dev.yml up
 
 ```text
 ds2api/
+├── app/                    # 统一 Handler 入口（供 Vercel / 本地共用）
 ├── cmd/
 │   ├── ds2api/              # 本地/容器启动入口
 │   └── ds2api-tests/        # 端到端测试集入口

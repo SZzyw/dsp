@@ -94,6 +94,7 @@ Manually build WebUI to `static/admin/`:
 
 ```text
 ds2api/
+├── app/                    # Unified handler entry (shared by Vercel/local)
 ├── cmd/
 │   ├── ds2api/              # Local/container entrypoint
 │   └── ds2api-tests/        # End-to-end testsuite entrypoint
