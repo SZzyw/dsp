@@ -90,6 +90,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		result.Text,
 		stdReq.ToolNames,
 	)
+	if result.OutputTokens > 0 {
+		if usage, ok := respBody["usage"].(map[string]any); ok {
+			usage["output_tokens"] = result.OutputTokens
+		}
+	}
 	writeJSON(w, http.StatusOK, respBody)
 }
 

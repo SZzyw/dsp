@@ -174,12 +174,12 @@ func (h *Handler) handleNonStreamGenerateContent(w http.ResponseWriter, resp *ht
 	}
 
 	result := sse.CollectStream(resp, thinkingEnabled, true)
-	writeJSON(w, http.StatusOK, buildGeminiGenerateContentResponse(model, finalPrompt, result.Thinking, result.Text, toolNames))
+	writeJSON(w, http.StatusOK, buildGeminiGenerateContentResponse(model, finalPrompt, result.Thinking, result.Text, toolNames, result.OutputTokens))
 }
 
-func buildGeminiGenerateContentResponse(model, finalPrompt, finalThinking, finalText string, toolNames []string) map[string]any {
+func buildGeminiGenerateContentResponse(model, finalPrompt, finalThinking, finalText string, toolNames []string, outputTokens int) map[string]any {
 	parts := buildGeminiPartsFromFinal(finalText, finalThinking, toolNames)
-	usage := buildGeminiUsage(finalPrompt, finalThinking, finalText)
+	usage := buildGeminiUsage(finalPrompt, finalThinking, finalText, outputTokens)
 	return map[string]any{
 		"candidates": []map[string]any{
 			{
@@ -196,10 +196,14 @@ func buildGeminiGenerateContentResponse(model, finalPrompt, finalThinking, final
 	}
 }
 
-func buildGeminiUsage(finalPrompt, finalThinking, finalText string) map[string]any {
+func buildGeminiUsage(finalPrompt, finalThinking, finalText string, outputTokens int) map[string]any {
 	promptTokens := util.EstimateTokens(finalPrompt)
 	reasoningTokens := util.EstimateTokens(finalThinking)
 	completionTokens := util.EstimateTokens(finalText)
+	if outputTokens > 0 {
+		completionTokens = outputTokens
+		reasoningTokens = 0
+	}
 	return map[string]any{
 		"promptTokenCount":     promptTokens,
 		"candidatesTokenCount": reasoningTokens + completionTokens,

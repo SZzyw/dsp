@@ -62,6 +62,18 @@ func (w *OpenAIStreamTranslatorWriter) Write(p []byte) (int, error) {
 		if len(trimmed) == 0 {
 			continue
 		}
+		if bytes.HasPrefix(trimmed, []byte(":")) {
+			if _, err := w.dst.Write(trimmed); err != nil {
+				return len(p), err
+			}
+			if _, err := w.dst.Write([]byte("\n\n")); err != nil {
+				return len(p), err
+			}
+			if f, ok := w.dst.(http.Flusher); ok {
+				f.Flush()
+			}
+			continue
+		}
 		if !bytes.HasPrefix(trimmed, []byte("data:")) {
 			continue
 		}
