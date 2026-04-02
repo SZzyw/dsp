@@ -29,40 +29,46 @@
 ```mermaid
 flowchart LR
     Client["🖥️ 客户端 / SDK\n(OpenAI / Claude / Gemini)"]
+    Upstream["☁️ DeepSeek API"]
 
-    subgraph DS2API["DS2API 3.0（统一 Go 路由内核）"]
-        Router["chi Router + 中间件\n(RequestID / Recoverer / CORS / Timeout)"]
+    subgraph DS2API["DS2API 3.x（统一 Go 路由内核）"]
+        Router["chi Router + 中间件\n(RequestID / RealIP / Logger / Recoverer / CORS)"]
 
         subgraph Adapters["协议适配层"]
             OA["OpenAI\n/v1/*"]
             CA["Claude\n/anthropic/* + /v1/messages"]
             GA["Gemini\n/v1beta/models/* + /v1/models/*"]
+            Admin["Admin API\n/admin/*"]
+            WebUI["WebUI\n/admin（静态托管）"]
         end
 
-        subgraph Runtime["运行时与核心能力"]
+        subgraph Runtime["运行时核心能力"]
             Auth["Auth Resolver\n(API key / bearer / x-goog-api-key)"]
-            Pool["Account Pool + Queue\n(并发与轮询)"]
-            DS["DeepSeek Client\n(Session / Auth / HTTP)"]
-            Pow["PoW WASM (wazero)"]
+            Pool["Account Pool + Queue\n(并发槽位 + 等待队列)"]
+            DSClient["DeepSeek Client\n(Session / Auth / HTTP)"]
+            Pow["PoW WASM\n(wazero 预加载)"]
+            SSE["SSE/Stream Engine\n(统一流式消费)"]
             Tool["Tool Sieve\n(Go/Node 语义对齐)"]
-            Format["Response Render\n(OpenAI/Claude/Gemini)"]
+            Render["Formatter\n(OpenAI/Claude/Gemini 输出)"]
         end
-
-        Admin["Admin API\n/admin/*"]
-        WebUI["WebUI Static\n/admin"]
     end
 
-    DS["☁️ DeepSeek API"]
+    Client --> Router
+    Router --> OA & CA & GA
+    Router --> Admin
+    Router --> WebUI
 
-    Client -- "请求" --> CORS --> Auth
-    Auth --> OA & CA & GA
-    OA & CA & GA -- "调用" --> DS
-    Auth --> Admin
-    OA & CA & GA -. "轮询选账号" .-> Pool
-    OA & CA & GA -. "计算 PoW" .-> PoW
-    OA & CA & GA -. "流式解析" .-> Stream
-    OA & CA & GA -. "工具调用防泄漏" .-> Sieve
-    DS -- "响应" --> Client
+    OA & CA & GA --> Auth
+    OA & CA & GA -.账号轮询.-> Pool
+    OA & CA & GA -.工具调用解析.-> Tool
+    OA & CA & GA -.流式处理.-> SSE
+    OA & CA & GA -.PoW 计算.-> Pow
+
+    Auth --> DSClient
+    DSClient --> Upstream
+    Upstream --> DSClient
+    DSClient --> Render
+    Render --> Client
 ```
 
 - **后端**：Go（`cmd/ds2api/`、`api/`、`internal/`），不依赖 Python 运行时
@@ -425,11 +431,10 @@ go run ./cmd/ds2api
 
 ```text
 ds2api/
-├── app/                    # 统一 Handler 入口（供 Vercel / 本地共用）
+├── app/                     # 统一 HTTP Handler 组装层（供本地与 Serverless 复用）
 ├── cmd/
 │   ├── ds2api/              # 本地 / 容器启动入口
 │   └── ds2api-tests/        # 端到端测试集入口
-├── app/                     # 统一 HTTP Handler 组装层（供本地与 Serverless 复用）
 ├── api/
 │   ├── index.go             # Vercel Serverless Go 入口
 │   ├── chat-stream.js       # Vercel Node.js 流式转发
@@ -443,8 +448,8 @@ ds2api/
 │   ├── admin/               # Admin API handlers（含 Settings 热更新）
 │   ├── auth/                # 鉴权与 JWT
 │   ├── claudeconv/          # Claude 消息格式转换
-│   ├── compat/              # 兼容性辅助
-│   ├── config/              # 配置加载与热更新
+│   ├── compat/              # Go 版本兼容与回归测试辅助
+│   ├── config/              # 配置加载、校验与热更新
 │   ├── deepseek/            # DeepSeek API 客户端、PoW WASM
 │   ├── js/                  # Node 运行时流式处理与兼容逻辑
 │   ├── devcapture/          # 开发抓包模块
@@ -468,6 +473,7 @@ ds2api/
 │   └── build-webui.sh       # WebUI 手动构建脚本
 ├── tests/
 │   ├── compat/              # 兼容性测试夹具与期望输出
+│   ├── node/                # Node 侧单元测试（chat-stream / tool-sieve）
 │   └── scripts/             # 统一测试脚本入口（unit/e2e）
 ├── docs/                    # 部署 / 贡献 / 测试等辅助文档
 ├── static/admin/            # WebUI 构建产物（不提交到 Git）

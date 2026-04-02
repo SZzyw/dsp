@@ -94,11 +94,10 @@ docker-compose -f docker-compose.dev.yml up
 
 ```text
 ds2api/
-├── app/                    # 统一 Handler 入口（供 Vercel / 本地共用）
+├── app/                     # 统一 HTTP Handler 装配（本地 + Serverless）
 ├── cmd/
 │   ├── ds2api/              # 本地/容器启动入口
 │   └── ds2api-tests/        # 端到端测试集入口
-├── app/                     # 统一 Handler 装配（本地 + Serverless）
 ├── api/
 │   ├── index.go             # Vercel Serverless Go 入口
 │   ├── chat-stream.js       # Vercel Node.js 流式转发
@@ -112,7 +111,8 @@ ds2api/
 │   ├── admin/               # Admin API handlers
 │   ├── auth/                # 鉴权与 JWT
 │   ├── claudeconv/          # Claude 消息格式转换
-│   ├── config/              # 配置加载与热更新
+│   ├── compat/              # Go 版本兼容与回归测试辅助
+│   ├── config/              # 配置加载、校验与热更新
 │   ├── deepseek/            # DeepSeek 客户端、PoW WASM
 │   ├── js/                  # Node 运行时流式/兼容逻辑
 │   ├── devcapture/          # 开发抓包
@@ -133,7 +133,10 @@ ds2api/
 │       ├── components/      # 通用组件
 │       └── locales/         # 语言包
 ├── scripts/                 # 构建与测试脚本
-├── tests/                   # 单元测试、Node 测试与端到端测试
+├── tests/
+│   ├── compat/              # 兼容夹具与期望输出
+│   ├── node/                # Node 侧单元测试
+│   └── scripts/             # 测试脚本入口（unit/e2e）
 ├── plans/                   # 计划、门禁和手工烟测记录
 ├── static/admin/            # WebUI 构建产物（不提交）
 ├── Dockerfile               # 多阶段构建

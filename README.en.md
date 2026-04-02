@@ -29,40 +29,46 @@ DS2API converts DeepSeek Web chat capability into OpenAI-compatible, Claude-comp
 ```mermaid
 flowchart LR
     Client["🖥️ Clients / SDKs\n(OpenAI / Claude / Gemini)"]
+    Upstream["☁️ DeepSeek API"]
 
-    subgraph DS2API["DS2API 3.0 (Unified Go Routing Core)"]
-        Router["chi Router + Middleware\n(RequestID / Recoverer / CORS / Timeout)"]
+    subgraph DS2API["DS2API 3.x (Unified Go Routing Core)"]
+        Router["chi Router + Middleware\n(RequestID / RealIP / Logger / Recoverer / CORS)"]
 
         subgraph Adapters["Protocol Adapters"]
             OA["OpenAI\n/v1/*"]
             CA["Claude\n/anthropic/* + /v1/messages"]
             GA["Gemini\n/v1beta/models/* + /v1/models/*"]
+            Admin["Admin API\n/admin/*"]
+            WebUI["WebUI\n/admin (static hosting)"]
         end
 
         subgraph Runtime["Runtime + Core Capabilities"]
             Auth["Auth Resolver\n(API key / bearer / x-goog-api-key)"]
-            Pool["Account Pool + Queue\n(concurrency and rotation)"]
-            DS["DeepSeek Client\n(session / auth / HTTP)"]
-            Pow["PoW WASM (wazero)"]
+            Pool["Account Pool + Queue\n(in-flight slots + wait queue)"]
+            DSClient["DeepSeek Client\n(session / auth / HTTP)"]
+            Pow["PoW WASM\n(wazero preload)"]
+            SSE["SSE/Stream Engine\n(unified streaming consumption)"]
             Tool["Tool Sieve\n(Go/Node semantic parity)"]
-            Format["Response Render\n(OpenAI/Claude/Gemini)"]
+            Render["Formatter\n(OpenAI/Claude/Gemini output)"]
         end
-
-        Admin["Admin API\n/admin/*"]
-        WebUI["WebUI Static\n/admin"]
     end
 
-    DS["☁️ DeepSeek API"]
+    Client --> Router
+    Router --> OA & CA & GA
+    Router --> Admin
+    Router --> WebUI
 
-    Client -- "Request" --> CORS --> Auth
-    Auth --> OA & CA & GA
-    OA & CA & GA -- "Call" --> DS
-    Auth --> Admin
-    OA & CA & GA -. "Rotate accounts" .-> Pool
-    OA & CA & GA -. "Compute PoW" .-> PoW
-    OA & CA & GA -. "Parse streams" .-> Stream
-    OA & CA & GA -. "Tool anti-leak" .-> Sieve
-    DS -- "Response" --> Client
+    OA & CA & GA --> Auth
+    OA & CA & GA -.account rotation.-> Pool
+    OA & CA & GA -.tool-call parsing.-> Tool
+    OA & CA & GA -.stream handling.-> SSE
+    OA & CA & GA -.PoW solving.-> Pow
+
+    Auth --> DSClient
+    DSClient --> Upstream
+    Upstream --> DSClient
+    DSClient --> Render
+    Render --> Client
 ```
 
 - **Backend**: Go (`cmd/ds2api/`, `api/`, `internal/`), no Python runtime
@@ -419,11 +425,10 @@ Response fields include:
 
 ```text
 ds2api/
-├── app/                    # Unified handler entry (shared by Vercel/local)
+├── app/                     # Unified HTTP handler assembly (shared by local + serverless)
 ├── cmd/
 │   ├── ds2api/              # Local / container entrypoint
 │   └── ds2api-tests/        # End-to-end testsuite entrypoint
-├── app/                     # Unified HTTP handler assembly (shared by local + serverless)
 ├── api/
 │   ├── index.go             # Vercel Serverless Go entry
 │   ├── chat-stream.js       # Vercel Node.js stream relay
@@ -437,8 +442,8 @@ ds2api/
 │   ├── admin/               # Admin API handlers (incl. Settings hot-reload)
 │   ├── auth/                # Auth and JWT
 │   ├── claudeconv/          # Claude message format conversion
-│   ├── compat/              # Compatibility helpers
-│   ├── config/              # Config loading and hot-reload
+│   ├── compat/              # Go-version compatibility and regression helpers
+│   ├── config/              # Config loading, validation, and hot-reload
 │   ├── deepseek/            # DeepSeek API client, PoW WASM
 │   ├── js/                  # Node runtime stream/compat logic
 │   ├── devcapture/          # Dev packet capture module
@@ -462,6 +467,7 @@ ds2api/
 │   └── build-webui.sh       # Manual WebUI build script
 ├── tests/
 │   ├── compat/              # Compatibility fixtures and expected outputs
+│   ├── node/                # Node-side unit tests (chat-stream / tool-sieve)
 │   └── scripts/             # Unified test script entrypoints (unit/e2e)
 ├── docs/                    # Deployment / contributing / testing docs
 ├── static/admin/            # WebUI build output (not committed to Git)

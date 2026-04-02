@@ -94,11 +94,10 @@ Manually build WebUI to `static/admin/`:
 
 ```text
 ds2api/
-├── app/                    # Unified handler entry (shared by Vercel/local)
+├── app/                     # Shared HTTP handler assembly (local + serverless)
 ├── cmd/
 │   ├── ds2api/              # Local/container entrypoint
 │   └── ds2api-tests/        # End-to-end testsuite entrypoint
-├── app/                     # Shared handler assembly (local + serverless)
 ├── api/
 │   ├── index.go             # Vercel Serverless Go entry
 │   ├── chat-stream.js       # Vercel Node.js stream relay
@@ -112,7 +111,8 @@ ds2api/
 │   ├── admin/               # Admin API handlers
 │   ├── auth/                # Auth and JWT
 │   ├── claudeconv/          # Claude message conversion
-│   ├── config/              # Config loading and hot-reload
+│   ├── compat/              # Go-version compatibility and regression helpers
+│   ├── config/              # Config loading, validation, and hot-reload
 │   ├── deepseek/            # DeepSeek client, PoW WASM
 │   ├── js/                  # Node runtime stream/compat logic
 │   ├── devcapture/          # Dev packet capture
@@ -133,7 +133,10 @@ ds2api/
 │       ├── components/      # Shared components
 │       └── locales/         # Language packs
 ├── scripts/                 # Build and test scripts
-├── tests/                   # Unit tests, Node tests, and end-to-end tests
+├── tests/
+│   ├── compat/              # Compatibility fixtures and expected outputs
+│   ├── node/                # Node-side unit tests
+│   └── scripts/             # Test script entrypoints (unit/e2e)
 ├── plans/                   # Plans, gates, and manual smoke-test records
 ├── static/admin/            # WebUI build output (not committed)
 ├── Dockerfile               # Multi-stage build
