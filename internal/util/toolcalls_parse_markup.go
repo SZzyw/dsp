@@ -19,6 +19,11 @@ var toolUseFunctionPattern = regexp.MustCompile(`(?is)<tool_use>\s*<function\s+n
 var toolUseNameParametersPattern = regexp.MustCompile(`(?is)<tool_use>\s*<tool_name>\s*([^<]+?)\s*</tool_name>\s*<parameters>\s*(.*?)\s*</parameters>\s*</tool_use>`)
 var toolUseFunctionNameParametersPattern = regexp.MustCompile(`(?is)<tool_use>\s*<function_name>\s*([^<]+?)\s*</function_name>\s*<parameters>\s*(.*?)\s*</parameters>\s*</tool_use>`)
 var toolUseToolNameBodyPattern = regexp.MustCompile(`(?is)<tool_use>\s*<tool_name>\s*([^<]+?)\s*</tool_name>\s*(.*?)\s*</tool_use>`)
+var xmlToolNamePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?is)<(?:[a-z0-9_:-]+:)?tool_name\b[^>]*>(.*?)</(?:[a-z0-9_:-]+:)?tool_name>`),
+	regexp.MustCompile(`(?is)<(?:[a-z0-9_:-]+:)?function_name\b[^>]*>(.*?)</(?:[a-z0-9_:-]+:)?function_name>`),
+	regexp.MustCompile(`(?is)<(?:[a-z0-9_:-]+:)?name\b[^>]*>(.*?)</(?:[a-z0-9_:-]+:)?name>`),
+}
 
 func parseXMLToolCalls(text string) []ParsedToolCall {
 	matches := xmlToolCallPattern.FindAllString(text, -1)
@@ -81,9 +86,9 @@ func parseSingleXMLToolCall(block string) (ParsedToolCall, bool) {
 		}
 	}
 
+	name := strings.TrimSpace(extractXMLToolNameByRegex(inner))
+	params := extractXMLToolParamsByRegex(inner)
 	dec := xml.NewDecoder(strings.NewReader(block))
-	name := ""
-	params := map[string]any{}
 	inParams := false
 	inTool := false
 	for {
@@ -168,6 +173,29 @@ func parseSingleXMLToolCall(block string) (ParsedToolCall, bool) {
 		return ParsedToolCall{}, false
 	}
 	return ParsedToolCall{Name: strings.TrimSpace(name), Input: params}, true
+}
+
+func extractXMLToolNameByRegex(inner string) string {
+	for _, pattern := range xmlToolNamePatterns {
+		if m := pattern.FindStringSubmatch(inner); len(m) >= 2 {
+			if v := strings.TrimSpace(stripTagText(m[1])); v != "" {
+				return v
+			}
+		}
+	}
+	return ""
+}
+
+func extractXMLToolParamsByRegex(inner string) map[string]any {
+	raw := findMarkupTagValue(inner, toolCallMarkupArgsTagNames, toolCallMarkupArgsPatternByTag)
+	if raw == "" {
+		return map[string]any{}
+	}
+	parsed := parseMarkupInput(raw)
+	if parsed == nil {
+		return map[string]any{}
+	}
+	return parsed
 }
 
 func parseFunctionCallTagStyle(text string) (ParsedToolCall, bool) {
