@@ -22,7 +22,6 @@ var toolUseToolNameBodyPattern = regexp.MustCompile(`(?is)<tool_use>\s*<tool_nam
 var xmlToolNamePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?is)<(?:[a-z0-9_:-]+:)?tool_name\b[^>]*>(.*?)</(?:[a-z0-9_:-]+:)?tool_name>`),
 	regexp.MustCompile(`(?is)<(?:[a-z0-9_:-]+:)?function_name\b[^>]*>(.*?)</(?:[a-z0-9_:-]+:)?function_name>`),
-	regexp.MustCompile(`(?is)<(?:[a-z0-9_:-]+:)?name\b[^>]*>(.*?)</(?:[a-z0-9_:-]+:)?name>`),
 }
 
 func parseXMLToolCalls(text string) []ParsedToolCall {

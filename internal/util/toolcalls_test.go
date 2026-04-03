@@ -191,6 +191,20 @@ func TestParseToolCallsSupportsXMLParametersJSONWithAmpersandCommand(t *testing.
 	}
 }
 
+func TestParseToolCallsDoesNotTreatParameterNameTagAsToolName(t *testing.T) {
+	text := `<tool_call><tool name="execute_command"><parameters><name>file.txt</name><command>pwd</command></parameters></tool></tool_call>`
+	calls := ParseToolCalls(text, []string{"execute_command"})
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %#v", calls)
+	}
+	if calls[0].Name != "execute_command" {
+		t.Fatalf("expected tool name execute_command, got %q", calls[0].Name)
+	}
+	if calls[0].Input["name"] != "file.txt" {
+		t.Fatalf("expected parameter name preserved, got %#v", calls[0].Input)
+	}
+}
+
 func TestParseToolCallsPrefersJSONPayloadOverIncidentalXMLInString(t *testing.T) {
 	text := `{"tool_calls":[{"name":"search","input":{"q":"latest <tool_call><tool_name>wrong</tool_name><parameters>{\"x\":1}</parameters></tool_call>"}}]}`
 	calls := ParseToolCallsDetailed(text, []string{"search"}).Calls
