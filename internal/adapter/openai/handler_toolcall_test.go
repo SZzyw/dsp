@@ -275,7 +275,7 @@ func TestHandleNonStreamFencedToolCallExamplePromotesToolCall(t *testing.T) {
 	TestHandleNonStreamFencedToolCallExampleDoesNotPromoteToolCall(t)
 }
 
-func TestHandleNonStreamReturns429WhenUpstreamOutputEmpty(t *testing.T) {
+func TestHandleNonStreamReturns502WhenUpstreamOutputEmpty(t *testing.T) {
 	h := &Handler{}
 	resp := makeSSEHTTPResponse(
 		`data: {"p":"response/content","v":""}`,
@@ -284,14 +284,32 @@ func TestHandleNonStreamReturns429WhenUpstreamOutputEmpty(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	h.handleNonStream(rec, context.Background(), resp, "cid-empty", "deepseek-chat", "prompt", false, nil)
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("expected status 429 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected status 502 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	out := decodeJSONBody(t, rec.Body.String())
 	errObj, _ := out["error"].(map[string]any)
-	msg, _ := errObj["message"].(string)
-	if !strings.Contains(strings.ToLower(msg), "empty") {
-		t.Fatalf("expected empty-output hint in error message, got %#v", out)
+	if asString(errObj["code"]) != "upstream_empty_output" {
+		t.Fatalf("expected code=upstream_empty_output, got %#v", out)
+	}
+}
+
+func TestHandleNonStreamReturnsContentFilterErrorWhenUpstreamFilteredWithoutOutput(t *testing.T) {
+	h := &Handler{}
+	resp := makeSSEHTTPResponse(
+		`data: {"code":"content_filter"}`,
+		`data: [DONE]`,
+	)
+	rec := httptest.NewRecorder()
+
+	h.handleNonStream(rec, context.Background(), resp, "cid-empty-filtered", "deepseek-chat", "prompt", false, nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 for filtered upstream output, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	out := decodeJSONBody(t, rec.Body.String())
+	errObj, _ := out["error"].(map[string]any)
+	if asString(errObj["code"]) != "content_filter" {
+		t.Fatalf("expected code=content_filter, got %#v", out)
 	}
 }
 

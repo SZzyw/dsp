@@ -431,6 +431,14 @@ func TestParseToolCallsDoesNotAcceptMismatchedMarkupTags(t *testing.T) {
 	}
 }
 
+func TestParseToolCallsDoesNotTreatParametersFunctionNameAsToolName(t *testing.T) {
+	text := `<tool_call><parameters><function_name>data_only</function_name><path>README.md</path></parameters></tool_call>`
+	calls := ParseToolCalls(text, []string{"read_file"})
+	if len(calls) != 0 {
+		t.Fatalf("expected no tool call when function_name appears only under parameters, got %#v", calls)
+	}
+}
+
 func TestRepairInvalidJSONBackslashes(t *testing.T) {
 	tests := []struct {
 		input    string

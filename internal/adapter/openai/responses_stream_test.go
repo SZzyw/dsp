@@ -627,7 +627,7 @@ func TestHandleResponsesNonStreamToolChoiceNoneStillAllowsFunctionCall(t *testin
 	}
 }
 
-func TestHandleResponsesNonStreamReturns429WhenUpstreamOutputEmpty(t *testing.T) {
+func TestHandleResponsesNonStreamReturns502WhenUpstreamOutputEmpty(t *testing.T) {
 	h := &Handler{}
 	rec := httptest.NewRecorder()
 	resp := &http.Response{
@@ -639,14 +639,35 @@ func TestHandleResponsesNonStreamReturns429WhenUpstreamOutputEmpty(t *testing.T)
 	}
 
 	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, nil, util.DefaultToolChoicePolicy(), "")
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("expected 429 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	out := decodeJSONBody(t, rec.Body.String())
 	errObj, _ := out["error"].(map[string]any)
-	msg, _ := errObj["message"].(string)
-	if !strings.Contains(strings.ToLower(msg), "empty") {
-		t.Fatalf("expected empty-output message, got %#v", out)
+	if asString(errObj["code"]) != "upstream_empty_output" {
+		t.Fatalf("expected code=upstream_empty_output, got %#v", out)
+	}
+}
+
+func TestHandleResponsesNonStreamReturnsContentFilterErrorWhenUpstreamFilteredWithoutOutput(t *testing.T) {
+	h := &Handler{}
+	rec := httptest.NewRecorder()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(
+			`data: {"code":"content_filter"}` + "\n" +
+				`data: [DONE]` + "\n",
+		)),
+	}
+
+	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, nil, util.DefaultToolChoicePolicy(), "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for filtered empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	out := decodeJSONBody(t, rec.Body.String())
+	errObj, _ := out["error"].(map[string]any)
+	if asString(errObj["code"]) != "content_filter" {
+		t.Fatalf("expected code=content_filter, got %#v", out)
 	}
 }
 

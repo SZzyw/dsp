@@ -114,8 +114,7 @@ func (h *Handler) handleResponsesNonStream(w http.ResponseWriter, resp *http.Res
 	}
 	result := sse.CollectStream(resp, thinkingEnabled, true)
 	sanitizedText := sanitizeLeakedOutput(result.Text)
-	if strings.TrimSpace(result.Thinking) == "" && strings.TrimSpace(sanitizedText) == "" {
-		writeOpenAIError(w, http.StatusTooManyRequests, "Upstream model returned empty output; please retry.")
+	if writeUpstreamEmptyOutputError(w, result) {
 		return
 	}
 	textParsed := util.ParseStandaloneToolCallsDetailed(sanitizedText, toolNames)

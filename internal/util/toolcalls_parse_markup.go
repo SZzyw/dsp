@@ -85,7 +85,7 @@ func parseSingleXMLToolCall(block string) (ParsedToolCall, bool) {
 		}
 	}
 
-	name := strings.TrimSpace(extractXMLToolNameByRegex(inner))
+	name := ""
 	params := extractXMLToolParamsByRegex(inner)
 	dec := xml.NewDecoder(strings.NewReader(block))
 	inParams := false
@@ -136,9 +136,13 @@ func parseSingleXMLToolCall(block string) (ParsedToolCall, bool) {
 					}
 				}
 				inParams = false
-			case "tool_name", "name":
+			case "tool_name", "function_name", "name":
 				var v string
 				if err := dec.DecodeElement(&v, &t); err == nil && strings.TrimSpace(v) != "" {
+					if inParams {
+						params[t.Name.Local] = strings.TrimSpace(v)
+						break
+					}
 					name = strings.TrimSpace(v)
 				}
 			case "input", "arguments", "argument", "args", "params":
@@ -169,9 +173,34 @@ func parseSingleXMLToolCall(block string) (ParsedToolCall, bool) {
 		}
 	}
 	if strings.TrimSpace(name) == "" {
+		name = strings.TrimSpace(extractXMLToolNameByRegex(stripTopLevelXMLParameters(inner)))
+	}
+	if strings.TrimSpace(name) == "" {
 		return ParsedToolCall{}, false
 	}
 	return ParsedToolCall{Name: strings.TrimSpace(name), Input: params}, true
+}
+
+func stripTopLevelXMLParameters(inner string) string {
+	out := strings.TrimSpace(inner)
+	for {
+		idx := strings.Index(strings.ToLower(out), "<parameters")
+		if idx < 0 {
+			return out
+		}
+		segment := out[idx:]
+		segmentLower := strings.ToLower(segment)
+		openEnd := strings.Index(segmentLower, ">")
+		if openEnd < 0 {
+			return out
+		}
+		closeIdx := strings.Index(segmentLower, "</parameters>")
+		if closeIdx < 0 {
+			return out[:idx]
+		}
+		end := idx + closeIdx + len("</parameters>")
+		out = out[:idx] + out[end:]
+	}
 }
 
 func extractXMLToolNameByRegex(inner string) string {
