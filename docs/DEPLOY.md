@@ -314,7 +314,7 @@ Error: Command failed: go build -ldflags -s -w -o .../bootstrap ...
 1. 进入 Vercel Project Settings → Build and Development Settings
 2. **清空**自定义 Go Build Flags / Build Command（推荐）
 3. 若必须设置 ldflags，使用 `-ldflags="-s -w"`（保证它是一个参数）
-4. 确认仓库 `go.mod` 为受支持版本（当前为 `go 1.24`）
+4. 确认仓库 `go.mod` 为受支持版本（当前为 `go 1.26.0`）
 5. 重新部署（建议清缓存后 Redeploy）
 
 #### Internal 包导入错误

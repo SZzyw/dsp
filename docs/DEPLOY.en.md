@@ -314,7 +314,7 @@ Error: Command failed: go build -ldflags -s -w -o .../bootstrap ...
 1. Open Vercel Project Settings → Build and Development Settings
 2. **Clear** custom Go Build Flags / Build Command (recommended)
 3. If ldflags must be used, set `-ldflags="-s -w"` (ensure it's one argument)
-4. Verify `go.mod` uses a supported version (currently `go 1.24`)
+4. Verify `go.mod` uses a supported version (currently `go 1.26.0`)
 5. Redeploy (recommended: clear cache)
 
 #### Internal Package Import Error
