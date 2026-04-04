@@ -47,12 +47,68 @@ func loadDotEnvFromPath(path string) error {
 		if _, exists := os.LookupEnv(key); exists {
 			continue
 		}
-		if err := os.Setenv(key, normalizeDotEnvValue(strings.TrimSpace(value))); err != nil {
+		if err := os.Setenv(key, normalizeDotEnvValue(trimDotEnvValue(strings.TrimSpace(value)))); err != nil {
 			return fmt.Errorf("%s:%d set env %q: %w", path, i+1, key, err)
 		}
 	}
 
 	return nil
+}
+
+// Preserve quoted values, but drop Compose-style inline comments from unquoted values.
+func trimDotEnvValue(raw string) string {
+	if raw == "" {
+		return raw
+	}
+
+	switch raw[0] {
+	case '"':
+		if trimmed, ok := trimQuotedDotEnvValue(raw, '"'); ok {
+			return trimmed
+		}
+	case '\'':
+		if trimmed, ok := trimQuotedDotEnvValue(raw, '\''); ok {
+			return trimmed
+		}
+	default:
+		if idx := inlineDotEnvCommentStart(raw); idx >= 0 {
+			return strings.TrimSpace(raw[:idx])
+		}
+	}
+
+	return raw
+}
+
+func trimQuotedDotEnvValue(raw string, quote byte) (string, bool) {
+	escaped := false
+	for i := 1; i < len(raw); i++ {
+		ch := raw[i]
+		if quote == '"' && escaped {
+			escaped = false
+			continue
+		}
+		if quote == '"' && ch == '\\' {
+			escaped = true
+			continue
+		}
+		if ch == quote {
+			return strings.TrimSpace(raw[:i+1]), true
+		}
+	}
+	return raw, false
+}
+
+func inlineDotEnvCommentStart(raw string) int {
+	for i := 1; i < len(raw); i++ {
+		if raw[i] == '#' && isDotEnvCommentSpacer(raw[i-1]) {
+			return i
+		}
+	}
+	return -1
+}
+
+func isDotEnvCommentSpacer(b byte) bool {
+	return b == ' ' || b == '\t'
 }
 
 func normalizeDotEnvValue(raw string) string {

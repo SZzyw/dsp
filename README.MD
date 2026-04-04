@@ -191,7 +191,7 @@ go run ./cmd/ds2api
 cp .env.example .env
 cp config.example.json config.json
 
-# 2. 编辑 .env（至少设置 DS2API_ADMIN_KEY）
+# 2. 编辑 .env（至少设置 DS2API_ADMIN_KEY；如需修改宿主机端口，可额外设置 DS2API_HOST_PORT）
 #    DS2API_ADMIN_KEY=请替换为强密码
 
 # 3. 启动
@@ -201,7 +201,7 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-默认 `docker-compose.yml` 会把宿主机 `6011` 映射到容器内的 `5001`。如果你希望直接对外暴露 `5001`，请调整 `ports` 配置。
+默认 `docker-compose.yml` 会把宿主机 `6011` 映射到容器内的 `5001`。如果你希望直接对外暴露 `5001`，请设置 `DS2API_HOST_PORT=5001`（或者手动调整 `ports` 配置）。
 
 更新镜像：`docker-compose up -d --build`
 

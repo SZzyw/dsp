@@ -117,6 +117,8 @@ cp config.example.json config.json
 
 # Edit .env and set at least:
 #   DS2API_ADMIN_KEY=your-admin-key
+# Optionally set the host port:
+#   DS2API_HOST_PORT=6011
 
 # Start
 docker-compose up -d
@@ -125,7 +127,7 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-The default `docker-compose.yml` maps host port `6011` to container port `5001`. If you want `5001` exposed directly, adjust the `ports` mapping.
+The default `docker-compose.yml` maps host port `6011` to container port `5001`. If you want `5001` exposed directly, set `DS2API_HOST_PORT=5001` (or adjust the `ports` mapping).
 
 ### 2.2 Update
 

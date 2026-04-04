@@ -191,7 +191,7 @@ Default URL: `http://localhost:5001`
 cp .env.example .env
 cp config.example.json config.json
 
-# 2. Edit .env (at least set DS2API_ADMIN_KEY)
+# 2. Edit .env (at least set DS2API_ADMIN_KEY; optionally set DS2API_HOST_PORT to change the host port)
 #    DS2API_ADMIN_KEY=replace-with-a-strong-secret
 
 # 3. Start
@@ -201,7 +201,7 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-The default `docker-compose.yml` maps host port `6011` to container port `5001`. If you want `5001` exposed directly, adjust the `ports` mapping.
+The default `docker-compose.yml` maps host port `6011` to container port `5001`. If you want `5001` exposed directly, set `DS2API_HOST_PORT=5001` (or adjust the `ports` mapping).
 
 Rebuild after updates: `docker-compose up -d --build`
 
