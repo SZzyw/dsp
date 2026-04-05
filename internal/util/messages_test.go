@@ -25,17 +25,20 @@ func TestMessagesPrepareRoles(t *testing.T) {
 		{"role": "user", "content": "How are you"},
 	}
 	got := MessagesPrepare(messages)
-	if !contains(got, "<system_instructions>\nYou are helper\n</system_instructions>\n\n<｜User｜>\nHi") {
+	if !contains(got, "<｜System｜>\nYou are helper\n\n<｜User｜>\nHi") {
 		t.Fatalf("expected system/user separation in %q", got)
 	}
 	if !contains(got, "<｜User｜>\nHi\n\n<｜Assistant｜>\nHello") {
 		t.Fatalf("expected user/assistant separation in %q", got)
 	}
-	if !contains(got, "<｜Assistant｜>\nHello\n<｜end▁of▁sentence｜>\n\n<｜User｜>\nHow are you") {
+	if !contains(got, "<｜Assistant｜>\nHello\n\n<｜User｜>\nHow are you") {
 		t.Fatalf("expected assistant/user separation in %q", got)
 	}
 	if !contains(got, "<｜Assistant｜>") {
 		t.Fatalf("expected assistant marker in %q", got)
+	}
+	if !contains(got, "<｜System｜>") {
+		t.Fatalf("expected system marker in %q", got)
 	}
 	if !contains(got, "<｜User｜>") {
 		t.Fatalf("expected user marker in %q", got)

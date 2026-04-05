@@ -9,6 +9,13 @@ import (
 
 var markdownImagePattern = regexp.MustCompile(`!\[(.*?)\]\((.*?)\)`)
 
+const (
+	systemMarker    = "<｜System｜>"
+	userMarker      = "<｜User｜>"
+	assistantMarker = "<｜Assistant｜>"
+	toolMarker      = "<｜Tool｜>"
+)
+
 func MessagesPrepare(messages []map[string]any) string {
 	type block struct {
 		Role string
@@ -35,21 +42,17 @@ func MessagesPrepare(messages []map[string]any) string {
 	for _, m := range merged {
 		switch m.Role {
 		case "assistant":
-			// Keep assistant turns on their own block so the model sees a clear
-			// boundary between prior answer text and the EOS marker.
-			parts = append(parts, "<｜Assistant｜>\n"+m.Text+"\n<｜end▁of▁sentence｜>")
+			parts = append(parts, formatRoleBlock(assistantMarker, m.Text))
 		case "tool":
 			if strings.TrimSpace(m.Text) != "" {
-				parts = append(parts, "<｜Tool｜>\n"+m.Text)
+				parts = append(parts, formatRoleBlock(toolMarker, m.Text))
 			}
 		case "system":
-			// Clear system boundary improves R1 and V3 context understanding significantly.
 			if text := strings.TrimSpace(m.Text); text != "" {
-				parts = append(parts, "<system_instructions>\n"+text+"\n</system_instructions>")
+				parts = append(parts, formatRoleBlock(systemMarker, text))
 			}
 		case "user":
-			// Put user turns on their own line so the role transition is explicit.
-			parts = append(parts, "<｜User｜>\n"+m.Text)
+			parts = append(parts, formatRoleBlock(userMarker, m.Text))
 		default:
 			if strings.TrimSpace(m.Text) != "" {
 				parts = append(parts, m.Text)
@@ -58,6 +61,10 @@ func MessagesPrepare(messages []map[string]any) string {
 	}
 	out := strings.Join(parts, "\n\n")
 	return markdownImagePattern.ReplaceAllString(out, `[${1}](${2})`)
+}
+
+func formatRoleBlock(marker, text string) string {
+	return marker + "\n" + text
 }
 
 func NormalizeContent(v any) string {

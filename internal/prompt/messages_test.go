@@ -1,6 +1,9 @@
 package prompt
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizeContentNilReturnsEmpty(t *testing.T) {
 	if got := NormalizeContent(nil); got != "" {
@@ -19,6 +22,20 @@ func TestMessagesPrepareNilContentNoNullLiteral(t *testing.T) {
 	}
 	if got == "null" {
 		t.Fatalf("expected no null literal output, got %q", got)
+	}
+}
+
+func TestMessagesPrepareUsesUnifiedSystemMarkerAndNoEOSTag(t *testing.T) {
+	messages := []map[string]any{
+		{"role": "system", "content": "System rule"},
+		{"role": "assistant", "content": "Answer"},
+	}
+	got := MessagesPrepare(messages)
+	if !strings.Contains(got, "<｜System｜>\nSystem rule") {
+		t.Fatalf("expected unified system marker, got %q", got)
+	}
+	if strings.Contains(got, "<｜end▁of▁sentence｜>") {
+		t.Fatalf("did not expect EOS marker, got %q", got)
 	}
 }
 

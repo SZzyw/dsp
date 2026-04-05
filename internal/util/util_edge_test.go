@@ -184,8 +184,11 @@ func TestMessagesPrepareAssistantMarkers(t *testing.T) {
 	if !strings.Contains(got, "<｜Assistant｜>") {
 		t.Fatalf("expected assistant marker, got %q", got)
 	}
-	if !strings.Contains(got, "<｜end▁of▁sentence｜>") {
-		t.Fatalf("expected end of sentence marker, got %q", got)
+	if strings.Contains(got, "<｜end▁of▁sentence｜>") {
+		t.Fatalf("did not expect end of sentence marker, got %q", got)
+	}
+	if strings.Contains(got, "<system_instructions>") {
+		t.Fatalf("did not expect legacy system marker, got %q", got)
 	}
 }
 
