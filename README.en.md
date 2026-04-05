@@ -163,7 +163,7 @@ Recommended per deployment mode:
 
 ### Option 1: Local Run
 
-**Prerequisites**: Go 1.26+, Node.js 20+ (only if building WebUI locally)
+**Prerequisites**: Go 1.26+, Node.js `20.19+` or `22.12+` (only if building WebUI locally)
 
 ```bash
 # 1. Clone
@@ -178,7 +178,9 @@ cp config.example.json config.json
 go run ./cmd/ds2api
 ```
 
-Default URL: `http://localhost:5001`
+Default local URL: `http://127.0.0.1:5001`
+
+The server actually binds to `0.0.0.0:5001`, so devices on the same LAN can usually reach it through your private IP as well.
 
 > **WebUI auto-build**: On first local startup, if `static/admin` is missing, DS2API will auto-run `npm ci` (only when dependencies are missing) and `npm run build -- --outDir static/admin --emptyOutDir` (requires Node.js). You can also build manually: `./scripts/build-webui.sh`
 

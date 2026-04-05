@@ -2,6 +2,7 @@
 
 > 说明：本文基于当前仓库 `tests/raw_stream_samples/` 下全部 `upstream.stream.sse` 原始流样本整理而成，属于第三方逆向观察文档，不是官方协议。
 > 当前 corpus 由 4 份原始流组成，覆盖搜索+引用、风控终态、Markdown 输出和空格敏感输出等行为。
+> 补充：文末还会注明少量“当前实现已确认、但 corpus 尚未完整覆盖”的行为，例如长思考场景下的自动续写状态。
 
 ## 1. 样本覆盖
 
@@ -143,6 +144,12 @@ close
 
 这类路径决定流是否结束、是否被风控、是否还有待处理片段。它们不应作为正文输出。
 
+尤其是 `response/status` / `status` 这类路径上的字符串值，应被视为控制信号而不是文本 token。当前已确认需要特殊对待的值包括：
+
+- `FINISHED`：正常完成终态，应触发收口。
+- `CONTENT_FILTER`：风控终态，应走拒答/模板分支。
+- `WIP` / `INCOMPLETE` / `AUTO_CONTINUE`：未完成但可继续生成的中间状态，不应直接输出给客户端。
+
 ### 6.4 统计与进度路径
 
 - `accumulated_token_usage`
@@ -221,6 +228,21 @@ close
 {"event":"finish"}
 ```
 
+### 8.3 自动续写中间态（实现补充）
+
+这部分不是当前 corpus 的直接覆盖项，而是 2026-04-05 在长思考实测中观察到、且已在当前实现中兼容的行为：
+
+1. 上游可能先把 `response/status` 或 envelope 内的 `response.status` 置为 `WIP` / `INCOMPLETE`。
+2. 有时还会伴随 `auto_continue: true`。
+3. 这表示当前轮输出尚未真正结束，客户端或代理层可以继续调用 continue 接口续写同一条回答。
+4. 续写后的内容会承接之前的思考与正文，不应把前一轮状态值泄露成可见文本。
+
+对第三方实现，建议把这一类状态统一当作“可继续的控制信号”：
+
+- 可以据此决定是否继续拉取后续流。
+- 不能把 `INCOMPLETE`、`WIP`、`AUTO_CONTINUE` 直接拼接到最终文本。
+- `finish` 事件本身也不能单独说明回答已完全结束，仍要结合状态字段判断。
+
 ## 9. 文本重建规则
 
 如果你的目标是把流重建成最终可见文本，必须遵守下面这些规则：
@@ -231,6 +253,7 @@ close
 - 不要合并连续空格、换行或 Markdown 符号附近的空白。
 - 不要把 `[reference:N]` 视为协议元数据，它在当前 corpus 里就是正文的一部分。
 - 如果你要屏蔽引用标记，应当把它做成可配置的后处理，而不是在解析阶段硬删。
+- `response/status` / `status` 路径上的状态字符串不应进入正文，即使它们不是终态。
 
 这点对 Markdown、代码块、引用、表格都很关键。样本里已经证明，`#`、`-`、`>`、`|` 这类符号后面的空格必须原样保留，否则渲染结果会变形。
 
@@ -249,8 +272,10 @@ parse SSE block
   -> 识别 event
   -> 解析 JSON payload
   -> 更新状态树
+  -> 识别 status / quasi_status / auto_continue 等控制信号
   -> 判定是否有可见文本
   -> 追加到输出缓冲
+  -> 遇到 WIP / INCOMPLETE / AUTO_CONTINUE 时决定是否续写
   -> 遇到 FINISHED / CONTENT_FILTER / finish 时收口
 ```
 
@@ -271,6 +296,10 @@ parse SSE block
 - `message` 是主体承载层，`ready` / `update_session` / `finish` / `title` / `close` 是控制层。
 - `fragment.type` 是可视化和工具链分层的关键，不应只靠 `p` 路径判断。
 
+结合 2026-04-05 的长思考实测，还可以补充一条当前实现层面的结论：
+
+- 长思考场景下，上游可能先给出 `INCOMPLETE` / `WIP` / `AUTO_CONTINUE` 状态，再通过 continue 链路续写；这些状态值本身不应作为正文输出。
+
 ## 12. 适用边界
 
 本文是基于当前 corpus 的逆向说明，不是恒定协议。
@@ -278,6 +307,7 @@ parse SSE block
 - 新模型可能增加新的 `p` 路径。
 - 新版本可能增加新的 fragment.type。
 - `CONTENT_FILTER` 的终态模板内容可能变化。
+- 自动续写相关状态（如 `INCOMPLETE` / `AUTO_CONTINUE`）当前主要来自实测与实现兼容逻辑，后续字段形态仍可能变化。
 - 解析器应当对未知字段、未知路径、未知事件保持容忍。
 
 如果你要把这份说明用于实际开发，建议同时保留原始流样本、回放脚本和回归测试，不要只依赖本文。

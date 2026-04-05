@@ -9,7 +9,7 @@
 ### 前置要求
 
 - Go 1.26+
-- Node.js 20+（WebUI 开发时）
+- Node.js `20.19+` 或 `22.12+`（WebUI 开发时）
 - npm（随 Node.js 提供）
 
 ### 后端开发
@@ -25,7 +25,8 @@ cp config.example.json config.json
 
 # 3. 启动后端
 go run ./cmd/ds2api
-# 默认监听 http://localhost:5001
+# 本地访问 http://127.0.0.1:5001
+# 实际绑定 0.0.0.0:5001，可通过局域网 IP 访问
 ```
 
 ### 前端开发（WebUI）
