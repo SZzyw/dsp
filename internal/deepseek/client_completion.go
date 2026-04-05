@@ -31,6 +31,7 @@ func (c *Client) CallCompletion(ctx context.Context, a *auth.RequestAuth, payloa
 			if captureSession != nil {
 				resp.Body = captureSession.WrapBody(resp.Body, resp.StatusCode)
 			}
+			resp = c.wrapCompletionWithAutoContinue(ctx, a, payload, resp)
 			return resp, nil
 		}
 		if captureSession != nil {
