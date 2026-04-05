@@ -291,6 +291,19 @@ test('parseChunkForContent preserves output tokens on FINISHED lines', () => {
   assert.deepEqual(parsed.parts, []);
 });
 
+test('parseChunkForContent matches FINISHED case-insensitively on status paths', () => {
+  const parsed = parseChunkForContent(
+    { p: 'response/status', v: ' finished ', accumulated_token_usage: 190 },
+    false,
+    'text',
+  );
+  assert.equal(parsed.parsed, true);
+  assert.equal(parsed.finished, true);
+  assert.equal(parsed.contentFilter, false);
+  assert.equal(parsed.outputTokens, 190);
+  assert.deepEqual(parsed.parts, []);
+});
+
 test('parseChunkForContent filters INCOMPLETE status text without stopping stream', () => {
   const parsed = parseChunkForContent(
     { p: 'response/status', v: 'INCOMPLETE', accumulated_token_usage: 190 },

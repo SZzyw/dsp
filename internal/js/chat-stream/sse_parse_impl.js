@@ -59,7 +59,7 @@ function parseChunkForContent(chunk, thinkingEnabled, currentType, stripReferenc
     };
   }
   if (isStatusPath(pathValue)) {
-    if (asString(chunk.v) === 'FINISHED') {
+    if (isFinishedStatus(chunk.v)) {
       return {
         parsed: true,
         parts: [],
@@ -149,7 +149,7 @@ function parseChunkForContent(chunk, thinkingEnabled, currentType, stripReferenc
 
   const val = chunk.v;
   if (typeof val === 'string') {
-    if (val === 'FINISHED' && (!pathValue || pathValue === 'status')) {
+    if (isFinishedStatus(val) && (!pathValue || pathValue === 'status')) {
       return {
         parsed: true,
         parts: [],
@@ -258,7 +258,7 @@ function extractContentRecursive(items, defaultType, stripReferenceMarkers = tru
     const itemPath = asString(it.p);
     const itemV = it.v;
     if (isStatusPath(itemPath)) {
-      if (asString(itemV) === 'FINISHED') {
+      if (isFinishedStatus(itemV)) {
         return { parts: [], finished: true };
       }
       continue;
@@ -334,6 +334,10 @@ function extractContentRecursive(items, defaultType, stripReferenceMarkers = tru
 
 function isStatusPath(pathValue) {
   return pathValue === 'response/status' || pathValue === 'status';
+}
+
+function isFinishedStatus(value) {
+  return asString(value).toUpperCase() === 'FINISHED';
 }
 
 function filterLeakedContentFilterParts(parts) {
