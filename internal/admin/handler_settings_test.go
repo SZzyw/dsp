@@ -82,6 +82,28 @@ func TestUpdateSettingsValidationRejectsTokenRefreshInterval(t *testing.T) {
 	}
 }
 
+func TestUpdateSettingsAllowsEmptyEmbeddingsProvider(t *testing.T) {
+	h := newAdminTestHandler(t, `{"keys":["k1"]}`)
+	payload := map[string]any{
+		"responses": map[string]any{
+			"store_ttl_seconds": 600,
+		},
+		"embeddings": map[string]any{
+			"provider": "",
+		},
+	}
+	b, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPut, "/admin/settings", bytes.NewReader(b))
+	rec := httptest.NewRecorder()
+	h.updateSettings(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := h.Store.Snapshot().Responses.StoreTTLSeconds; got != 600 {
+		t.Fatalf("store_ttl_seconds=%d want=600", got)
+	}
+}
+
 func TestUpdateSettingsValidationWithMergedRuntimeSnapshot(t *testing.T) {
 	h := newAdminTestHandler(t, `{
 		"keys":["k1"],

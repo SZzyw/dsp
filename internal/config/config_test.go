@@ -176,6 +176,56 @@ func TestEnvBackedStoreWritebackDoesNotBootstrapOnInvalidEnvJSON(t *testing.T) {
 	}
 }
 
+func TestEnvBackedStoreWritebackDoesNotBootstrapOnInvalidSemanticConfig(t *testing.T) {
+	tmp, err := os.CreateTemp(t.TempDir(), "config-*.json")
+	if err != nil {
+		t.Fatalf("create temp config: %v", err)
+	}
+	path := tmp.Name()
+	_ = tmp.Close()
+	_ = os.Remove(path)
+
+	t.Setenv("DS2API_CONFIG_JSON", `{
+		"keys":["k1"],
+		"accounts":[{"email":"seed@example.com","password":"p"}],
+		"runtime":{"account_max_inflight":300}
+	}`)
+	t.Setenv("DS2API_CONFIG_PATH", path)
+	t.Setenv("DS2API_ENV_WRITEBACK", "1")
+
+	cfg, fromEnv, loadErr := loadConfig()
+	if loadErr == nil {
+		t.Fatalf("expected loadConfig error for invalid runtime config")
+	}
+	if !fromEnv {
+		t.Fatalf("expected fromEnv=true when env config is the source")
+	}
+	if !strings.Contains(loadErr.Error(), "runtime.account_max_inflight") {
+		t.Fatalf("expected runtime validation error, got %v", loadErr)
+	}
+	if len(cfg.Keys) != 1 || len(cfg.Accounts) != 1 {
+		t.Fatalf("expected env config to be parsed before validation, got keys=%d accounts=%d", len(cfg.Keys), len(cfg.Accounts))
+	}
+	if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("expected invalid config not to be bootstrapped, stat err=%v", statErr)
+	}
+}
+
+func TestLoadStoreWithErrorRejectsInvalidRuntimeConfig(t *testing.T) {
+	t.Setenv("DS2API_CONFIG_JSON", `{
+		"keys":["k1"],
+		"accounts":[{"email":"u@example.com","password":"p"}],
+		"runtime":{"account_max_inflight":300}
+	}`)
+	t.Setenv("DS2API_ENV_WRITEBACK", "0")
+
+	if _, err := LoadStoreWithError(); err == nil {
+		t.Fatal("expected LoadStoreWithError to reject invalid runtime config")
+	} else if !strings.Contains(err.Error(), "runtime.account_max_inflight") {
+		t.Fatalf("expected runtime validation error, got %v", err)
+	}
+}
+
 func TestEnvBackedStoreWritebackFallsBackToPersistedFileOnInvalidEnvJSON(t *testing.T) {
 	tmp, err := os.CreateTemp(t.TempDir(), "config-*.json")
 	if err != nil {

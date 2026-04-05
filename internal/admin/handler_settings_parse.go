@@ -37,8 +37,8 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		cfg := &config.AdminConfig{}
 		if v, exists := raw["jwt_expire_hours"]; exists {
 			n := intFrom(v)
-			if n < 1 || n > 720 {
-				return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("admin.jwt_expire_hours must be between 1 and 720")
+			if err := config.ValidateIntRange("admin.jwt_expire_hours", n, 1, 720, true); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.JWTExpireHours = n
 		}
@@ -49,29 +49,29 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		cfg := &config.RuntimeConfig{}
 		if v, exists := raw["account_max_inflight"]; exists {
 			n := intFrom(v)
-			if n < 1 || n > 256 {
-				return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("runtime.account_max_inflight must be between 1 and 256")
+			if err := config.ValidateIntRange("runtime.account_max_inflight", n, 1, 256, true); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.AccountMaxInflight = n
 		}
 		if v, exists := raw["account_max_queue"]; exists {
 			n := intFrom(v)
-			if n < 1 || n > 200000 {
-				return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("runtime.account_max_queue must be between 1 and 200000")
+			if err := config.ValidateIntRange("runtime.account_max_queue", n, 1, 200000, true); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.AccountMaxQueue = n
 		}
 		if v, exists := raw["global_max_inflight"]; exists {
 			n := intFrom(v)
-			if n < 1 || n > 200000 {
-				return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("runtime.global_max_inflight must be between 1 and 200000")
+			if err := config.ValidateIntRange("runtime.global_max_inflight", n, 1, 200000, true); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.GlobalMaxInflight = n
 		}
 		if v, exists := raw["token_refresh_interval_hours"]; exists {
 			n := intFrom(v)
-			if n < 1 || n > 720 {
-				return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("runtime.token_refresh_interval_hours must be between 1 and 720")
+			if err := config.ValidateIntRange("runtime.token_refresh_interval_hours", n, 1, 720, true); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.TokenRefreshIntervalHours = n
 		}
@@ -98,8 +98,8 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		cfg := &config.ResponsesConfig{}
 		if v, exists := raw["store_ttl_seconds"]; exists {
 			n := intFrom(v)
-			if n < 30 || n > 86400 {
-				return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("responses.store_ttl_seconds must be between 30 and 86400")
+			if err := config.ValidateIntRange("responses.store_ttl_seconds", n, 30, 86400, true); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.StoreTTLSeconds = n
 		}
@@ -110,6 +110,9 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		cfg := &config.EmbeddingsConfig{}
 		if v, exists := raw["provider"]; exists {
 			p := strings.TrimSpace(fmt.Sprintf("%v", v))
+			if err := config.ValidateTrimmedString("embeddings.provider", p, false); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
+			}
 			cfg.Provider = p
 		}
 		embCfg = cfg
@@ -143,14 +146,13 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		cfg := &config.AutoDeleteConfig{}
 		if v, exists := raw["mode"]; exists {
 			mode := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", v)))
-			switch mode {
-			case "", "none":
-				cfg.Mode = "none"
-			case "single", "all":
-				cfg.Mode = mode
-			default:
-				return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("auto_delete.mode must be one of none, single, all")
+			if err := config.ValidateAutoDeleteMode(mode); err != nil {
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
+			if mode == "" {
+				mode = "none"
+			}
+			cfg.Mode = mode
 		}
 		if v, exists := raw["sessions"]; exists {
 			cfg.Sessions = boolFrom(v)
