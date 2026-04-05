@@ -54,9 +54,11 @@ func CollectStream(resp *http.Response, thinkingEnabled bool, closeBody bool) Co
 		}
 		for _, p := range result.Parts {
 			if p.Type == "thinking" {
-				thinking.WriteString(p.Text)
+				trimmed := TrimContinuationOverlap(thinking.String(), p.Text)
+				thinking.WriteString(trimmed)
 			} else {
-				text.WriteString(p.Text)
+				trimmed := TrimContinuationOverlap(text.String(), p.Text)
+				text.WriteString(trimmed)
 			}
 		}
 		return true

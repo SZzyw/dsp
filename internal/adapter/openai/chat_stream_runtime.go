@@ -221,15 +221,23 @@ func (s *chatStreamRuntime) onParsed(parsed sse.LineResult) streamengine.ParsedD
 		}
 		if p.Type == "thinking" {
 			if s.thinkingEnabled {
-				s.thinking.WriteString(cleanedText)
-				delta["reasoning_content"] = cleanedText
+				trimmed := sse.TrimContinuationOverlap(s.thinking.String(), cleanedText)
+				if trimmed == "" {
+					continue
+				}
+				s.thinking.WriteString(trimmed)
+				delta["reasoning_content"] = trimmed
 			}
 		} else {
-			s.text.WriteString(cleanedText)
+			trimmed := sse.TrimContinuationOverlap(s.text.String(), cleanedText)
+			if trimmed == "" {
+				continue
+			}
+			s.text.WriteString(trimmed)
 			if !s.bufferToolContent {
-				delta["content"] = cleanedText
+				delta["content"] = trimmed
 			} else {
-				events := processToolSieveChunk(&s.toolSieve, cleanedText, s.toolNames)
+				events := processToolSieveChunk(&s.toolSieve, trimmed, s.toolNames)
 				for _, evt := range events {
 					if len(evt.ToolCallDeltas) > 0 {
 						if !s.emitEarlyToolDeltas {
