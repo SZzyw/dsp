@@ -126,11 +126,19 @@ func (s *geminiStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 		contentSeen = true
 		if p.Type == "thinking" {
 			if s.thinkingEnabled {
-				s.thinking.WriteString(cleanedText)
+				trimmed := sse.TrimContinuationOverlap(s.thinking.String(), cleanedText)
+				if trimmed == "" {
+					continue
+				}
+				s.thinking.WriteString(trimmed)
 			}
 			continue
 		}
-		s.text.WriteString(cleanedText)
+		trimmed := sse.TrimContinuationOverlap(s.text.String(), cleanedText)
+		if trimmed == "" {
+			continue
+		}
+		s.text.WriteString(trimmed)
 		if s.bufferContent {
 			continue
 		}
@@ -140,7 +148,7 @@ func (s *geminiStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 					"index": 0,
 					"content": map[string]any{
 						"role":  "model",
-						"parts": []map[string]any{{"text": cleanedText}},
+						"parts": []map[string]any{{"text": trimmed}},
 					},
 				},
 			},

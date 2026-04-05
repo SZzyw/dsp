@@ -96,7 +96,11 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 			if !s.thinkingEnabled {
 				continue
 			}
-			s.thinking.WriteString(cleanedText)
+			trimmed := sse.TrimContinuationOverlap(s.thinking.String(), cleanedText)
+			if trimmed == "" {
+				continue
+			}
+			s.thinking.WriteString(trimmed)
 			s.closeTextBlock()
 			if !s.thinkingBlockOpen {
 				s.thinkingBlockIndex = s.nextBlockIndex
@@ -116,13 +120,17 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 				"index": s.thinkingBlockIndex,
 				"delta": map[string]any{
 					"type":     "thinking_delta",
-					"thinking": cleanedText,
+					"thinking": trimmed,
 				},
 			})
 			continue
 		}
 
-		s.text.WriteString(cleanedText)
+		trimmed := sse.TrimContinuationOverlap(s.text.String(), cleanedText)
+		if trimmed == "" {
+			continue
+		}
+		s.text.WriteString(trimmed)
 		if s.bufferToolContent {
 			if hasUnclosedCodeFence(s.text.String()) {
 				continue
@@ -148,7 +156,7 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 			"index": s.textBlockIndex,
 			"delta": map[string]any{
 				"type": "text_delta",
-				"text": cleanedText,
+				"text": trimmed,
 			},
 		})
 	}

@@ -205,17 +205,25 @@ func (s *responsesStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Pa
 			if !s.thinkingEnabled {
 				continue
 			}
-			s.thinking.WriteString(cleanedText)
-			s.sendEvent("response.reasoning.delta", openaifmt.BuildResponsesReasoningDeltaPayload(s.responseID, cleanedText))
+			trimmed := sse.TrimContinuationOverlap(s.thinking.String(), cleanedText)
+			if trimmed == "" {
+				continue
+			}
+			s.thinking.WriteString(trimmed)
+			s.sendEvent("response.reasoning.delta", openaifmt.BuildResponsesReasoningDeltaPayload(s.responseID, trimmed))
 			continue
 		}
 
-		s.text.WriteString(cleanedText)
-		if !s.bufferToolContent {
-			s.emitTextDelta(cleanedText)
+		trimmed := sse.TrimContinuationOverlap(s.text.String(), cleanedText)
+		if trimmed == "" {
 			continue
 		}
-		s.processToolStreamEvents(processToolSieveChunk(&s.sieve, cleanedText, s.toolNames), true)
+		s.text.WriteString(trimmed)
+		if !s.bufferToolContent {
+			s.emitTextDelta(trimmed)
+			continue
+		}
+		s.processToolStreamEvents(processToolSieveChunk(&s.sieve, trimmed, s.toolNames), true)
 	}
 
 	return streamengine.ParsedDecision{ContentSeen: contentSeen}
