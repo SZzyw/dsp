@@ -42,9 +42,9 @@ func NewApp() (*App, error) {
 	})
 	dsClient = deepseek.NewClient(store, resolver)
 	if err := dsClient.PreloadPow(context.Background()); err != nil {
-		config.Logger.Warn("[WASM] preload failed", "error", err)
+		config.Logger.Warn("[PoW] init failed", "error", err)
 	} else {
-		config.Logger.Info("[WASM] module preloaded", "path", config.WASMPath())
+		config.Logger.Info("[PoW] pure Go solver ready")
 	}
 
 	openaiHandler := &openai.Handler{Store: store, Auth: resolver, DS: dsClient}

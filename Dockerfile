@@ -34,7 +34,7 @@ CMD ["/usr/local/bin/ds2api"]
 
 FROM runtime-base AS runtime-from-source
 COPY --from=go-builder /out/ds2api /usr/local/bin/ds2api
-COPY --from=go-builder /app/internal/deepseek/assets/sha3_wasm_bg.7b9ca65ddd.wasm /app/sha3_wasm_bg.7b9ca65ddd.wasm
+
 COPY --from=go-builder /app/config.example.json /app/config.example.json
 COPY --from=webui-builder /app/static/admin /app/static/admin
 
@@ -53,13 +53,13 @@ RUN set -eux; \
     test -n "${PKG_DIR}"; \
     mkdir -p /out/static; \
     cp "${PKG_DIR}/ds2api" /out/ds2api; \
-    cp "${PKG_DIR}/sha3_wasm_bg.7b9ca65ddd.wasm" /out/sha3_wasm_bg.7b9ca65ddd.wasm; \
+
     cp "${PKG_DIR}/config.example.json" /out/config.example.json; \
     cp -R "${PKG_DIR}/static/admin" /out/static/admin
 
 FROM runtime-base AS runtime-from-dist
 COPY --from=dist-extract /out/ds2api /usr/local/bin/ds2api
-COPY --from=dist-extract /out/sha3_wasm_bg.7b9ca65ddd.wasm /app/sha3_wasm_bg.7b9ca65ddd.wasm
+
 COPY --from=dist-extract /out/config.example.json /app/config.example.json
 COPY --from=dist-extract /out/static/admin /app/static/admin
 

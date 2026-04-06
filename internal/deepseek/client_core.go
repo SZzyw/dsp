@@ -23,7 +23,6 @@ type Client struct {
 	stream     trans.Doer
 	fallback   *http.Client
 	fallbackS  *http.Client
-	powSolver  *PowSolver
 	maxRetries int
 }
 
@@ -36,11 +35,11 @@ func NewClient(store *config.Store, resolver *auth.Resolver) *Client {
 		stream:     trans.New(0),
 		fallback:   &http.Client{Timeout: 60 * time.Second},
 		fallbackS:  &http.Client{Timeout: 0},
-		powSolver:  NewPowSolver(config.WASMPath()),
 		maxRetries: 3,
 	}
 }
 
-func (c *Client) PreloadPow(ctx context.Context) error {
-	return c.powSolver.init(ctx)
+// PreloadPow 保留兼容接口，纯 Go 实现无需预加载。
+func (c *Client) PreloadPow(_ context.Context) error {
+	return nil
 }

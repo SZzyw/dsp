@@ -8,7 +8,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/refraction-networking/utls v1.8.2
 	github.com/router-for-me/CLIProxyAPI/v6 v6.9.14
-	github.com/tetratelabs/wazero v1.11.0
 )
 
 require (
