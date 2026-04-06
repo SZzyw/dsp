@@ -275,7 +275,7 @@ func TestHandleNonStreamFencedToolCallExamplePromotesToolCall(t *testing.T) {
 	TestHandleNonStreamFencedToolCallExampleDoesNotPromoteToolCall(t)
 }
 
-func TestHandleNonStreamReturns502WhenUpstreamOutputEmpty(t *testing.T) {
+func TestHandleNonStreamReturns429WhenUpstreamOutputEmpty(t *testing.T) {
 	h := &Handler{}
 	resp := makeSSEHTTPResponse(
 		`data: {"p":"response/content","v":""}`,
@@ -284,8 +284,8 @@ func TestHandleNonStreamReturns502WhenUpstreamOutputEmpty(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	h.handleNonStream(rec, context.Background(), resp, "cid-empty", "deepseek-chat", "prompt", false, nil)
-	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("expected status 502 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status 429 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	out := decodeJSONBody(t, rec.Body.String())
 	errObj, _ := out["error"].(map[string]any)

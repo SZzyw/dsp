@@ -627,7 +627,7 @@ func TestHandleResponsesNonStreamToolChoiceNoneStillAllowsFunctionCall(t *testin
 	}
 }
 
-func TestHandleResponsesNonStreamReturns502WhenUpstreamOutputEmpty(t *testing.T) {
+func TestHandleResponsesNonStreamReturns429WhenUpstreamOutputEmpty(t *testing.T) {
 	h := &Handler{}
 	rec := httptest.NewRecorder()
 	resp := &http.Response{
@@ -639,8 +639,8 @@ func TestHandleResponsesNonStreamReturns502WhenUpstreamOutputEmpty(t *testing.T)
 	}
 
 	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, nil, util.DefaultToolChoicePolicy(), "")
-	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("expected 502 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	out := decodeJSONBody(t, rec.Body.String())
 	errObj, _ := out["error"].(map[string]any)
