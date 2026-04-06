@@ -57,6 +57,9 @@ run_lint() {
 
 is_compatibility_error() {
   case "$1" in
+    *"command not found"*|\
+    *"not recognized as an internal or external command"*|\
+    *"No such file or directory"*|\
     *"unknown command \"fmt\""*|\
     *"unknown command \"run\""*|\
     *"unknown flag"*|\
