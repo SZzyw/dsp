@@ -267,6 +267,7 @@ data: [DONE]
 - `deepseek-reasoner` / `deepseek-reasoner-search` 模型输出 `delta.reasoning_content`
 - 普通文本输出 `delta.content`
 - 最后一段包含 `finish_reason` 和 `usage`
+- token 计数优先透传上游 DeepSeek SSE（如 `accumulated_token_usage` / `token_usage`）；仅在上游缺失时回退本地估算
 
 #### Tool Calls
 
@@ -541,6 +542,7 @@ data: {"type":"message_stop"}
 - 常规文本：持续返回增量文本 chunk
 - `tools` 场景：会缓冲并在结束时输出 `functionCall` 结构
 - 结束 chunk：包含 `finishReason: "STOP"` 与 `usageMetadata`
+- token 计数优先透传上游 DeepSeek SSE（如 `accumulated_token_usage` / `token_usage`）；仅在上游缺失时回退本地估算
 
 ---
 

@@ -267,6 +267,7 @@ data: [DONE]
 - `deepseek-reasoner` / `deepseek-reasoner-search` models emit `delta.reasoning_content`
 - Text emits `delta.content`
 - Last chunk includes `finish_reason` and `usage`
+- Token counting prefers pass-through from upstream DeepSeek SSE (`accumulated_token_usage` / `token_usage`), and only falls back to local estimation when upstream usage is absent
 
 #### Tool Calls
 
@@ -535,6 +536,7 @@ Returns SSE (`text/event-stream`), each chunk as `data: <json>`:
 - regular text: incremental text chunks
 - `tools` mode: buffered and emitted as `functionCall` at finalize phase
 - final chunk: includes `finishReason: "STOP"` and `usageMetadata`
+- Token counting prefers pass-through from upstream DeepSeek SSE (`accumulated_token_usage` / `token_usage`), and only falls back to local estimation when upstream usage is absent
 
 ---
 
