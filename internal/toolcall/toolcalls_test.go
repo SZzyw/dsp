@@ -691,3 +691,15 @@ func TestRepairLooseJSONWithNestedObjects(t *testing.T) {
 		}
 	}
 }
+
+func TestParseToolCallsUnescapesHTMLEntityArguments(t *testing.T) {
+	text := `<tool_call><tool_name>Bash</tool_name><parameters>{"command":"echo a &gt; out.txt"}</parameters></tool_call>`
+	calls := ParseToolCalls(text, []string{"bash"})
+	if len(calls) != 1 {
+		t.Fatalf("expected one call, got %#v", calls)
+	}
+	cmd, _ := calls[0].Input["command"].(string)
+	if cmd != "echo a > out.txt" {
+		t.Fatalf("expected html entities to be unescaped in command, got %q", cmd)
+	}
+}
