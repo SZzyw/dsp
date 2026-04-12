@@ -8,7 +8,14 @@ var emptyJSONFencePattern = regexp.MustCompile("(?is)```json\\s*```")
 var leakedToolCallArrayPattern = regexp.MustCompile(`(?is)\[\{\s*"function"\s*:\s*\{[\s\S]*?\}\s*,\s*"id"\s*:\s*"call[^"]*"\s*,\s*"type"\s*:\s*"function"\s*}\]`)
 var leakedToolResultBlobPattern = regexp.MustCompile(`(?is)<\s*\|\s*tool\s*\|\s*>\s*\{[\s\S]*?"tool_call_id"\s*:\s*"call[^"]*"\s*}`)
 
-// leakedMetaMarkerPattern matches DeepSeek special tokens in BOTH forms:
+var leakedThinkTagPattern = regexp.MustCompile(`(?i)</?think>`)
+
+// leakedBOSMarkerPattern matches DeepSeek BOS markers in BOTH forms:
+//   - ASCII underscore: <｜begin_of_sentence｜>
+//   - U+2581 variant:   <｜begin▁of▁sentence｜>
+var leakedBOSMarkerPattern = regexp.MustCompile(`(?i)<[｜\|]\s*begin[_▁]of[_▁]sentence\s*[｜\|]>`)
+
+// leakedMetaMarkerPattern matches the remaining DeepSeek special tokens in BOTH forms:
 //   - ASCII underscore: <｜end_of_sentence｜>, <｜end_of_toolresults｜>, <｜end_of_instructions｜>
 //   - U+2581 variant:   <｜end▁of▁sentence｜>, <｜end▁of▁toolresults｜>, <｜end▁of▁instructions｜>
 var leakedMetaMarkerPattern = regexp.MustCompile(`(?i)<[｜\|]\s*(?:assistant|tool|end[_▁]of[_▁]sentence|end[_▁]of[_▁]thinking|end[_▁]of[_▁]toolresults|end[_▁]of[_▁]instructions)\s*[｜\|]>`)
@@ -35,6 +42,8 @@ func sanitizeLeakedOutput(text string) string {
 	out := emptyJSONFencePattern.ReplaceAllString(text, "")
 	out = leakedToolCallArrayPattern.ReplaceAllString(out, "")
 	out = leakedToolResultBlobPattern.ReplaceAllString(out, "")
+	out = leakedThinkTagPattern.ReplaceAllString(out, "")
+	out = leakedBOSMarkerPattern.ReplaceAllString(out, "")
 	out = leakedMetaMarkerPattern.ReplaceAllString(out, "")
 	out = sanitizeLeakedAgentXMLBlocks(out)
 	return out
