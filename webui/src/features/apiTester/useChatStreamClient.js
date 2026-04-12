@@ -8,6 +8,7 @@ export function useChatStreamClient({
     effectiveKey,
     selectedAccount,
     streamingMode,
+    attachedFiles,
     abortControllerRef,
     setLoading,
     setIsStreaming,
@@ -70,15 +71,21 @@ export function useChatStreamClient({
                 headers['X-Ds2-Target-Account'] = selectedAccount
             }
 
+            const body = {
+                model,
+                messages: [{ role: 'user', content: message }],
+                stream: streamingMode,
+            }
+            
+            if (attachedFiles && attachedFiles.length > 0) {
+                body.file_ids = attachedFiles.map(f => f.id)
+            }
+
             const endpoint = streamingMode ? '/v1/chat/completions' : '/v1/chat/completions?__go=1'
             const res = await fetch(endpoint, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({
-                    model,
-                    messages: [{ role: 'user', content: message }],
-                    stream: streamingMode,
-                }),
+                body: JSON.stringify(body),
                 signal: abortControllerRef.current.signal,
             })
 
@@ -150,6 +157,7 @@ export function useChatStreamClient({
         }
     }, [
         abortControllerRef,
+        attachedFiles,
         effectiveKey,
         extractErrorMessage,
         message,

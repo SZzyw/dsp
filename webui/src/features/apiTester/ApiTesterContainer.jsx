@@ -70,6 +70,7 @@ export default function ApiTesterContainer({ config, onMessage, authFetch }) {
         effectiveKey,
         selectedAccount,
         streamingMode,
+        attachedFiles,
         abortControllerRef,
         setLoading,
         setIsStreaming,
@@ -104,6 +105,11 @@ export default function ApiTesterContainer({ config, onMessage, authFetch }) {
                 t={t}
                 message={message}
                 setMessage={setMessage}
+                attachedFiles={attachedFiles}
+                setAttachedFiles={setAttachedFiles}
+                effectiveKey={effectiveKey}
+                selectedAccount={selectedAccount}
+                onMessage={onMessage}
                 response={response}
                 isStreaming={isStreaming}
                 loading={loading}

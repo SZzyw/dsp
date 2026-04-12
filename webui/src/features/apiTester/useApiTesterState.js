@@ -12,7 +12,7 @@ export function useApiTesterState({ t }) {
     const [streamingThinking, setStreamingThinking] = useState('')
     const [isStreaming, setIsStreaming] = useState(false)
     const [streamingMode, setStreamingMode] = useState(true)
-    const [configExpanded, setConfigExpanded] = useState(false)
+    const [attachedFiles, setAttachedFiles] = useState([])
 
     const abortControllerRef = useRef(null)
     const defaultMessageRef = useRef(defaultMessage)
@@ -27,6 +27,8 @@ export function useApiTesterState({ t }) {
         setModel,
         message,
         setMessage,
+        attachedFiles,
+        setAttachedFiles,
         apiKey,
         setApiKey,
         selectedAccount,
