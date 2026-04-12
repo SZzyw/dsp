@@ -8,13 +8,24 @@ func collectOpenAIRefFileIDs(req map[string]any) []string {
 	}
 	out := make([]string, 0, 4)
 	seen := map[string]struct{}{}
-	for _, raw := range []any{
-		req["ref_file_ids"],
-		req["file_ids"],
-		req["attachments"],
-		req["messages"],
-		req["input"],
+	for _, key := range []string{
+		"ref_file_ids",
+		"file_ids",
+		"attachments",
+		"messages",
+		"input",
 	} {
+		raw := req[key]
+		if raw == nil {
+			continue
+		}
+		// Skip top-level strings for 'messages' and 'input' as they are likely plain text content,
+		// not file IDs. String file IDs are expected in 'ref_file_ids' or 'file_ids'.
+		if key == "messages" || key == "input" {
+			if _, ok := raw.(string); ok {
+				continue
+			}
+		}
 		appendOpenAIRefFileIDs(&out, seen, raw)
 	}
 	if len(out) == 0 {

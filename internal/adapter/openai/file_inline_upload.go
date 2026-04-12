@@ -292,7 +292,7 @@ func decodeDataURL(raw string, explicitContentType string) ([]byte, string, erro
 		}
 		return decoded, contentType, nil
 	}
-	decoded, err := url.QueryUnescape(payload)
+	decoded, err := url.PathUnescape(payload)
 	if err != nil {
 		return nil, "", err
 	}
