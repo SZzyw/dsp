@@ -14,7 +14,7 @@ import (
 	powpkg "ds2api/pow"
 )
 
-func TestBuildUploadMultipartBodyIncludesPurposeAndFilePart(t *testing.T) {
+func TestBuildUploadMultipartBodyOmitsPurposeAndIncludesFilePart(t *testing.T) {
 	body, contentType, err := buildUploadMultipartBody(`../demo.txt`, "text/plain", "assistants", []byte("hello"))
 	if err != nil {
 		t.Fatalf("buildUploadMultipartBody error: %v", err)
@@ -23,8 +23,8 @@ func TestBuildUploadMultipartBodyIncludesPurposeAndFilePart(t *testing.T) {
 		t.Fatalf("unexpected content type: %q", contentType)
 	}
 	payload := string(body)
-	if !strings.Contains(payload, `name="purpose"`) || !strings.Contains(payload, "assistants") {
-		t.Fatalf("expected purpose field in payload: %q", payload)
+	if strings.Contains(payload, `name="purpose"`) || strings.Contains(payload, "assistants") {
+		t.Fatalf("expected purpose to be omitted from payload: %q", payload)
 	}
 	if !strings.Contains(payload, `name="file"; filename="demo.txt"`) {
 		t.Fatalf("expected sanitized filename in payload: %q", payload)

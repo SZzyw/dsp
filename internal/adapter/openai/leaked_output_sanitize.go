@@ -2,13 +2,15 @@ package openai
 
 import (
 	"regexp"
+	"strings"
 )
 
 var emptyJSONFencePattern = regexp.MustCompile("(?is)```json\\s*```")
 var leakedToolCallArrayPattern = regexp.MustCompile(`(?is)\[\{\s*"function"\s*:\s*\{[\s\S]*?\}\s*,\s*"id"\s*:\s*"call[^"]*"\s*,\s*"type"\s*:\s*"function"\s*}\]`)
 var leakedToolResultBlobPattern = regexp.MustCompile(`(?is)<\s*\|\s*tool\s*\|\s*>\s*\{[\s\S]*?"tool_call_id"\s*:\s*"call[^"]*"\s*}`)
 
-var leakedThinkTagPattern = regexp.MustCompile(`(?i)</?think>`)
+var leakedDanglingThinkOpenPattern = regexp.MustCompile(`(?is)<\s*think\b[^>]*>[\s\S]*$`)
+var leakedThinkTagPattern = regexp.MustCompile(`(?is)</?\s*think\s*>`)
 
 // leakedBOSMarkerPattern matches DeepSeek BOS markers in BOTH forms:
 //   - ASCII underscore: <｜begin_of_sentence｜>
@@ -42,11 +44,46 @@ func sanitizeLeakedOutput(text string) string {
 	out := emptyJSONFencePattern.ReplaceAllString(text, "")
 	out = leakedToolCallArrayPattern.ReplaceAllString(out, "")
 	out = leakedToolResultBlobPattern.ReplaceAllString(out, "")
+	out = stripDanglingThinkSuffix(out)
 	out = leakedThinkTagPattern.ReplaceAllString(out, "")
 	out = leakedBOSMarkerPattern.ReplaceAllString(out, "")
 	out = leakedMetaMarkerPattern.ReplaceAllString(out, "")
 	out = sanitizeLeakedAgentXMLBlocks(out)
 	return out
+}
+
+func stripDanglingThinkSuffix(text string) string {
+	matches := leakedThinkTagPattern.FindAllStringIndex(text, -1)
+	if len(matches) == 0 {
+		return text
+	}
+	depth := 0
+	lastOpen := -1
+	for _, loc := range matches {
+		tag := strings.ToLower(text[loc[0]:loc[1]])
+		compact := strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(tag), " ", ""), "\t", "")
+		if strings.HasPrefix(compact, "</") {
+			if depth > 0 {
+				depth--
+				if depth == 0 {
+					lastOpen = -1
+				}
+			}
+			continue
+		}
+		if depth == 0 {
+			lastOpen = loc[0]
+		}
+		depth++
+	}
+	if depth == 0 || lastOpen < 0 {
+		return text
+	}
+	prefix := text[:lastOpen]
+	if strings.TrimSpace(prefix) == "" {
+		return ""
+	}
+	return prefix
 }
 
 func sanitizeLeakedAgentXMLBlocks(text string) string {

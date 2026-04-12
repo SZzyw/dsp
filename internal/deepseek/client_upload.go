@@ -145,11 +145,6 @@ func (c *Client) UploadFile(ctx context.Context, a *auth.RequestAuth, req Upload
 func buildUploadMultipartBody(filename, contentType, purpose string, data []byte) ([]byte, string, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	if strings.TrimSpace(purpose) != "" {
-		if err := writer.WriteField("purpose", purpose); err != nil {
-			return nil, "", err
-		}
-	}
 	partHeader := textproto.MIMEHeader{}
 	partHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, escapeMultipartFilename(filename)))
 	partHeader.Set("Content-Type", contentType)

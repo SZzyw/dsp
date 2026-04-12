@@ -34,6 +34,14 @@ func TestSanitizeLeakedOutputRemovesThinkAndBosMarkers(t *testing.T) {
 	}
 }
 
+func TestSanitizeLeakedOutputRemovesDanglingThinkBlock(t *testing.T) {
+	raw := "Answer prefix<think>internal reasoning that never closes"
+	got := sanitizeLeakedOutput(raw)
+	if got != "Answer prefix" {
+		t.Fatalf("unexpected sanitize result for dangling think block: %q", got)
+	}
+}
+
 func TestSanitizeLeakedOutputRemovesAgentXMLLeaks(t *testing.T) {
 	raw := "Done.<attempt_completion><result>Some final answer</result></attempt_completion>"
 	got := sanitizeLeakedOutput(raw)

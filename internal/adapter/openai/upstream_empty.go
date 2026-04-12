@@ -3,7 +3,7 @@ package openai
 import "net/http"
 
 func writeUpstreamEmptyOutputError(w http.ResponseWriter, thinking, text string, contentFilter bool) bool {
-	if thinking != "" || text != "" {
+	if text != "" {
 		return false
 	}
 	if contentFilter {

@@ -14,6 +14,8 @@ export default function ApiTesterContainer({ config, onMessage, authFetch }) {
         setModel,
         message,
         setMessage,
+        attachedFiles,
+        setAttachedFiles,
         apiKey,
         setApiKey,
         selectedAccount,
