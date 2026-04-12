@@ -28,7 +28,13 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		writeOpenAIError(w, http.StatusBadRequest, "content-type must be multipart/form-data")
 		return
 	}
+	// Enforce a hard cap on the total request body size to prevent OOM
+	r.Body = http.MaxBytesReader(w, r.Body, openAIUploadMaxSize)
 	if err := r.ParseMultipartForm(openAIUploadMaxMemory); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "too large") {
+			writeOpenAIError(w, http.StatusRequestEntityTooLarge, "file size exceeds limit")
+			return
+		}
 		writeOpenAIError(w, http.StatusBadRequest, "invalid multipart form")
 		return
 	}

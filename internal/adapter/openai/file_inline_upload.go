@@ -15,6 +15,8 @@ import (
 	"ds2api/internal/deepseek"
 )
 
+const maxInlineFilesPerRequest = 50
+
 type inlineFileUploadError struct {
 	status  int
 	message string
@@ -39,6 +41,7 @@ type inlineUploadState struct {
 	handler      *Handler
 	auth         *auth.RequestAuth
 	uploadedByID map[string]string
+	uploadCount  int
 }
 
 type inlineDecodedFile struct {
@@ -129,10 +132,14 @@ func (s *inlineUploadState) tryUploadBlock(block map[string]any) (map[string]any
 	if !ok {
 		return nil, false, nil
 	}
+	if s.uploadCount >= maxInlineFilesPerRequest {
+		return nil, true, fmt.Errorf("exceeded maximum of %d inline files per request", maxInlineFilesPerRequest)
+	}
 	fileID, err := s.uploadInlineFile(decoded)
 	if err != nil {
 		return nil, true, &inlineFileUploadError{status: http.StatusInternalServerError, message: "Failed to upload inline file.", err: err}
 	}
+	s.uploadCount++
 	replacement := map[string]any{
 		"type":    decoded.ReplacementType,
 		"file_id": fileID,
