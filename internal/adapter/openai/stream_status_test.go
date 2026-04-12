@@ -243,6 +243,49 @@ func TestChatCompletionsStreamContentFilterStopsNormallyWithoutLeak(t *testing.T
 	}
 }
 
+func TestChatCompletionsStreamEmitsFailureFrameWhenUpstreamOutputEmpty(t *testing.T) {
+	statuses := make([]int, 0, 1)
+	h := &Handler{
+		Store: mockOpenAIConfig{wideInput: true},
+		Auth:  streamStatusAuthStub{},
+		DS:    streamStatusDSStub{resp: makeOpenAISSEHTTPResponse("data: [DONE]")},
+	}
+	r := chi.NewRouter()
+	r.Use(captureStatusMiddleware(&statuses))
+	RegisterRoutes(r, h)
+
+	reqBody := `{"model":"deepseek-chat","messages":[{"role":"user","content":"hi"}],"stream":true}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(reqBody))
+	req.Header.Set("Authorization", "Bearer direct-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(statuses) != 1 || statuses[0] != http.StatusOK {
+		t.Fatalf("expected captured status 200, got %#v", statuses)
+	}
+
+	frames, done := parseSSEDataFrames(t, rec.Body.String())
+	if !done {
+		t.Fatalf("expected [DONE], body=%s", rec.Body.String())
+	}
+	if len(frames) != 1 {
+		t.Fatalf("expected one failure frame, got %#v body=%s", frames, rec.Body.String())
+	}
+	last := frames[0]
+	statusCode, ok := last["status_code"].(float64)
+	if !ok || int(statusCode) != http.StatusTooManyRequests {
+		t.Fatalf("expected status_code=429, got %#v body=%s", last["status_code"], rec.Body.String())
+	}
+	errObj, _ := last["error"].(map[string]any)
+	if asString(errObj["code"]) != "upstream_empty_output" {
+		t.Fatalf("expected code=upstream_empty_output, got %#v", last)
+	}
+}
+
 func TestResponsesStreamUsageIgnoresBatchAccumulatedTokenUsage(t *testing.T) {
 	statuses := make([]int, 0, 1)
 	h := &Handler{

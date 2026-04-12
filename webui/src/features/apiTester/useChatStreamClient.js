@@ -63,6 +63,28 @@ export function useChatStreamClient({
         }
     }, [attachedFiles, t])
 
+    const extractStreamError = useCallback((json) => {
+        const error = json?.error
+        if (!error || typeof error !== 'object') {
+            return null
+        }
+
+        const message = typeof error.message === 'string' && error.message.trim()
+            ? error.message.trim()
+            : t('apiTester.requestFailed')
+        const rawStatus = Number(json?.status_code ?? error.status_code ?? error.http_status)
+        const statusCode = Number.isFinite(rawStatus) && rawStatus > 0
+            ? rawStatus
+            : (error.code === 'content_filter' ? 400 : 429)
+
+        return {
+            message,
+            statusCode,
+            code: typeof error.code === 'string' ? error.code : '',
+            type: typeof error.type === 'string' ? error.type : '',
+        }
+    }, [t])
+
     const runTest = useCallback(async () => {
         if (!effectiveKey) {
             onMessage('error', t('apiTester.missingApiKey'))
@@ -141,7 +163,9 @@ export function useChatStreamClient({
                 let buffer = ''
                 let accumulatedThinking = ''
                 let accumulatedContent = ''
+                let streamError = null
 
+                streamLoop:
                 while (true) {
                     const { done, value } = await reader.read()
                     if (done) break
@@ -159,6 +183,11 @@ export function useChatStreamClient({
 
                         try {
                             const json = JSON.parse(dataStr)
+                            const errorPayload = extractStreamError(json)
+                            if (errorPayload) {
+                                streamError = errorPayload
+                                break streamLoop
+                            }
                             const choice = json.choices?.[0]
                             if (choice?.delta) {
                                 const delta = choice.delta
@@ -175,6 +204,23 @@ export function useChatStreamClient({
                             console.error('Invalid JSON hunk:', dataStr, e)
                         }
                     }
+                }
+
+                if (streamError) {
+                    await reader.cancel().catch(() => {})
+                    setStreamingContent('')
+                    setStreamingThinking('')
+                    setResponse({
+                        success: false,
+                        status_code: streamError.statusCode,
+                        error: streamError.message,
+                        code: streamError.code,
+                        type: streamError.type,
+                    })
+                    onMessage('error', streamError.message)
+                    setLoading(false)
+                    setIsStreaming(false)
+                    return
                 }
 
                 setResponse({
@@ -214,6 +260,7 @@ export function useChatStreamClient({
         attachedFiles,
         effectiveKey,
         extractErrorMessage,
+        extractStreamError,
         message,
         model,
         onMessage,
