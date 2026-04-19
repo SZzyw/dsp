@@ -474,3 +474,14 @@ func TestParseToolCallsParsesOnlyNonFencedXMLToolCall(t *testing.T) {
 		t.Fatalf("expected non-fenced tool call to be parsed, got %#v", res.Calls[0])
 	}
 }
+
+func TestParseToolCallsParsesAfterFourBacktickFence(t *testing.T) {
+	text := "````markdown\n```xml\n<tool_call><tool_name>read_file</tool_name><parameters>{\"path\":\"README.md\"}</parameters></tool_call>\n```\n````\n<tool_call><tool_name>search</tool_name><parameters>{\"q\":\"outside\"}</parameters></tool_call>"
+	res := ParseToolCallsDetailed(text, []string{"read_file", "search"})
+	if len(res.Calls) != 1 {
+		t.Fatalf("expected exactly one parsed call outside four-backtick fence, got %#v", res.Calls)
+	}
+	if res.Calls[0].Name != "search" {
+		t.Fatalf("expected non-fenced tool call to be parsed, got %#v", res.Calls[0])
+	}
+}

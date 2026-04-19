@@ -124,19 +124,40 @@ func stripFencedCodeBlocks(text string) string {
 }
 
 func parseFenceOpen(line string) (string, bool) {
-	if strings.HasPrefix(line, "```") {
-		return "```", true
+	if len(line) < 3 {
+		return "", false
 	}
-	if strings.HasPrefix(line, "~~~") {
-		return "~~~", true
+	ch := line[0]
+	if ch != '`' && ch != '~' {
+		return "", false
 	}
-	return "", false
+	count := countLeadingFenceChars(line, ch)
+	if count < 3 {
+		return "", false
+	}
+	return strings.Repeat(string(ch), count), true
 }
 
 func isFenceClose(line, marker string) bool {
-	if marker == "" || !strings.HasPrefix(line, marker) {
+	if marker == "" {
 		return false
 	}
-	rest := strings.TrimSpace(strings.TrimPrefix(line, marker))
+	ch := marker[0]
+	if line == "" || line[0] != ch {
+		return false
+	}
+	count := countLeadingFenceChars(line, ch)
+	if count < len(marker) {
+		return false
+	}
+	rest := strings.TrimSpace(line[count:])
 	return rest == ""
+}
+
+func countLeadingFenceChars(line string, ch byte) int {
+	count := 0
+	for count < len(line) && line[count] == ch {
+		count++
+	}
+	return count
 }
