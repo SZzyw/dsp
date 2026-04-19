@@ -108,6 +108,7 @@ Gemini-compatible clients can also send `x-goog-api-key`, `?key=`, or `?api_key=
 | POST | `/v1/responses` | Business | OpenAI Responses API (stream/non-stream) |
 | GET | `/v1/responses/{response_id}` | Business | Query stored response (in-memory TTL) |
 | POST | `/v1/embeddings` | Business | OpenAI Embeddings API |
+| POST | `/v1/files` | Business | OpenAI Files upload (multipart/form-data) |
 | GET | `/anthropic/v1/models` | None | Claude model list |
 | POST | `/anthropic/v1/messages` | Business | Claude messages |
 | POST | `/anthropic/v1/messages/count_tokens` | Business | Claude token counting |
@@ -131,9 +132,15 @@ Gemini-compatible clients can also send `x-goog-api-key`, `?key=`, or `?api_key=
 | GET | `/admin/config/export` | Admin | Export full config (`config`/`json`/`base64`) |
 | POST | `/admin/keys` | Admin | Add API key |
 | DELETE | `/admin/keys/{key}` | Admin | Delete API key |
+| GET | `/admin/proxies` | Admin | List proxies |
+| POST | `/admin/proxies` | Admin | Add proxy |
+| PUT | `/admin/proxies/{proxyID}` | Admin | Update proxy (empty password keeps old secret) |
+| DELETE | `/admin/proxies/{proxyID}` | Admin | Delete proxy (auto-unbind referenced accounts) |
+| POST | `/admin/proxies/test` | Admin | Test proxy connectivity |
 | GET | `/admin/accounts` | Admin | Paginated account list |
 | POST | `/admin/accounts` | Admin | Add account |
 | DELETE | `/admin/accounts/{identifier}` | Admin | Delete account |
+| PUT | `/admin/accounts/{identifier}/proxy` | Admin | Bind/unbind proxy for an account |
 | GET | `/admin/queue/status` | Admin | Account queue status |
 | POST | `/admin/accounts/test` | Admin | Test one account |
 | POST | `/admin/accounts/test-all` | Admin | Test all accounts |
@@ -390,6 +397,21 @@ Business auth required. Returns OpenAI-compatible embeddings shape.
 | `input` | string/array | ✅ | Supports string, string array, token array |
 
 > Requires `embeddings.provider`. Current supported values: `mock` / `deterministic` / `builtin`. If missing/unsupported, returns standard error shape with HTTP 501.
+
+### `POST /v1/files`
+
+Business auth required. OpenAI Files-compatible upload endpoint; currently only `multipart/form-data` is supported.
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `file` | file | ✅ | Binary payload |
+| `purpose` | string | ❌ | Forwarded purpose field |
+
+Constraints and behavior:
+
+- `Content-Type` must be `multipart/form-data` (otherwise `400`).
+- Total request size limit is `100 MiB` (over-limit returns `413`).
+- Success returns an OpenAI `file` object (`id/object/bytes/filename/purpose/status`, etc.) and includes `account_id` for source-account tracing.
 
 ---
 
@@ -723,6 +745,26 @@ Exports full config in three forms: `config`, `json`, and `base64`.
 
 **Response**: `{"success": true, "total_keys": 2}`
 
+### `GET /admin/proxies`
+
+Lists proxy configs (password is never returned; use `has_password` as a marker).
+
+### `POST /admin/proxies`
+
+Adds a proxy. Request accepts `id` (optional; auto-generated when omitted), `name`, `type` (`http` / `socks5`), `host`, `port`, `username`, `password`.
+
+### `PUT /admin/proxies/{proxyID}`
+
+Updates a proxy. If `password` is an empty string, the existing secret is preserved.
+
+### `DELETE /admin/proxies/{proxyID}`
+
+Deletes a proxy and automatically clears `proxy_id` on all accounts that reference it.
+
+### `POST /admin/proxies/test`
+
+Tests proxy connectivity: provide `proxy_id` to test a saved proxy; omit it to run a one-off test using proxy fields in the request body.
+
 ### `GET /admin/accounts`
 
 **Query params**:
@@ -730,7 +772,7 @@ Exports full config in three forms: `config`, `json`, and `base64`.
 | Param | Default | Range |
 | --- | --- | --- |
 | `page` | `1` | ≥ 1 |
-| `page_size` | `10` | 1–100 |
+| `page_size` | `10` | 1–5000 |
 | `q` | empty | Filter by identifier / email / mobile |
 
 **Response**:
@@ -770,6 +812,14 @@ Returned items also include `test_status`, usually `ok` or `failed`.
 `identifier` can be email, mobile, or the synthetic id for token-only accounts (`token:<hash>`).
 
 **Response**: `{"success": true, "total_accounts": 5}`
+
+### `PUT /admin/accounts/{identifier}/proxy`
+
+Updates proxy binding for a specific account.
+
+- Request body: `{"proxy_id":"..."}`.
+- Use empty `proxy_id` to unbind proxy.
+- `identifier` supports email / mobile / token-only synthetic id.
 
 ### `GET /admin/queue/status`
 
