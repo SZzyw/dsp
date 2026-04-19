@@ -85,7 +85,7 @@ func parseMarkupSingleToolCall(attrs string, inner string) ParsedToolCall {
 			}
 			if strings.TrimSpace(name) != "" {
 				input := parseToolCallInput(obj["input"])
-				if input == nil || len(input) == 0 {
+				if len(input) == 0 {
 					if args, ok := obj["arguments"]; ok {
 						input = parseToolCallInput(args)
 					}

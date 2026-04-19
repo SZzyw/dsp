@@ -325,30 +325,3 @@ func extractSSEEventPayload(body, targetEvent string) (map[string]any, bool) {
 	}
 	return nil, false
 }
-
-func extractAllSSEEventPayloads(body, targetEvent string) []map[string]any {
-	scanner := bufio.NewScanner(strings.NewReader(body))
-	matched := false
-	out := make([]map[string]any, 0, 2)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "event: ") {
-			evt := strings.TrimSpace(strings.TrimPrefix(line, "event: "))
-			matched = evt == targetEvent
-			continue
-		}
-		if !matched || !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-		raw := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
-		if raw == "" || raw == "[DONE]" {
-			continue
-		}
-		var payload map[string]any
-		if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-			continue
-		}
-		out = append(out, payload)
-	}
-	return out
-}

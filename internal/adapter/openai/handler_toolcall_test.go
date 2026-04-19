@@ -58,21 +58,6 @@ func parseSSEDataFrames(t *testing.T, body string) ([]map[string]any, bool) {
 	return frames, done
 }
 
-func streamHasRawToolJSONContent(frames []map[string]any) bool {
-	for _, frame := range frames {
-		choices, _ := frame["choices"].([]any)
-		for _, item := range choices {
-			choice, _ := item.(map[string]any)
-			delta, _ := choice["delta"].(map[string]any)
-			content, _ := delta["content"].(string)
-			if strings.Contains(content, `"tool_calls"`) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func streamHasToolCallsDelta(frames []map[string]any) bool {
 	for _, frame := range frames {
 		choices, _ := frame["choices"].([]any)
@@ -98,26 +83,6 @@ func streamFinishReason(frames []map[string]any) string {
 		}
 	}
 	return ""
-}
-
-func streamToolCallArgumentChunks(frames []map[string]any) []string {
-	out := make([]string, 0, 4)
-	for _, frame := range frames {
-		choices, _ := frame["choices"].([]any)
-		for _, item := range choices {
-			choice, _ := item.(map[string]any)
-			delta, _ := choice["delta"].(map[string]any)
-			toolCalls, _ := delta["tool_calls"].([]any)
-			for _, tc := range toolCalls {
-				tcm, _ := tc.(map[string]any)
-				fn, _ := tcm["function"].(map[string]any)
-				if args, ok := fn["arguments"].(string); ok && args != "" {
-					out = append(out, args)
-				}
-			}
-		}
-	}
-	return out
 }
 
 // Backward-compatible alias for historical test name used in CI logs.
