@@ -88,7 +88,7 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		h.handleStream(w, r, resp, sessionID, stdReq.ResponseModel, stdReq.FinalPrompt, stdReq.Thinking, stdReq.Search, stdReq.ToolNames)
 		return
 	}
-	h.handleNonStream(w, r.Context(), resp, sessionID, stdReq.ResponseModel, stdReq.FinalPrompt, stdReq.Thinking, stdReq.ToolNames)
+	h.handleNonStream(w, r.Context(), resp, sessionID, stdReq.ResponseModel, stdReq.FinalPrompt, stdReq.Thinking, stdReq.Search, stdReq.ToolNames)
 }
 
 func (h *Handler) autoDeleteRemoteSession(ctx context.Context, a *auth.RequestAuth, sessionID string) {
@@ -124,7 +124,7 @@ func (h *Handler) autoDeleteRemoteSession(ctx context.Context, a *auth.RequestAu
 	}
 }
 
-func (h *Handler) handleNonStream(w http.ResponseWriter, ctx context.Context, resp *http.Response, completionID, model, finalPrompt string, thinkingEnabled bool, toolNames []string) {
+func (h *Handler) handleNonStream(w http.ResponseWriter, ctx context.Context, resp *http.Response, completionID, model, finalPrompt string, thinkingEnabled, searchEnabled bool, toolNames []string) {
 	if resp.StatusCode != http.StatusOK {
 		defer func() { _ = resp.Body.Close() }()
 		body, _ := io.ReadAll(resp.Body)
@@ -137,6 +137,9 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, ctx context.Context, re
 	stripReferenceMarkers := h.compatStripReferenceMarkers()
 	finalThinking := cleanVisibleOutput(result.Thinking, stripReferenceMarkers)
 	finalText := cleanVisibleOutput(result.Text, stripReferenceMarkers)
+	if searchEnabled {
+		finalText = replaceCitationMarkersWithLinks(finalText, result.CitationLinks)
+	}
 	if writeUpstreamEmptyOutputError(w, finalText, result.ContentFilter) {
 		return
 	}

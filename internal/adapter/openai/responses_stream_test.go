@@ -196,7 +196,7 @@ func TestHandleResponsesNonStreamRequiredToolChoiceViolation(t *testing.T) {
 		Allowed: map[string]struct{}{"read_file": {}},
 	}
 
-	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, []string{"read_file"}, policy, "")
+	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, false, []string{"read_file"}, policy, "")
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422 for required tool_choice violation, got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -223,7 +223,7 @@ func TestHandleResponsesNonStreamRequiredToolChoiceIgnoresThinkingToolPayload(t 
 		Allowed: map[string]struct{}{"read_file": {}},
 	}
 
-	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", true, []string{"read_file"}, policy, "")
+	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", true, false, []string{"read_file"}, policy, "")
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422 for required tool_choice violation, got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -245,7 +245,7 @@ func TestHandleResponsesNonStreamReturns429WhenUpstreamOutputEmpty(t *testing.T)
 		)),
 	}
 
-	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, nil, util.DefaultToolChoicePolicy(), "")
+	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, false, nil, util.DefaultToolChoicePolicy(), "")
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -267,7 +267,7 @@ func TestHandleResponsesNonStreamReturnsContentFilterErrorWhenUpstreamFilteredWi
 		)),
 	}
 
-	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, nil, util.DefaultToolChoicePolicy(), "")
+	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, false, nil, util.DefaultToolChoicePolicy(), "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for filtered empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -289,7 +289,7 @@ func TestHandleResponsesNonStreamReturns429WhenUpstreamHasOnlyThinking(t *testin
 		)),
 	}
 
-	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-reasoner", "prompt", true, nil, util.DefaultToolChoicePolicy(), "")
+	h.handleResponsesNonStream(rec, resp, "owner-a", "resp_test", "deepseek-reasoner", "prompt", true, false, nil, util.DefaultToolChoicePolicy(), "")
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 for thinking-only upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
