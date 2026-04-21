@@ -19,8 +19,18 @@ func (h *Handler) updateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	old := h.Store.Snapshot()
 	err := h.Store.Update(func(c *config.Config) error {
+		if apiKeys, ok := toAPIKeys(req["api_keys"]); ok {
+			c.APIKeys = apiKeys
+		}
 		if keys, ok := toStringSlice(req["keys"]); ok {
-			c.Keys = keys
+			legacy := make([]config.APIKey, 0, len(keys))
+			for _, key := range keys {
+				if key == "" {
+					continue
+				}
+				legacy = append(legacy, config.APIKey{Key: key})
+			}
+			c.APIKeys = legacy
 		}
 		if accountsRaw, ok := req["accounts"].([]any); ok {
 			existing := map[string]config.Account{}
@@ -78,17 +88,19 @@ func (h *Handler) addKey(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	key, _ := req["key"].(string)
 	key = strings.TrimSpace(key)
+	name := fieldString(req, "name")
+	remark := fieldString(req, "remark")
 	if key == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"detail": "Key 不能为空"})
 		return
 	}
 	err := h.Store.Update(func(c *config.Config) error {
-		for _, k := range c.Keys {
-			if k == key {
+		for _, item := range c.APIKeys {
+			if item.Key == key {
 				return fmt.Errorf("key 已存在")
 			}
 		}
-		c.Keys = append(c.Keys, key)
+		c.APIKeys = append(c.APIKeys, config.APIKey{Key: key, Name: name, Remark: remark})
 		return nil
 	})
 	if err != nil {
@@ -102,8 +114,8 @@ func (h *Handler) deleteKey(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	err := h.Store.Update(func(c *config.Config) error {
 		idx := -1
-		for i, k := range c.Keys {
-			if k == key {
+		for i, item := range c.APIKeys {
+			if item.Key == key {
 				idx = i
 				break
 			}
@@ -111,7 +123,7 @@ func (h *Handler) deleteKey(w http.ResponseWriter, r *http.Request) {
 		if idx < 0 {
 			return fmt.Errorf("key 不存在")
 		}
-		c.Keys = append(c.Keys[:idx], c.Keys[idx+1:]...)
+		c.APIKeys = append(c.APIKeys[:idx], c.APIKeys[idx+1:]...)
 		return nil
 	})
 	if err != nil {
@@ -129,17 +141,31 @@ func (h *Handler) batchImport(w http.ResponseWriter, r *http.Request) {
 	}
 	importedKeys, importedAccounts := 0, 0
 	err := h.Store.Update(func(c *config.Config) error {
+		if apiKeys, ok := toAPIKeys(req["api_keys"]); ok {
+			existing := map[string]bool{}
+			for _, item := range c.APIKeys {
+				existing[item.Key] = true
+			}
+			for _, item := range apiKeys {
+				if item.Key == "" || existing[item.Key] {
+					continue
+				}
+				c.APIKeys = append(c.APIKeys, item)
+				existing[item.Key] = true
+				importedKeys++
+			}
+		}
 		if keys, ok := req["keys"].([]any); ok {
 			existing := map[string]bool{}
-			for _, k := range c.Keys {
-				existing[k] = true
+			for _, item := range c.APIKeys {
+				existing[item.Key] = true
 			}
 			for _, k := range keys {
 				key := strings.TrimSpace(fmt.Sprintf("%v", k))
 				if key == "" || existing[key] {
 					continue
 				}
-				c.Keys = append(c.Keys, key)
+				c.APIKeys = append(c.APIKeys, config.APIKey{Key: key})
 				existing[key] = true
 				importedKeys++
 			}

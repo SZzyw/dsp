@@ -3,9 +3,9 @@ import { useState } from 'react'
 export function useAccountActions({ apiFetch, t, onMessage, onRefresh, config, fetchAccounts, resolveAccountIdentifier }) {
     const [showAddKey, setShowAddKey] = useState(false)
     const [showAddAccount, setShowAddAccount] = useState(false)
-    const [newKey, setNewKey] = useState('')
+    const [newKey, setNewKey] = useState({ key: '', name: '', remark: '' })
     const [copiedKey, setCopiedKey] = useState(null)
-    const [newAccount, setNewAccount] = useState({ email: '', mobile: '', password: '' })
+    const [newAccount, setNewAccount] = useState({ name: '', remark: '', email: '', mobile: '', password: '' })
     const [loading, setLoading] = useState(false)
     const [testing, setTesting] = useState({})
     const [testingAll, setTestingAll] = useState(false)
@@ -15,17 +15,17 @@ export function useAccountActions({ apiFetch, t, onMessage, onRefresh, config, f
     const [updatingProxy, setUpdatingProxy] = useState({})
 
     const addKey = async () => {
-        if (!newKey.trim()) return
+        if (!newKey.key.trim()) return
         setLoading(true)
         try {
             const res = await apiFetch('/admin/keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: newKey.trim() }),
+                body: JSON.stringify({ key: newKey.key.trim(), name: newKey.name, remark: newKey.remark }),
             })
             if (res.ok) {
                 onMessage('success', t('accountManager.addKeySuccess'))
-                setNewKey('')
+                setNewKey({ key: '', name: '', remark: '' })
                 setShowAddKey(false)
                 onRefresh()
             } else {
@@ -68,7 +68,7 @@ export function useAccountActions({ apiFetch, t, onMessage, onRefresh, config, f
             })
             if (res.ok) {
                 onMessage('success', t('accountManager.addAccountSuccess'))
-                setNewAccount({ email: '', mobile: '', password: '' })
+                setNewAccount({ name: '', remark: '', email: '', mobile: '', password: '' })
                 setShowAddAccount(false)
                 fetchAccounts(1)
                 onRefresh()

@@ -62,11 +62,51 @@ func toAccount(m map[string]any) config.Account {
 	email := fieldString(m, "email")
 	mobile := config.NormalizeMobileForStorage(fieldString(m, "mobile"))
 	return config.Account{
+		Name:     fieldString(m, "name"),
+		Remark:   fieldString(m, "remark"),
 		Email:    email,
 		Mobile:   mobile,
 		Password: fieldString(m, "password"),
 		ProxyID:  fieldString(m, "proxy_id"),
 	}
+}
+
+func toAPIKeys(v any) ([]config.APIKey, bool) {
+	arr, ok := v.([]any)
+	if !ok {
+		return nil, false
+	}
+	out := make([]config.APIKey, 0, len(arr))
+	seen := map[string]struct{}{}
+	for _, item := range arr {
+		switch x := item.(type) {
+		case map[string]any:
+			key := fieldString(x, "key")
+			if key == "" {
+				continue
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, config.APIKey{
+				Key:    key,
+				Name:   fieldString(x, "name"),
+				Remark: fieldString(x, "remark"),
+			})
+		default:
+			key := strings.TrimSpace(fmt.Sprintf("%v", item))
+			if key == "" {
+				continue
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, config.APIKey{Key: key})
+		}
+	}
+	return out, true
 }
 
 func fieldString(m map[string]any, key string) string {
@@ -99,6 +139,8 @@ func accountMatchesIdentifier(acc config.Account, identifier string) bool {
 }
 
 func normalizeAccountForStorage(acc config.Account) config.Account {
+	acc.Name = strings.TrimSpace(acc.Name)
+	acc.Remark = strings.TrimSpace(acc.Remark)
 	acc.Email = strings.TrimSpace(acc.Email)
 	acc.Mobile = config.NormalizeMobileForStorage(acc.Mobile)
 	acc.ProxyID = strings.TrimSpace(acc.ProxyID)

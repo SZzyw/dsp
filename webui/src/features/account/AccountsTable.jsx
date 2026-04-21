@@ -118,6 +118,7 @@ export default function AccountsTable({
                                         runtimeUnknown ? "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-amber-500"
                                     )} />
                                     <div className="min-w-0">
+                                        <div className="text-sm font-medium truncate">{acc.name || '-'}</div>
                                         <div
                                             className="font-medium truncate flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors group"
                                             onClick={() => copyId(id)}
@@ -128,6 +129,9 @@ export default function AccountsTable({
                                                 : <Copy className="w-3 h-3 opacity-0 group-hover:opacity-50 shrink-0 transition-opacity" />
                                             }
                                         </div>
+                                        {acc.remark && (
+                                            <div className="text-xs text-muted-foreground truncate mt-0.5">{acc.remark}</div>
+                                        )}
                                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                                             <span>{acc.test_status === 'failed' ? t('accountManager.testStatusFailed') : isActive ? t('accountManager.sessionActive') : runtimeUnknown ? t('accountManager.runtimeStatusUnknown') : t('accountManager.reauthRequired')}</span>
                                             {acc.token_preview && (

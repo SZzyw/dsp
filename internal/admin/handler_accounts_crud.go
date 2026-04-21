@@ -32,6 +32,8 @@ func (h *Handler) listAccounts(w http.ResponseWriter, r *http.Request) {
 		for _, acc := range accounts {
 			id := strings.ToLower(acc.Identifier())
 			if strings.Contains(id, q) ||
+				strings.Contains(strings.ToLower(acc.Name), q) ||
+				strings.Contains(strings.ToLower(acc.Remark), q) ||
 				strings.Contains(strings.ToLower(acc.Email), q) ||
 				strings.Contains(strings.ToLower(acc.Mobile), q) {
 				filtered = append(filtered, acc)
@@ -66,6 +68,8 @@ func (h *Handler) listAccounts(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, map[string]any{
 			"identifier":    acc.Identifier(),
+			"name":          acc.Name,
+			"remark":        acc.Remark,
 			"email":         acc.Email,
 			"mobile":        acc.Mobile,
 			"proxy_id":      acc.ProxyID,

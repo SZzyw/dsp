@@ -271,8 +271,17 @@ go run ./cmd/ds2api
 ```json
 {
   "keys": ["your-api-key-1", "your-api-key-2"],
+  "api_keys": [
+    {
+      "key": "your-api-key-1",
+      "name": "主 Key",
+      "remark": "生产流量"
+    }
+  ],
   "accounts": [
     {
+      "name": "账号 A",
+      "remark": "主账号",
       "email": "user@example.com",
       "password": "your-password"
     },
@@ -320,7 +329,8 @@ go run ./cmd/ds2api
 ```
 
 - `keys`：API 访问密钥列表，客户端通过 `Authorization: Bearer <key>` 鉴权
-- `accounts`：DeepSeek 账号列表，支持 `email` 或 `mobile` 登录
+- `api_keys`：推荐使用的新结构化密钥列表，支持 `key` + `name` + `remark`（`keys` 仍兼容）
+- `accounts`：DeepSeek 账号列表，支持 `email` 或 `mobile` 登录；可额外填写 `name` / `remark` 便于管理
 - `token`：配置文件中即使填写也会在加载时被清空（不会从 `config.json` 读取 token）；实际 token 仅在运行时内存中维护并自动刷新
 - `model_aliases`：常见模型名（如 GPT/Codex/Claude）到 DeepSeek 模型的映射
 - `compat.wide_input_strict_output`：建议保持 `true`（当前实现默认宽进严出）
@@ -334,6 +344,8 @@ go run ./cmd/ds2api
 - `auto_delete.mode`：请求结束后如何清理 DeepSeek 远端聊天记录，支持 `none`（默认，不删除）、`single`（仅删除当前会话）、`all`（清空全部会话）；旧配置里的 `auto_delete.sessions=true` 仍会被视为 `all`
 
 ### 环境变量
+
+> 建议：长期维护请优先以 `config.json`（或其 Base64）为单一配置源。环境变量仅保留部署必需项；`DS2API_CONFIG_JSON` 主要用于 Vercel/无持久盘场景，后续可能进一步收敛。
 
 | 变量 | 用途 | 默认值 |
 | --- | --- | --- |
@@ -361,6 +373,15 @@ go run ./cmd/ds2api
 | `DS2API_VERCEL_PROTECTION_BYPASS` | Vercel 部署保护绕过密钥（内部 Node→Go 调用） | — |
 
 > 提示：当检测到 `DS2API_CONFIG_JSON` 时，管理台会显示当前模式风险与自动持久化状态（含 `DS2API_CONFIG_PATH` 路径与模式切换说明）。
+
+#### 必填 / 可选（按部署方式）
+
+- **所有部署都必填**：`DS2API_ADMIN_KEY`
+- **配置来源二选一（推荐前者）**：
+  - `config.json` 文件（推荐，持久化更直观）
+  - `DS2API_CONFIG_JSON`（可选，适合 Vercel；支持 JSON 或 Base64）
+- **仅在环境变量配置模式建议开启**：`DS2API_ENV_WRITEBACK=1`（避免管理台改动重启后丢失）
+- 其余环境变量均为可选调优项。
 
 ## 鉴权模式
 

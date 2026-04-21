@@ -22,19 +22,39 @@ export default function AddKeyModal({ show, t, newKey, setNewKey, loading, onClo
                                 type="text"
                                 className="input-field bg-[#09090b] flex-1"
                                 placeholder={t('accountManager.newKeyPlaceholder')}
-                                value={newKey}
-                                onChange={e => setNewKey(e.target.value)}
+                                value={newKey.key}
+                                onChange={e => setNewKey({ ...newKey, key: e.target.value })}
                                 autoFocus
                             />
                             <button
                                 type="button"
-                                onClick={() => setNewKey('sk-' + crypto.randomUUID().replace(/-/g, ''))}
+                                onClick={() => setNewKey({ ...newKey, key: 'sk-' + crypto.randomUUID().replace(/-/g, '') })}
                                 className="px-3 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm font-medium border border-border whitespace-nowrap"
                             >
                                 {t('accountManager.generate')}
                             </button>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1.5">{t('accountManager.generateHint')}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1.5">{t('accountManager.nameOptional')}</label>
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder={t('accountManager.namePlaceholder')}
+                            value={newKey.name}
+                            onChange={e => setNewKey({ ...newKey, name: e.target.value })}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1.5">{t('accountManager.remarkOptional')}</label>
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder={t('accountManager.remarkPlaceholder')}
+                            value={newKey.remark}
+                            onChange={e => setNewKey({ ...newKey, remark: e.target.value })}
+                        />
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
                         <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border hover:bg-secondary transition-colors text-sm font-medium">{t('actions.cancel')}</button>

@@ -17,6 +17,9 @@ func (c Config) MarshalJSON() ([]byte, error) {
 	if len(c.Keys) > 0 {
 		m["keys"] = c.Keys
 	}
+	if len(c.APIKeys) > 0 {
+		m["api_keys"] = c.APIKeys
+	}
 	if len(c.Accounts) > 0 {
 		m["accounts"] = c.Accounts
 	}
@@ -67,6 +70,10 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 		switch k {
 		case "keys":
 			if err := json.Unmarshal(v, &c.Keys); err != nil {
+				return fmt.Errorf("invalid field %q: %w", k, err)
+			}
+		case "api_keys":
+			if err := json.Unmarshal(v, &c.APIKeys); err != nil {
 				return fmt.Errorf("invalid field %q: %w", k, err)
 			}
 		case "accounts":
@@ -130,12 +137,14 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 			}
 		}
 	}
+	c.NormalizeCredentials()
 	return nil
 }
 
 func (c Config) Clone() Config {
 	clone := Config{
 		Keys:           slices.Clone(c.Keys),
+		APIKeys:        slices.Clone(c.APIKeys),
 		Accounts:       slices.Clone(c.Accounts),
 		Proxies:        slices.Clone(c.Proxies),
 		ClaudeMapping:  cloneStringMap(c.ClaudeMapping),
