@@ -122,6 +122,11 @@ func (s *chatStreamRuntime) sendFailedChunk(status int, message, code string) {
 	s.sendDone()
 }
 
+func (s *chatStreamRuntime) resetStreamToolCallState() {
+	s.streamToolCallIDs = map[int]string{}
+	s.streamToolNames = map[int]string{}
+}
+
 func (s *chatStreamRuntime) finalize(finishReason string) {
 	finalThinking := s.thinking.String()
 	finalText := cleanVisibleOutput(s.text.String(), s.stripReferenceMarkers)
@@ -166,6 +171,7 @@ func (s *chatStreamRuntime) finalize(finishReason string) {
 					[]map[string]any{openaifmt.BuildChatStreamDeltaChoice(0, tcDelta)},
 					nil,
 				))
+				s.resetStreamToolCallState()
 			}
 			if evt.Content == "" {
 				continue
@@ -309,6 +315,7 @@ func (s *chatStreamRuntime) onParsed(parsed sse.LineResult) streamengine.ParsedD
 							s.firstChunkSent = true
 						}
 						newChoices = append(newChoices, openaifmt.BuildChatStreamDeltaChoice(0, tcDelta))
+						s.resetStreamToolCallState()
 						continue
 					}
 					if evt.Content != "" {

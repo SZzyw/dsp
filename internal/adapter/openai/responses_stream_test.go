@@ -109,6 +109,57 @@ func TestHandleResponsesStreamOutputTextDeltaCarriesItemIndexes(t *testing.T) {
 	}
 }
 
+func TestHandleResponsesStreamEmitsDistinctToolCallIDsAcrossSeparateToolBlocks(t *testing.T) {
+	h := &Handler{}
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	rec := httptest.NewRecorder()
+
+	sseLine := func(v string) string {
+		b, _ := json.Marshal(map[string]any{
+			"p": "response/content",
+			"v": v,
+		})
+		return "data: " + string(b) + "\n"
+	}
+
+	streamBody := sseLine("前置文本\n<tool_calls>\n  <tool_call>\n    <tool_name>read_file</tool_name>\n    <parameters>{\"path\":\"README.MD\"}</parameters>\n  </tool_call>\n</tool_calls>") +
+		sseLine("中间文本\n<tool_calls>\n  <tool_call>\n    <tool_name>search</tool_name>\n    <parameters>{\"q\":\"golang\"}</parameters>\n  </tool_call>\n</tool_calls>") +
+		"data: [DONE]\n"
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(streamBody)),
+	}
+
+	h.handleResponsesStream(rec, req, resp, "owner-a", "resp_test", "deepseek-chat", "prompt", false, false, []string{"read_file", "search"}, util.DefaultToolChoicePolicy(), "")
+
+	body := rec.Body.String()
+	doneEvents := extractSSEEventPayloads(body, "response.function_call_arguments.done")
+	if len(doneEvents) < 2 {
+		t.Fatalf("expected at least two function call done events, got %d body=%s", len(doneEvents), body)
+	}
+
+	ids := make([]string, 0, 2)
+	seen := make(map[string]struct{})
+	for _, payload := range doneEvents {
+		callID := asString(payload["call_id"])
+		if callID == "" {
+			continue
+		}
+		if _, ok := seen[callID]; ok {
+			continue
+		}
+		seen[callID] = struct{}{}
+		ids = append(ids, callID)
+	}
+
+	if len(ids) != 2 {
+		t.Fatalf("expected two distinct call ids, got %#v body=%s", ids, body)
+	}
+	if ids[0] == ids[1] {
+		t.Fatalf("expected distinct call ids across blocks, got %#v body=%s", ids, body)
+	}
+}
+
 func TestHandleResponsesStreamRequiredToolChoiceFailure(t *testing.T) {
 	h := &Handler{}
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -324,4 +375,31 @@ func extractSSEEventPayload(body, targetEvent string) (map[string]any, bool) {
 		return payload, true
 	}
 	return nil, false
+}
+
+func extractSSEEventPayloads(body, targetEvent string) []map[string]any {
+	scanner := bufio.NewScanner(strings.NewReader(body))
+	matched := false
+	out := make([]map[string]any, 0, 4)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "event: ") {
+			evt := strings.TrimSpace(strings.TrimPrefix(line, "event: "))
+			matched = evt == targetEvent
+			continue
+		}
+		if !matched || !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		raw := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+		if raw == "" || raw == "[DONE]" {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+			continue
+		}
+		out = append(out, payload)
+	}
+	return out
 }

@@ -17,6 +17,7 @@ const {
   normalizePreparedToolNames,
   boolDefaultTrue,
   filterIncrementalToolCallDeltasByAllowed,
+  resetStreamToolCallState,
   buildUsage,
   estimateTokens,
   shouldSkipPath,
@@ -105,6 +106,16 @@ test('incremental and final tool formatting share stable id via idStore', () => 
   assert.equal(incremental.length, 1);
   assert.equal(finalCalls.length, 1);
   assert.equal(incremental[0].id, finalCalls[0].id);
+});
+
+test('resetStreamToolCallState gives each completed block a fresh id', () => {
+  const idStore = new Map();
+  const first = formatIncrementalToolCallDeltas([{ index: 0, name: 'read_file' }], idStore);
+  resetStreamToolCallState(idStore);
+  const second = formatIncrementalToolCallDeltas([{ index: 0, name: 'search' }], idStore);
+  assert.equal(first.length, 1);
+  assert.equal(second.length, 1);
+  assert.notEqual(first[0].id, second[0].id);
 });
 
 test('formatIncrementalToolCallDeltas drops empty deltas (Go parity)', () => {
