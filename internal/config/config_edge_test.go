@@ -529,6 +529,101 @@ func TestStoreUpdate(t *testing.T) {
 	}
 }
 
+func TestStoreUpdateReconcilesAPIKeyMutations(t *testing.T) {
+	t.Setenv("DS2API_CONFIG_JSON", `{
+		"keys":["k1"],
+		"api_keys":[{"key":"k1","name":"primary","remark":"prod"}],
+		"accounts":[]
+	}`)
+	store := LoadStore()
+
+	if err := store.Update(func(cfg *Config) error {
+		cfg.APIKeys = append(cfg.APIKeys, APIKey{Key: "k2", Name: "secondary", Remark: "staging"})
+		return nil
+	}); err != nil {
+		t.Fatalf("add api key failed: %v", err)
+	}
+
+	snap := store.Snapshot()
+	if len(snap.Keys) != 2 || snap.Keys[0] != "k1" || snap.Keys[1] != "k2" {
+		t.Fatalf("unexpected keys after api key add: %#v", snap.Keys)
+	}
+	if len(snap.APIKeys) != 2 {
+		t.Fatalf("unexpected api keys length after add: %#v", snap.APIKeys)
+	}
+	if snap.APIKeys[0].Name != "primary" || snap.APIKeys[0].Remark != "prod" {
+		t.Fatalf("metadata for existing key was lost: %#v", snap.APIKeys[0])
+	}
+	if snap.APIKeys[1].Name != "secondary" || snap.APIKeys[1].Remark != "staging" {
+		t.Fatalf("metadata for new key was lost: %#v", snap.APIKeys[1])
+	}
+
+	if err := store.Update(func(cfg *Config) error {
+		cfg.APIKeys = append([]APIKey(nil), cfg.APIKeys[1:]...)
+		return nil
+	}); err != nil {
+		t.Fatalf("delete api key failed: %v", err)
+	}
+
+	snap = store.Snapshot()
+	if len(snap.Keys) != 1 || snap.Keys[0] != "k2" {
+		t.Fatalf("unexpected keys after api key delete: %#v", snap.Keys)
+	}
+	if len(snap.APIKeys) != 1 || snap.APIKeys[0].Key != "k2" {
+		t.Fatalf("unexpected api keys after delete: %#v", snap.APIKeys)
+	}
+}
+
+func TestStoreUpdateReconcilesLegacyKeyMutations(t *testing.T) {
+	t.Setenv("DS2API_CONFIG_JSON", `{
+		"keys":["k1"],
+		"api_keys":[{"key":"k1","name":"primary","remark":"prod"}],
+		"accounts":[]
+	}`)
+	store := LoadStore()
+
+	if err := store.Update(func(cfg *Config) error {
+		cfg.Keys = append(cfg.Keys, "k2")
+		return nil
+	}); err != nil {
+		t.Fatalf("legacy key update failed: %v", err)
+	}
+
+	snap := store.Snapshot()
+	if len(snap.Keys) != 2 || snap.Keys[0] != "k1" || snap.Keys[1] != "k2" {
+		t.Fatalf("unexpected keys after legacy update: %#v", snap.Keys)
+	}
+	if len(snap.APIKeys) != 2 {
+		t.Fatalf("unexpected api keys after legacy update: %#v", snap.APIKeys)
+	}
+	if snap.APIKeys[0].Name != "primary" || snap.APIKeys[0].Remark != "prod" {
+		t.Fatalf("metadata for preserved key was lost: %#v", snap.APIKeys[0])
+	}
+	if snap.APIKeys[1].Key != "k2" || snap.APIKeys[1].Name != "" || snap.APIKeys[1].Remark != "" {
+		t.Fatalf("new legacy key should stay metadata-free: %#v", snap.APIKeys[1])
+	}
+}
+
+func TestNormalizeCredentialsPrefersStructuredAPIKeys(t *testing.T) {
+	cfg := Config{
+		Keys: []string{"legacy-key"},
+		APIKeys: []APIKey{
+			{Key: "structured-key", Name: "primary", Remark: "prod"},
+		},
+	}
+	cfg.NormalizeCredentials()
+
+	if len(cfg.Keys) != 1 || cfg.Keys[0] != "structured-key" {
+		t.Fatalf("unexpected normalized keys: %#v", cfg.Keys)
+	}
+	if len(cfg.APIKeys) != 1 {
+		t.Fatalf("unexpected normalized api keys: %#v", cfg.APIKeys)
+	}
+	if cfg.APIKeys[0].Key != "structured-key" || cfg.APIKeys[0].Name != "primary" || cfg.APIKeys[0].Remark != "prod" {
+		t.Fatalf("unexpected structured api key metadata: %#v", cfg.APIKeys[0])
+	}
+}
+
 func TestStoreClaudeMapping(t *testing.T) {
 	t.Setenv("DS2API_CONFIG_JSON", `{"keys":[],"accounts":[],"claude_mapping":{"fast":"deepseek-chat","slow":"deepseek-reasoner"}}`)
 	store := LoadStore()

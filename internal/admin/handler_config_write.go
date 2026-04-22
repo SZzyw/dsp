@@ -21,8 +21,7 @@ func (h *Handler) updateConfig(w http.ResponseWriter, r *http.Request) {
 	err := h.Store.Update(func(c *config.Config) error {
 		if apiKeys, ok := toAPIKeys(req["api_keys"]); ok {
 			c.APIKeys = apiKeys
-		}
-		if keys, ok := toStringSlice(req["keys"]); ok {
+		} else if keys, ok := toStringSlice(req["keys"]); ok {
 			legacy := make([]config.APIKey, 0, len(keys))
 			for _, key := range keys {
 				if key == "" {
@@ -105,6 +104,47 @@ func (h *Handler) addKey(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"detail": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "total_keys": len(h.Store.Snapshot().Keys)})
+}
+
+func (h *Handler) updateKey(w http.ResponseWriter, r *http.Request) {
+	key := strings.TrimSpace(chi.URLParam(r, "key"))
+	if key == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"detail": "key 不能为空"})
+		return
+	}
+
+	var req map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"detail": "invalid json"})
+		return
+	}
+	name, nameOK := fieldStringOptional(req, "name")
+	remark, remarkOK := fieldStringOptional(req, "remark")
+
+	err := h.Store.Update(func(c *config.Config) error {
+		idx := -1
+		for i, item := range c.APIKeys {
+			if item.Key == key {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			return fmt.Errorf("key 不存在")
+		}
+		if nameOK {
+			c.APIKeys[idx].Name = name
+		}
+		if remarkOK {
+			c.APIKeys[idx].Remark = remark
+		}
+		return nil
+	})
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"detail": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "total_keys": len(h.Store.Snapshot().Keys)})

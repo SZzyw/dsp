@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, ChevronDown, Copy, Plus, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import clsx from 'clsx'
 
 function fallbackCopyText(text) {
@@ -31,7 +31,8 @@ export default function ApiKeysPanel({
     config,
     keysExpanded,
     setKeysExpanded,
-    setShowAddKey,
+    onAddKey,
+    onEditKey,
     copiedKey,
     setCopiedKey,
     onDeleteKey,
@@ -81,7 +82,7 @@ export default function ApiKeysPanel({
                     </div>
                 </div>
                 <button
-                    onClick={(e) => { e.stopPropagation(); setShowAddKey(true) }}
+                    onClick={(e) => { e.stopPropagation(); onAddKey() }}
                     className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium text-sm shadow-sm"
                 >
                     <Plus className="w-4 h-4" />
@@ -112,6 +113,13 @@ export default function ApiKeysPanel({
                                     )}
                                 </div>
                                 <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => onEditKey(item)}
+                                        className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                        title={t('accountManager.editKeyTitle')}
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
                                     <button
                                         onClick={() => handleCopyKey(item.key)}
                                         className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"

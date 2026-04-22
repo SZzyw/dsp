@@ -218,10 +218,12 @@ func (s *Store) Replace(cfg Config) error {
 func (s *Store) Update(mutator func(*Config) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cfg := s.cfg.Clone()
+	base := s.cfg.Clone()
+	cfg := base.Clone()
 	if err := mutator(&cfg); err != nil {
 		return err
 	}
+	cfg.ReconcileCredentials(base)
 	cfg.NormalizeCredentials()
 	s.cfg = cfg
 	s.rebuildIndexes()

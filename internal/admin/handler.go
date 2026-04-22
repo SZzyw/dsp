@@ -25,6 +25,7 @@ func RegisterRoutes(r chi.Router, h *Handler) {
 		pr.Post("/config/import", h.configImport)
 		pr.Get("/config/export", h.configExport)
 		pr.Post("/keys", h.addKey)
+		pr.Put("/keys/{key}", h.updateKey)
 		pr.Delete("/keys/{key}", h.deleteKey)
 		pr.Get("/proxies", h.listProxies)
 		pr.Post("/proxies", h.addProxy)

@@ -130,7 +130,8 @@ Gemini 兼容客户端还可以使用 `x-goog-api-key`、`?key=` 或 `?api_key=`
 | POST | `/admin/settings/password` | Admin | 更新 Admin 密码并使旧 JWT 失效 |
 | POST | `/admin/config/import` | Admin | 导入配置（merge/replace） |
 | GET | `/admin/config/export` | Admin | 导出完整配置（含 `config`/`json`/`base64`） |
-| POST | `/admin/keys` | Admin | 添加 API key |
+| POST | `/admin/keys` | Admin | 添加 API key（可附 name/remark） |
+| PUT | `/admin/keys/{key}` | Admin | 更新 API key 备注信息 |
 | DELETE | `/admin/keys/{key}` | Admin | 删除 API key |
 | GET | `/admin/proxies` | Admin | 代理列表 |
 | POST | `/admin/proxies` | Admin | 添加代理 |
@@ -644,11 +645,15 @@ data: {"type":"message_stop"}
 
 ### `GET /admin/config`
 
-返回脱敏后的配置。
+返回脱敏后的配置，包含 `keys` 与 `api_keys`。
 
 ```json
 {
   "keys": ["k1", "k2"],
+  "api_keys": [
+    {"key": "k1", "name": "主 Key", "remark": "生产流量"},
+    {"key": "k2", "name": "备用 Key", "remark": "压测"}
+  ],
   "env_backed": false,
   "env_source_present": true,
   "env_writeback_enabled": true,
@@ -672,13 +677,18 @@ data: {"type":"message_stop"}
 
 ### `POST /admin/config`
 
-只更新 `keys`、`accounts`、`claude_mapping`。
+只更新 `keys`、`api_keys`、`accounts`、`claude_mapping`。
+如果同时发送 `api_keys` 与 `keys`，优先保留 `api_keys` 中的结构化 `name` / `remark`；`keys` 仅作为旧格式兼容回退。
 
 **请求**：
 
 ```json
 {
   "keys": ["k1", "k2"],
+  "api_keys": [
+    {"key": "k1", "name": "主 Key", "remark": "生产流量"},
+    {"key": "k2", "name": "备用 Key", "remark": "压测"}
+  ],
   "accounts": [
     {"email": "user@example.com", "password": "pwd", "token": ""}
   ],
@@ -738,7 +748,7 @@ data: {"type":"message_stop"}
 
 请求可直接传配置对象，或使用 `{"config": {...}, "mode":"merge"}` 包裹格式。
 也支持在查询参数里传 `?mode=merge` / `?mode=replace`。
-导入时会接受 `keys`、`accounts`、`claude_mapping` / `claude_model_mapping`、`model_aliases`、`admin`、`runtime`、`responses`、`embeddings`、`auto_delete` 等字段；`toolcall` 相关字段会被忽略。
+导入时会接受 `keys`、`api_keys`、`accounts`、`claude_mapping` / `claude_model_mapping`、`model_aliases`、`admin`、`runtime`、`responses`、`embeddings`、`auto_delete` 等字段；`toolcall` 相关字段会被忽略。
 
 > `compat` 相关字段请通过 `/admin/settings` 或配置文件管理；该导入接口不会更新 `compat`。
 
@@ -749,7 +759,17 @@ data: {"type":"message_stop"}
 ### `POST /admin/keys`
 
 ```json
-{"key": "new-api-key"}
+{"key": "new-api-key", "name": "主 Key", "remark": "生产流量"}
+```
+
+**响应**：`{"success": true, "total_keys": 3}`
+
+### `PUT /admin/keys/{key}`
+
+更新指定 API key 的 `name` / `remark`，路径参数中的 `key` 为只读标识，不可修改。
+
+```json
+{"name": "备用 Key", "remark": "压测"}
 ```
 
 **响应**：`{"success": true, "total_keys": 3}`

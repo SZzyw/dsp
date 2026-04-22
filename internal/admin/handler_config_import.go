@@ -53,15 +53,19 @@ func (h *Handler) configImport(w http.ResponseWriter, r *http.Request) {
 			next.Accounts = normalizeAndDedupeAccounts(next.Accounts)
 			next.VercelSyncHash = c.VercelSyncHash
 			next.VercelSyncTime = c.VercelSyncTime
-			importedKeys = len(next.Keys)
+			importedKeys = len(next.APIKeys)
 			importedAccounts = len(next.Accounts)
 		} else {
 			existingKeys := map[string]struct{}{}
-			for _, k := range next.Keys {
-				existingKeys[k] = struct{}{}
+			for _, item := range next.APIKeys {
+				key := strings.TrimSpace(item.Key)
+				if key == "" {
+					continue
+				}
+				existingKeys[key] = struct{}{}
 			}
-			for _, k := range incoming.Keys {
-				key := strings.TrimSpace(k)
+			for _, item := range incoming.APIKeys {
+				key := strings.TrimSpace(item.Key)
 				if key == "" {
 					continue
 				}
@@ -69,7 +73,7 @@ func (h *Handler) configImport(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				existingKeys[key] = struct{}{}
-				next.Keys = append(next.Keys, key)
+				next.APIKeys = append(next.APIKeys, item)
 				importedKeys++
 			}
 

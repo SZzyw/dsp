@@ -117,6 +117,14 @@ func fieldString(m map[string]any, key string) string {
 	return strings.TrimSpace(fmt.Sprintf("%v", v))
 }
 
+func fieldStringOptional(m map[string]any, key string) (string, bool) {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return "", false
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", v)), true
+}
+
 func statusOr(v int, d int) int {
 	if v == 0 {
 		return d

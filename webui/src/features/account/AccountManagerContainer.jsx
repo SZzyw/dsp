@@ -30,7 +30,10 @@ export default function AccountManagerContainer({ config, onRefresh, onMessage, 
 
     const {
         showAddKey,
-        setShowAddKey,
+        openAddKey,
+        openEditKey,
+        closeKeyModal,
+        editingKey,
         showAddAccount,
         setShowAddAccount,
         newKey,
@@ -94,7 +97,8 @@ export default function AccountManagerContainer({ config, onRefresh, onMessage, 
                 config={config}
                 keysExpanded={keysExpanded}
                 setKeysExpanded={setKeysExpanded}
-                setShowAddKey={setShowAddKey}
+                onAddKey={openAddKey}
+                onEditKey={openEditKey}
                 copiedKey={copiedKey}
                 setCopiedKey={setCopiedKey}
                 onDeleteKey={deleteKey}
@@ -133,10 +137,11 @@ export default function AccountManagerContainer({ config, onRefresh, onMessage, 
             <AddKeyModal
                 show={showAddKey}
                 t={t}
+                editingKey={editingKey}
                 newKey={newKey}
                 setNewKey={setNewKey}
                 loading={loading}
-                onClose={() => setShowAddKey(false)}
+                onClose={closeKeyModal}
                 onAdd={addKey}
             />
 

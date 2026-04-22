@@ -130,7 +130,8 @@ Gemini-compatible clients can also send `x-goog-api-key`, `?key=`, or `?api_key=
 | POST | `/admin/settings/password` | Admin | Update admin password and invalidate old JWTs |
 | POST | `/admin/config/import` | Admin | Import config (merge/replace) |
 | GET | `/admin/config/export` | Admin | Export full config (`config`/`json`/`base64`) |
-| POST | `/admin/keys` | Admin | Add API key |
+| POST | `/admin/keys` | Admin | Add API key (optional `name`/`remark`) |
+| PUT | `/admin/keys/{key}` | Admin | Update API key metadata |
 | DELETE | `/admin/keys/{key}` | Admin | Delete API key |
 | GET | `/admin/proxies` | Admin | List proxies |
 | POST | `/admin/proxies` | Admin | Add proxy |
@@ -643,11 +644,15 @@ Returns Vercel preconfiguration status.
 
 ### `GET /admin/config`
 
-Returns sanitized config.
+Returns sanitized config, including both `keys` and `api_keys`.
 
 ```json
 {
   "keys": ["k1", "k2"],
+  "api_keys": [
+    {"key": "k1", "name": "Primary", "remark": "Production"},
+    {"key": "k2", "name": "Backup", "remark": "Load test"}
+  ],
   "env_backed": false,
   "env_source_present": true,
   "env_writeback_enabled": true,
@@ -671,13 +676,18 @@ Returns sanitized config.
 
 ### `POST /admin/config`
 
-Only updates `keys`, `accounts`, and `claude_mapping`.
+Only updates `keys`, `api_keys`, `accounts`, and `claude_mapping`.
+If both `api_keys` and `keys` are sent, the structured `api_keys` entries win so `name` / `remark` metadata is preserved; `keys` remains a legacy fallback.
 
 **Request**:
 
 ```json
 {
   "keys": ["k1", "k2"],
+  "api_keys": [
+    {"key": "k1", "name": "Primary", "remark": "Production"},
+    {"key": "k2", "name": "Backup", "remark": "Load test"}
+  ],
   "accounts": [
     {"email": "user@example.com", "password": "pwd", "token": ""}
   ],
@@ -737,7 +747,7 @@ Imports full config with:
 
 The request can send config directly, or wrapped as `{"config": {...}, "mode":"merge"}`.
 Query params `?mode=merge` / `?mode=replace` are also supported.
-Import accepts `keys`, `accounts`, `claude_mapping` / `claude_model_mapping`, `model_aliases`, `admin`, `runtime`, `responses`, `embeddings`, and `auto_delete`; legacy `toolcall` fields are ignored.
+Import accepts `keys`, `api_keys`, `accounts`, `claude_mapping` / `claude_model_mapping`, `model_aliases`, `admin`, `runtime`, `responses`, `embeddings`, and `auto_delete`; legacy `toolcall` fields are ignored.
 
 > `compat` fields are managed via `/admin/settings` or the config file; this import endpoint does not update `compat`.
 
@@ -748,7 +758,17 @@ Exports full config in three forms: `config`, `json`, and `base64`.
 ### `POST /admin/keys`
 
 ```json
-{"key": "new-api-key"}
+{"key": "new-api-key", "name": "Primary", "remark": "Production"}
+```
+
+**Response**: `{"success": true, "total_keys": 3}`
+
+### `PUT /admin/keys/{key}`
+
+Updates the `name` / `remark` of the specified API key. The path `key` is read-only and cannot be changed.
+
+```json
+{"name": "Backup", "remark": "Load test"}
 ```
 
 **Response**: `{"success": true, "total_keys": 3}`

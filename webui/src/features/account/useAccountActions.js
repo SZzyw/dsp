@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 export function useAccountActions({ apiFetch, t, onMessage, onRefresh, config, fetchAccounts, resolveAccountIdentifier }) {
     const [showAddKey, setShowAddKey] = useState(false)
+    const [editingKey, setEditingKey] = useState(null)
     const [showAddAccount, setShowAddAccount] = useState(false)
     const [newKey, setNewKey] = useState({ key: '', name: '', remark: '' })
     const [copiedKey, setCopiedKey] = useState(null)
@@ -14,23 +15,58 @@ export function useAccountActions({ apiFetch, t, onMessage, onRefresh, config, f
     const [deletingSessions, setDeletingSessions] = useState({})
     const [updatingProxy, setUpdatingProxy] = useState({})
 
+    const openAddKey = () => {
+        setEditingKey(null)
+        setNewKey({ key: '', name: '', remark: '' })
+        setShowAddKey(true)
+    }
+
+    const openEditKey = (item) => {
+        if (!item?.key) return
+        setEditingKey(item)
+        setNewKey({
+            key: item.key || '',
+            name: item.name || '',
+            remark: item.remark || '',
+        })
+        setShowAddKey(true)
+    }
+
+    const closeKeyModal = () => {
+        setShowAddKey(false)
+        setEditingKey(null)
+        setNewKey({ key: '', name: '', remark: '' })
+    }
+
     const addKey = async () => {
-        if (!newKey.key.trim()) return
+        const isEditing = Boolean(editingKey?.key)
+        if (!isEditing && !newKey.key.trim()) {
+            return
+        }
         setLoading(true)
         try {
-            const res = await apiFetch('/admin/keys', {
-                method: 'POST',
+            const endpoint = isEditing
+                ? `/admin/keys/${encodeURIComponent(editingKey.key)}`
+                : '/admin/keys'
+            const method = isEditing ? 'PUT' : 'POST'
+            const payload = isEditing
+                ? { name: newKey.name, remark: newKey.remark }
+                : { key: newKey.key.trim(), name: newKey.name, remark: newKey.remark }
+            if (!isEditing && !payload.key) {
+                return
+            }
+            const res = await apiFetch(endpoint, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: newKey.key.trim(), name: newKey.name, remark: newKey.remark }),
+                body: JSON.stringify(payload),
             })
             if (res.ok) {
-                onMessage('success', t('accountManager.addKeySuccess'))
-                setNewKey({ key: '', name: '', remark: '' })
-                setShowAddKey(false)
+                onMessage('success', isEditing ? t('accountManager.updateKeySuccess') : t('accountManager.addKeySuccess'))
+                closeKeyModal()
                 onRefresh()
             } else {
                 const data = await res.json()
-                onMessage('error', data.detail || t('messages.failedToAdd'))
+                onMessage('error', data.detail || (isEditing ? t('messages.requestFailed') : t('messages.failedToAdd')))
             }
         } catch (e) {
             onMessage('error', t('messages.networkError'))
@@ -244,7 +280,10 @@ export function useAccountActions({ apiFetch, t, onMessage, onRefresh, config, f
 
     return {
         showAddKey,
-        setShowAddKey,
+        openAddKey,
+        openEditKey,
+        closeKeyModal,
+        editingKey,
         showAddAccount,
         setShowAddAccount,
         newKey,

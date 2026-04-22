@@ -86,65 +86,14 @@ func (c *Config) NormalizeCredentials() {
 	if c == nil {
 		return
 	}
-	normalizedAPIKeys := make([]APIKey, 0, len(c.APIKeys))
-	metaByKey := make(map[string]APIKey, len(c.APIKeys))
-	for _, item := range c.APIKeys {
-		key := strings.TrimSpace(item.Key)
-		if key == "" {
-			continue
-		}
-		if _, ok := metaByKey[key]; ok {
-			continue
-		}
-		metaByKey[key] = APIKey{
-			Key:    key,
-			Name:   strings.TrimSpace(item.Name),
-			Remark: strings.TrimSpace(item.Remark),
-		}
-	}
-	if len(c.Keys) > 0 {
-		seen := make(map[string]struct{}, len(c.Keys))
-		for _, key := range c.Keys {
-			key = strings.TrimSpace(key)
-			if key == "" {
-				continue
-			}
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			if item, ok := metaByKey[key]; ok {
-				normalizedAPIKeys = append(normalizedAPIKeys, item)
-			} else {
-				normalizedAPIKeys = append(normalizedAPIKeys, APIKey{Key: key})
-			}
-		}
+	normalizedAPIKeys := normalizeAPIKeys(c.APIKeys)
+	if len(normalizedAPIKeys) > 0 {
+		c.APIKeys = normalizedAPIKeys
+		c.Keys = apiKeysToStrings(c.APIKeys)
 	} else {
-		normalizedAPIKeys = make([]APIKey, 0, len(c.APIKeys))
-		seen := make(map[string]struct{}, len(c.APIKeys))
-		for _, item := range c.APIKeys {
-			key := strings.TrimSpace(item.Key)
-			if key == "" {
-				continue
-			}
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			normalizedAPIKeys = append(normalizedAPIKeys, APIKey{
-				Key:    key,
-				Name:   strings.TrimSpace(item.Name),
-				Remark: strings.TrimSpace(item.Remark),
-			})
-		}
+		c.Keys = normalizeKeys(c.Keys)
+		c.APIKeys = apiKeysFromStrings(c.Keys, nil)
 	}
-	c.APIKeys = normalizedAPIKeys
-
-	keys := make([]string, 0, len(c.APIKeys))
-	for _, item := range c.APIKeys {
-		keys = append(keys, item.Key)
-	}
-	c.Keys = keys
 
 	for i := range c.Accounts {
 		c.Accounts[i].Name = strings.TrimSpace(c.Accounts[i].Name)
