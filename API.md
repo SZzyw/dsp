@@ -31,7 +31,7 @@
 | Base URL | `http://localhost:5001` 或你的部署域名 |
 | 默认 Content-Type | `application/json` |
 | 健康检查 | `GET /healthz`、`GET /readyz` |
-| CORS | 已启用（`Access-Control-Allow-Origin: *`，允许 `Content-Type`, `Authorization`, `X-API-Key`, `X-Ds2-Target-Account`, `X-Vercel-Protection-Bypass`） |
+| CORS | 已启用（`Access-Control-Allow-Origin: *`，允许 `Content-Type`, `Authorization`, `X-API-Key`, `X-Ds2-Target-Account`, `X-Ds2-Source`, `X-Vercel-Protection-Bypass`） |
 
 ### 3.0 接口适配层说明
 
@@ -130,7 +130,8 @@ Gemini 兼容客户端还可以使用 `x-goog-api-key`、`?key=` 或 `?api_key=`
 | POST | `/admin/settings/password` | Admin | 更新 Admin 密码并使旧 JWT 失效 |
 | POST | `/admin/config/import` | Admin | 导入配置（merge/replace） |
 | GET | `/admin/config/export` | Admin | 导出完整配置（含 `config`/`json`/`base64`） |
-| POST | `/admin/keys` | Admin | 添加 API key |
+| POST | `/admin/keys` | Admin | 添加 API key（可附 name/remark） |
+| PUT | `/admin/keys/{key}` | Admin | 更新 API key 备注信息 |
 | DELETE | `/admin/keys/{key}` | Admin | 删除 API key |
 | GET | `/admin/proxies` | Admin | 代理列表 |
 | POST | `/admin/proxies` | Admin | 添加代理 |
@@ -139,6 +140,7 @@ Gemini 兼容客户端还可以使用 `x-goog-api-key`、`?key=` 或 `?api_key=`
 | POST | `/admin/proxies/test` | Admin | 测试代理连通性 |
 | GET | `/admin/accounts` | Admin | 分页账号列表 |
 | POST | `/admin/accounts` | Admin | 添加账号 |
+| PUT | `/admin/accounts/{identifier}` | Admin | 更新账号 name/remark |
 | DELETE | `/admin/accounts/{identifier}` | Admin | 删除账号 |
 | PUT | `/admin/accounts/{identifier}/proxy` | Admin | 为账号绑定/解绑代理 |
 | GET | `/admin/queue/status` | Admin | 账号队列状态 |
@@ -156,6 +158,10 @@ Gemini 兼容客户端还可以使用 `x-goog-api-key`、`?key=` 或 `?api_key=`
 | GET | `/admin/export` | Admin | 导出配置 JSON/Base64 |
 | GET | `/admin/dev/captures` | Admin | 查看本地抓包记录 |
 | DELETE | `/admin/dev/captures` | Admin | 清空本地抓包记录 |
+| GET | `/admin/chat-history` | Admin | 查看服务器端对话记录 |
+| DELETE | `/admin/chat-history` | Admin | 清空服务器端对话记录 |
+| DELETE | `/admin/chat-history/{id}` | Admin | 删除单条服务器端对话记录 |
+| PUT | `/admin/chat-history/settings` | Admin | 更新对话记录保留条数 |
 | GET | `/admin/version` | Admin | 查询当前版本与最新 Release |
 
 ---
@@ -644,11 +650,15 @@ data: {"type":"message_stop"}
 
 ### `GET /admin/config`
 
-返回脱敏后的配置。
+返回脱敏后的配置，包含 `keys` 与 `api_keys`。
 
 ```json
 {
   "keys": ["k1", "k2"],
+  "api_keys": [
+    {"key": "k1", "name": "主 Key", "remark": "生产流量"},
+    {"key": "k2", "name": "备用 Key", "remark": "压测"}
+  ],
   "env_backed": false,
   "env_source_present": true,
   "env_writeback_enabled": true,
@@ -672,13 +682,18 @@ data: {"type":"message_stop"}
 
 ### `POST /admin/config`
 
-只更新 `keys`、`accounts`、`claude_mapping`。
+只更新 `keys`、`api_keys`、`accounts`、`claude_mapping`。
+如果同时发送 `api_keys` 与 `keys`，优先保留 `api_keys` 中的结构化 `name` / `remark`；`keys` 仅作为旧格式兼容回退。
 
 **请求**：
 
 ```json
 {
   "keys": ["k1", "k2"],
+  "api_keys": [
+    {"key": "k1", "name": "主 Key", "remark": "生产流量"},
+    {"key": "k2", "name": "备用 Key", "remark": "压测"}
+  ],
   "accounts": [
     {"email": "user@example.com", "password": "pwd", "token": ""}
   ],
@@ -738,7 +753,7 @@ data: {"type":"message_stop"}
 
 请求可直接传配置对象，或使用 `{"config": {...}, "mode":"merge"}` 包裹格式。
 也支持在查询参数里传 `?mode=merge` / `?mode=replace`。
-导入时会接受 `keys`、`accounts`、`claude_mapping` / `claude_model_mapping`、`model_aliases`、`admin`、`runtime`、`responses`、`embeddings`、`auto_delete` 等字段；`toolcall` 相关字段会被忽略。
+导入时会接受 `keys`、`api_keys`、`accounts`、`claude_mapping` / `claude_model_mapping`、`model_aliases`、`admin`、`runtime`、`responses`、`embeddings`、`auto_delete` 等字段；`toolcall` 相关字段会被忽略。
 
 > `compat` 相关字段请通过 `/admin/settings` 或配置文件管理；该导入接口不会更新 `compat`。
 
@@ -746,10 +761,25 @@ data: {"type":"message_stop"}
 
 导出完整配置，返回 `config`、`json`、`base64` 三种格式。
 
+响应示例：
+
+
+> 注：`_vercel_sync_hash` 和 `_vercel_sync_time` 为内部同步元数据字段，用于 Vercel 配置漂移检测。
+
 ### `POST /admin/keys`
 
 ```json
-{"key": "new-api-key"}
+{"key": "new-api-key", "name": "主 Key", "remark": "生产流量"}
+```
+
+**响应**：`{"success": true, "total_keys": 3}`
+
+### `PUT /admin/keys/{key}`
+
+更新指定 API key 的 `name` / `remark`，路径参数中的 `key` 为只读标识，不可修改。
+
+```json
+{"name": "备用 Key", "remark": "压测"}
 ```
 
 **响应**：`{"success": true, "total_keys": 3}`
@@ -814,6 +844,16 @@ data: {"type":"message_stop"}
 
 ```json
 {"email": "user@example.com", "password": "pwd"}
+```
+
+**响应**：`{"success": true, "total_accounts": 6}`
+
+### `PUT /admin/accounts/{identifier}`
+
+更新指定账号的 `name` / `remark`。路径参数中的 `identifier` 可以是 email 或 mobile，且不可修改。
+
+```json
+{"name": "主账号", "remark": "团队共享"}
 ```
 
 **响应**：`{"success": true, "total_accounts": 6}`

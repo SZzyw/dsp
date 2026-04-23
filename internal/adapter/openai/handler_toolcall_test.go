@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -94,7 +93,7 @@ func TestHandleNonStreamReturns429WhenUpstreamOutputEmpty(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
-	h.handleNonStream(rec, context.Background(), resp, "cid-empty", "deepseek-chat", "prompt", false, false, nil)
+	h.handleNonStream(rec, resp, "cid-empty", "deepseek-chat", "prompt", false, false, nil, nil)
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected status 429 for empty upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -113,7 +112,7 @@ func TestHandleNonStreamReturnsContentFilterErrorWhenUpstreamFilteredWithoutOutp
 	)
 	rec := httptest.NewRecorder()
 
-	h.handleNonStream(rec, context.Background(), resp, "cid-empty-filtered", "deepseek-chat", "prompt", false, false, nil)
+	h.handleNonStream(rec, resp, "cid-empty-filtered", "deepseek-chat", "prompt", false, false, nil, nil)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400 for filtered upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -132,7 +131,7 @@ func TestHandleNonStreamReturns429WhenUpstreamHasOnlyThinking(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
-	h.handleNonStream(rec, context.Background(), resp, "cid-thinking-only", "deepseek-reasoner", "prompt", true, false, nil)
+	h.handleNonStream(rec, resp, "cid-thinking-only", "deepseek-reasoner", "prompt", true, false, nil, nil)
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected status 429 for thinking-only upstream output, got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -153,7 +152,7 @@ func TestHandleStreamToolsPlainTextStreamsBeforeFinish(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
-	h.handleStream(rec, req, resp, "cid6", "deepseek-chat", "prompt", false, false, []string{"search"})
+	h.handleStream(rec, req, resp, "cid6", "deepseek-chat", "prompt", false, false, []string{"search"}, nil)
 
 	frames, done := parseSSEDataFrames(t, rec.Body.String())
 	if !done {
@@ -190,7 +189,7 @@ func TestHandleStreamIncompleteCapturedToolJSONFlushesAsTextOnFinalize(t *testin
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
-	h.handleStream(rec, req, resp, "cid10", "deepseek-chat", "prompt", false, false, []string{"search"})
+	h.handleStream(rec, req, resp, "cid10", "deepseek-chat", "prompt", false, false, []string{"search"}, nil)
 
 	frames, done := parseSSEDataFrames(t, rec.Body.String())
 	if !done {
@@ -212,5 +211,53 @@ func TestHandleStreamIncompleteCapturedToolJSONFlushesAsTextOnFinalize(t *testin
 	}
 	if !strings.Contains(strings.ToLower(content.String()), "tool_calls") || !strings.Contains(content.String(), "{") {
 		t.Fatalf("expected incomplete capture to flush as plain text instead of stalling, got=%q", content.String())
+	}
+}
+
+func TestHandleStreamEmitsDistinctToolCallIDsAcrossSeparateToolBlocks(t *testing.T) {
+	h := &Handler{}
+	resp := makeSSEHTTPResponse(
+		`data: {"p":"response/content","v":"前置文本\n<tool_calls>\n  <tool_call>\n    <tool_name>read_file</tool_name>\n    <parameters>{\"path\":\"README.MD\"}</parameters>\n  </tool_call>\n</tool_calls>"}`,
+		`data: {"p":"response/content","v":"中间文本\n<tool_calls>\n  <tool_call>\n    <tool_name>search</tool_name>\n    <parameters>{\"q\":\"golang\"}</parameters>\n  </tool_call>\n</tool_calls>"}`,
+		`data: [DONE]`,
+	)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	h.handleStream(rec, req, resp, "cid-multi", "deepseek-chat", "prompt", false, false, []string{"read_file", "search"}, nil)
+
+	frames, done := parseSSEDataFrames(t, rec.Body.String())
+	if !done {
+		t.Fatalf("expected [DONE], body=%s", rec.Body.String())
+	}
+
+	ids := make([]string, 0, 2)
+	seen := make(map[string]struct{})
+	for _, frame := range frames {
+		choices, _ := frame["choices"].([]any)
+		for _, item := range choices {
+			choice, _ := item.(map[string]any)
+			delta, _ := choice["delta"].(map[string]any)
+			toolCalls, _ := delta["tool_calls"].([]any)
+			for _, rawCall := range toolCalls {
+				call, _ := rawCall.(map[string]any)
+				id := asString(call["id"])
+				if id == "" {
+					continue
+				}
+				if _, ok := seen[id]; ok {
+					continue
+				}
+				seen[id] = struct{}{}
+				ids = append(ids, id)
+			}
+		}
+	}
+
+	if len(ids) != 2 {
+		t.Fatalf("expected two distinct tool call ids, got %#v body=%s", ids, rec.Body.String())
+	}
+	if ids[0] == ids[1] {
+		t.Fatalf("expected distinct tool call ids across blocks, got %#v body=%s", ids, rec.Body.String())
 	}
 }

@@ -94,7 +94,7 @@ flowchart LR
 | DeepSeek PoW | 纯 Go 高性能实现（DeepSeekHashV1），毫秒级响应 |
 | Tool Calling | 防泄漏处理：非代码块高置信特征识别、`delta.tool_calls` 早发、结构化增量输出 |
 | Admin API | 配置管理、运行时设置热更新、代理管理、账号测试 / 批量测试、会话清理、导入导出、Vercel 同步、版本检查 |
-| WebUI 管理台 | `/admin` 单页应用（中英文双语、深色模式） |
+| WebUI 管理台 | `/admin` 单页应用（中英文双语、深色模式，支持查看服务器端对话记录） |
 | 运维探针 | `GET /healthz`（存活）、`GET /readyz`（就绪） |
 
 ## 平台兼容矩阵
@@ -174,6 +174,8 @@ cp config.example.json config.json
 后续部署建议：
 - 本地运行：直接读取 `config.json`
 - Docker / Vercel：由 `config.json` 生成 `DS2API_CONFIG_JSON`（Base64）注入环境变量，也可以直接写原始 JSON
+
+WebUI 管理台里的“全量配置模板”也直接复用同一份 `config.example.json`，所以更新示例文件后，前端模板会自动保持一致。
 
 ### 方式一：下载 Release 构建包
 
@@ -271,8 +273,17 @@ go run ./cmd/ds2api
 ```json
 {
   "keys": ["your-api-key-1", "your-api-key-2"],
+  "api_keys": [
+    {
+      "key": "your-api-key-1",
+      "name": "主 Key",
+      "remark": "生产流量"
+    }
+  ],
   "accounts": [
     {
+      "name": "账号 A",
+      "remark": "主账号",
       "email": "user@example.com",
       "password": "your-password"
     },
@@ -320,7 +331,8 @@ go run ./cmd/ds2api
 ```
 
 - `keys`：API 访问密钥列表，客户端通过 `Authorization: Bearer <key>` 鉴权
-- `accounts`：DeepSeek 账号列表，支持 `email` 或 `mobile` 登录
+- `api_keys`：推荐使用的新结构化密钥列表，支持 `key` + `name` + `remark`（`keys` 仍兼容）
+- `accounts`：DeepSeek 账号列表，支持 `email` 或 `mobile` 登录；可额外填写 `name` / `remark` 便于管理
 - `token`：配置文件中即使填写也会在加载时被清空（不会从 `config.json` 读取 token）；实际 token 仅在运行时内存中维护并自动刷新
 - `model_aliases`：常见模型名（如 GPT/Codex/Claude）到 DeepSeek 模型的映射
 - `compat.wide_input_strict_output`：建议保持 `true`（当前实现默认宽进严出）
@@ -335,6 +347,8 @@ go run ./cmd/ds2api
 
 ### 环境变量
 
+> 建议：长期维护请优先以 `config.json`（或其 Base64）为单一配置源。环境变量仅保留部署必需项；`DS2API_CONFIG_JSON` 主要用于 Vercel/无持久盘场景，后续可能进一步收敛。
+
 | 变量 | 用途 | 默认值 |
 | --- | --- | --- |
 | `PORT` | 服务端口 | `5001` |
@@ -344,6 +358,7 @@ go run ./cmd/ds2api
 | `DS2API_JWT_EXPIRE_HOURS` | Admin JWT 过期小时数 | `24` |
 | `DS2API_CONFIG_PATH` | 配置文件路径 | `config.json` |
 | `DS2API_CONFIG_JSON` | 直接注入配置（JSON 或 Base64） | — |
+| `DS2API_CHAT_HISTORY_PATH` | 服务器端对话记录文件路径 | `data/chat_history.json` |
 | `DS2API_ENV_WRITEBACK` | 环境变量模式下自动写回配置文件并切换文件模式（`1/true/yes/on`） | 关闭 |
 | `DS2API_STATIC_ADMIN_DIR` | 管理台静态文件目录 | `static/admin` |
 | `DS2API_AUTO_BUILD_WEBUI` | 启动时自动构建 WebUI | 本地开启，Vercel 关闭 |
@@ -361,6 +376,15 @@ go run ./cmd/ds2api
 | `DS2API_VERCEL_PROTECTION_BYPASS` | Vercel 部署保护绕过密钥（内部 Node→Go 调用） | — |
 
 > 提示：当检测到 `DS2API_CONFIG_JSON` 时，管理台会显示当前模式风险与自动持久化状态（含 `DS2API_CONFIG_PATH` 路径与模式切换说明）。
+
+#### 必填 / 可选（按部署方式）
+
+- **所有部署都必填**：`DS2API_ADMIN_KEY`
+- **配置来源二选一（推荐前者）**：
+  - `config.json` 文件（推荐，持久化更直观）
+  - `DS2API_CONFIG_JSON`（可选，适合 Vercel；支持 JSON 或 Base64）
+- **仅在环境变量配置模式建议开启**：`DS2API_ENV_WRITEBACK=1`（避免管理台改动重启后丢失）
+- 其余环境变量均为可选调优项。
 
 ## 鉴权模式
 
@@ -491,7 +515,7 @@ go test -v -run 'TestParseToolCalls|TestRepair' ./internal/toolcall/
 - **触发条件**：仅在 GitHub Release `published` 时触发（普通 push 不会触发）
 - **构建产物**：多平台二进制包（`linux/amd64`、`linux/arm64`、`darwin/amd64`、`darwin/arm64`、`windows/amd64`）+ `sha256sums.txt`
 - **容器镜像发布**：仅推送到 GHCR（`ghcr.io/cjackhwang/ds2api`）
-- **每个压缩包包含**：`ds2api` 可执行文件、`static/admin`、WASM 文件（同时支持内置 fallback）、配置示例、README、LICENSE
+- **每个压缩包包含**：`ds2api` 可执行文件、`static/admin`、WASM 文件（同时支持内置 fallback）、`config.example.json` 配置示例、README、LICENSE
 
 ## 免责声明
 

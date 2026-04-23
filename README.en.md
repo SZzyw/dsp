@@ -92,7 +92,7 @@ For the full module-by-module architecture and directory responsibilities, see [
 | DeepSeek PoW | Pure Go high-performance solver (DeepSeekHashV1), ms-level response |
 | Tool Calling | Anti-leak handling: non-code-block feature match, early `delta.tool_calls`, structured incremental output |
 | Admin API | Config management, runtime settings hot-reload, proxy management, account testing/batch test, session cleanup, import/export, Vercel sync, version check |
-| WebUI Admin Panel | SPA at `/admin` (bilingual Chinese/English, dark mode) |
+| WebUI Admin Panel | SPA at `/admin` (bilingual Chinese/English, dark mode, with server-side conversation history) |
 | Health Probes | `GET /healthz` (liveness), `GET /readyz` (readiness) |
 
 ## Platform Compatibility Matrix
@@ -172,6 +172,8 @@ cp config.example.json config.json
 Recommended per deployment mode:
 - Local run: read `config.json` directly
 - Docker / Vercel: generate Base64 from `config.json` and inject as `DS2API_CONFIG_JSON`, or paste raw JSON directly
+
+The WebUI admin panel’s “Full configuration template” is loaded from the same `config.example.json`, so updating that file keeps the frontend template in sync.
 
 ### Option 1: Download Release Binaries
 
@@ -342,6 +344,7 @@ The server actually binds to `0.0.0.0:5001`, so devices on the same LAN can usua
 | `DS2API_JWT_EXPIRE_HOURS` | Admin JWT TTL in hours | `24` |
 | `DS2API_CONFIG_PATH` | Config file path | `config.json` |
 | `DS2API_CONFIG_JSON` | Inline config (JSON or Base64) | — |
+| `DS2API_CHAT_HISTORY_PATH` | Server-side conversation history file path | `data/chat_history.json` |
 | `DS2API_ENV_WRITEBACK` | Auto-write env-backed config to file and transition to file mode (`1/true/yes/on`) | Disabled |
 | `DS2API_STATIC_ADMIN_DIR` | Admin static assets dir | `static/admin` |
 | `DS2API_AUTO_BUILD_WEBUI` | Auto-build WebUI on startup | Enabled locally, disabled on Vercel |
@@ -470,7 +473,7 @@ Workflow: `.github/workflows/release-artifacts.yml`
 - **Trigger**: only on GitHub Release `published` (normal pushes do not trigger builds)
 - **Outputs**: multi-platform archives (`linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`, `windows/amd64`) + `sha256sums.txt`
 - **Container publishing**: GHCR only (`ghcr.io/cjackhwang/ds2api`)
-- **Each archive includes**: `ds2api` executable, `static/admin`, WASM file (with embedded fallback support), config template, README, LICENSE
+- **Each archive includes**: `ds2api` executable, `static/admin`, WASM file (with embedded fallback support), `config.example.json`-based config template, README, LICENSE
 
 ## Disclaimer
 

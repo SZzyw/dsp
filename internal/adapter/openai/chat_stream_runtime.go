@@ -37,6 +37,14 @@ type chatStreamRuntime struct {
 	streamToolNames   map[int]string
 	thinking          strings.Builder
 	text              strings.Builder
+
+	finalThinking     string
+	finalText         string
+	finalFinishReason string
+	finalUsage        map[string]any
+	finalErrorStatus  int
+	finalErrorMessage string
+	finalErrorCode    string
 }
 
 func newChatStreamRuntime(
@@ -99,6 +107,9 @@ func (s *chatStreamRuntime) sendDone() {
 }
 
 func (s *chatStreamRuntime) sendFailedChunk(status int, message, code string) {
+	s.finalErrorStatus = status
+	s.finalErrorMessage = message
+	s.finalErrorCode = code
 	s.sendChunk(map[string]any{
 		"status_code": status,
 		"error": map[string]any{
@@ -111,9 +122,16 @@ func (s *chatStreamRuntime) sendFailedChunk(status int, message, code string) {
 	s.sendDone()
 }
 
+func (s *chatStreamRuntime) resetStreamToolCallState() {
+	s.streamToolCallIDs = map[int]string{}
+	s.streamToolNames = map[int]string{}
+}
+
 func (s *chatStreamRuntime) finalize(finishReason string) {
 	finalThinking := s.thinking.String()
 	finalText := cleanVisibleOutput(s.text.String(), s.stripReferenceMarkers)
+	s.finalThinking = finalThinking
+	s.finalText = finalText
 	detected := toolcall.ParseStandaloneToolCallsDetailed(finalText, s.toolNames)
 	if len(detected.Calls) > 0 && !s.toolCallsDoneEmitted {
 		finishReason = "tool_calls"
@@ -153,6 +171,7 @@ func (s *chatStreamRuntime) finalize(finishReason string) {
 					[]map[string]any{openaifmt.BuildChatStreamDeltaChoice(0, tcDelta)},
 					nil,
 				))
+				s.resetStreamToolCallState()
 			}
 			if evt.Content == "" {
 				continue
@@ -197,6 +216,8 @@ func (s *chatStreamRuntime) finalize(finishReason string) {
 		return
 	}
 	usage := openaifmt.BuildChatUsage(s.finalPrompt, finalThinking, finalText)
+	s.finalFinishReason = finishReason
+	s.finalUsage = usage
 	s.sendChunk(openaifmt.BuildChatStreamChunk(
 		s.completionID,
 		s.created,
@@ -294,6 +315,7 @@ func (s *chatStreamRuntime) onParsed(parsed sse.LineResult) streamengine.ParsedD
 							s.firstChunkSent = true
 						}
 						newChoices = append(newChoices, openaifmt.BuildChatStreamDeltaChoice(0, tcDelta))
+						s.resetStreamToolCallState()
 						continue
 					}
 					if evt.Content != "" {

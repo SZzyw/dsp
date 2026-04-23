@@ -128,7 +128,7 @@ func (s *responsesStreamRuntime) finalize() {
 	finalText := cleanVisibleOutput(s.text.String(), s.stripReferenceMarkers)
 
 	if s.bufferToolContent {
-		s.processToolStreamEvents(flushToolSieve(&s.sieve, s.toolNames), true)
+		s.processToolStreamEvents(flushToolSieve(&s.sieve, s.toolNames), true, true)
 	}
 
 	textParsed := toolcall.ParseStandaloneToolCallsDetailed(finalText, s.toolNames)
@@ -224,7 +224,7 @@ func (s *responsesStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Pa
 			s.emitTextDelta(trimmed)
 			continue
 		}
-		s.processToolStreamEvents(processToolSieveChunk(&s.sieve, trimmed, s.toolNames), true)
+		s.processToolStreamEvents(processToolSieveChunk(&s.sieve, trimmed, s.toolNames), true, true)
 	}
 
 	return streamengine.ParsedDecision{ContentSeen: contentSeen}
