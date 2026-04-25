@@ -152,10 +152,8 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 
 	if raw, ok := req["history_split"].(map[string]any); ok {
 		cfg := &config.HistorySplitConfig{}
-		if v, exists := raw["enabled"]; exists {
-			b := boolFrom(v)
-			cfg.Enabled = &b
-		}
+		enabled := true
+		cfg.Enabled = &enabled
 		if v, exists := raw["trigger_after_turns"]; exists {
 			n := intFrom(v)
 			if err := config.ValidateIntRange("history_split.trigger_after_turns", n, 1, 1000, true); err != nil {

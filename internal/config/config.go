@@ -100,6 +100,7 @@ func (c *Config) NormalizeCredentials() {
 	}
 
 	c.normalizeModelAliases()
+	c.forceHistorySplitEnabled()
 }
 
 // DropInvalidAccounts removes accounts that cannot be addressed by admin APIs
@@ -138,6 +139,14 @@ func (c *Config) normalizeModelAliases() {
 	} else {
 		c.ModelAliases = aliases
 	}
+}
+
+func (c *Config) forceHistorySplitEnabled() {
+	if c == nil {
+		return
+	}
+	enabled := true
+	c.HistorySplit.Enabled = &enabled
 }
 
 type CompatConfig struct {

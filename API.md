@@ -712,7 +712,7 @@ data: {"type":"message_stop"}
 - `compat`（`wide_input_strict_output`、`strip_reference_markers`）
 - `responses` / `embeddings`
 - `auto_delete`（`mode`：`none` / `single` / `all`；旧配置 `sessions=true` 仍按 `all` 处理）
-- `history_split`（`enabled`、`trigger_after_turns`）
+- `history_split`（`enabled` 固定返回 `true`、`trigger_after_turns`）
 - `model_aliases`
 - `env_backed`、`needs_vercel_sync`
 - `toolcall` 策略已固定为 `feature_match + high`，不再通过 settings 返回或修改
@@ -727,7 +727,7 @@ data: {"type":"message_stop"}
 - `responses.store_ttl_seconds`
 - `embeddings.provider`
 - `auto_delete.mode`
-- `history_split.enabled` / `history_split.trigger_after_turns`
+- `history_split.trigger_after_turns`（`history_split.enabled` 已全局强制开启；旧客户端传入时会被保存为 `true`）
 - `model_aliases`
 - `toolcall` 策略已固定，不再作为可写入字段
 

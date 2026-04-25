@@ -27,9 +27,6 @@ func (s Service) Apply(ctx context.Context, a *auth.RequestAuth, stdReq promptco
 	if s.DS == nil || s.Store == nil || a == nil {
 		return stdReq, nil
 	}
-	if !s.Store.HistorySplitEnabled() {
-		return stdReq, nil
-	}
 
 	promptMessages, historyMessages := SplitOpenAIHistoryMessages(stdReq.Messages, s.Store.HistorySplitTriggerAfterTurns())
 	if len(historyMessages) == 0 {

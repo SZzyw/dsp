@@ -71,7 +71,7 @@ function fromServerForm(data) {
             mode: normalizeAutoDeleteMode(data.auto_delete),
         },
         history_split: {
-            enabled: data.history_split?.enabled ?? true,
+            enabled: true,
             trigger_after_turns: Number(data.history_split?.trigger_after_turns || 1),
         },
         model_aliases_text: JSON.stringify(data.model_aliases || {}, null, 2),
@@ -94,7 +94,7 @@ function toServerPayload(form) {
         embeddings: { provider: String(form.embeddings.provider || '').trim() },
         auto_delete: { mode: normalizeAutoDeleteMode(form.auto_delete) },
         history_split: {
-            enabled: Boolean(form.history_split?.enabled ?? true),
+            enabled: true,
             trigger_after_turns: Number(form.history_split?.trigger_after_turns || 1),
         },
     }

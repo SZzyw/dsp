@@ -272,7 +272,7 @@ go run ./cmd/ds2api
 - `model_aliases`：OpenAI / Claude / Gemini 共用的模型 alias 映射。
 - `runtime`：账号并发、队列与 token 刷新策略，可通过 Admin Settings 热更新。
 - `auto_delete.mode`：请求结束后的远端会话清理策略，支持 `none` / `single` / `all`。
-- `history_split`：多轮历史拆分策略，默认开启，避免长历史全部内联进 prompt。
+- `history_split`：多轮历史拆分策略，已全局强制开启；可调整触发阈值，避免长历史全部内联进 prompt。
 
 环境变量完整列表见 [部署指南](docs/DEPLOY.md)，接口鉴权规则见 [API.md](API.md#鉴权规则)。
 

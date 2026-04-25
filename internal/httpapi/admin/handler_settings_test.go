@@ -189,8 +189,8 @@ func TestUpdateSettingsHistorySplit(t *testing.T) {
 		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	snap := h.Store.Snapshot()
-	if snap.HistorySplit.Enabled == nil || *snap.HistorySplit.Enabled {
-		t.Fatalf("expected history_split.enabled=false, got %#v", snap.HistorySplit.Enabled)
+	if snap.HistorySplit.Enabled == nil || !*snap.HistorySplit.Enabled {
+		t.Fatalf("expected history_split.enabled to be forced true, got %#v", snap.HistorySplit.Enabled)
 	}
 	if snap.HistorySplit.TriggerAfterTurns == nil || *snap.HistorySplit.TriggerAfterTurns != 3 {
 		t.Fatalf("expected history_split.trigger_after_turns=3, got %#v", snap.HistorySplit.TriggerAfterTurns)

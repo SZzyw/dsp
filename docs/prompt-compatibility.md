@@ -230,7 +230,7 @@ OpenAI 文件相关实现：
 
 ## 9. 多轮历史为什么不会一直完整内联在 prompt
 
-默认情况下，history split 是开启的，且默认从第 2 个 user turn 起就可能触发。
+history split 现在全局强制开启；旧配置中的 `history_split.enabled=false` 会被忽略。默认从第 2 个 user turn 起就可能触发，仍可通过 `history_split.trigger_after_turns` 调整触发阈值。
 
 相关实现：
 

@@ -270,7 +270,7 @@ Common fields:
 - `model_aliases`: one shared alias map for OpenAI / Claude / Gemini model names.
 - `runtime`: account concurrency, queueing, and token refresh behavior, hot-reloadable via Admin Settings.
 - `auto_delete.mode`: remote session cleanup after each request, supporting `none` / `single` / `all`.
-- `history_split`: multi-turn history split policy, enabled by default to avoid inlining all long history into the prompt.
+- `history_split`: multi-turn history split policy, now forced on globally; tune its trigger threshold to avoid inlining all long history into the prompt.
 
 For the full environment variable list, see [docs/DEPLOY.en.md](docs/DEPLOY.en.md). For auth behavior, see [API.en.md](API.en.md#authentication).
 

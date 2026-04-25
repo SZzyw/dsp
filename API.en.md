@@ -711,7 +711,7 @@ Reads runtime settings and status, including:
 - `compat` (`wide_input_strict_output`, `strip_reference_markers`)
 - `responses` / `embeddings`
 - `auto_delete` (`mode`: `none` / `single` / `all`; legacy `sessions=true` is still treated as `all`)
-- `history_split` (`enabled`, `trigger_after_turns`)
+- `history_split` (`enabled` always returns `true`, `trigger_after_turns`)
 - `model_aliases`
 - `env_backed`, `needs_vercel_sync`
 - `toolcall` policy is fixed to `feature_match + high` and is no longer returned or editable via settings
@@ -726,7 +726,7 @@ Hot-updates runtime settings. Supported fields:
 - `responses.store_ttl_seconds`
 - `embeddings.provider`
 - `auto_delete.mode`
-- `history_split.enabled` / `history_split.trigger_after_turns`
+- `history_split.trigger_after_turns` (`history_split.enabled` is forced on globally; legacy client writes are stored as `true`)
 - `model_aliases`
 - `toolcall` policy is fixed and is no longer writable through settings
 
