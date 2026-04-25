@@ -28,14 +28,6 @@ func (h *Handler) getConfig(w http.ResponseWriter, _ *http.Request) {
 	accounts := make([]map[string]any, 0, len(snap.Accounts))
 	for _, acc := range snap.Accounts {
 		token := strings.TrimSpace(acc.Token)
-		preview := ""
-		if token != "" {
-			if len(token) > 20 {
-				preview = token[:20] + "..."
-			} else {
-				preview = token
-			}
-		}
 		accounts = append(accounts, map[string]any{
 			"identifier":    acc.Identifier(),
 			"name":          acc.Name,
@@ -45,7 +37,7 @@ func (h *Handler) getConfig(w http.ResponseWriter, _ *http.Request) {
 			"proxy_id":      acc.ProxyID,
 			"has_password":  strings.TrimSpace(acc.Password) != "",
 			"has_token":     token != "",
-			"token_preview": preview,
+			"token_preview": maskSecretPreview(token),
 		})
 	}
 	safe["accounts"] = accounts

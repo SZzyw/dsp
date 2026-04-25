@@ -86,3 +86,33 @@ func TestUpdateAccountMetadataPreservesCredentials(t *testing.T) {
 		t.Fatalf("password should be preserved, got %#v", acc)
 	}
 }
+
+func TestListAccountsMasksTokenPreview(t *testing.T) {
+	h := newAdminTestHandler(t, `{
+		"accounts":[{"email":"u@example.com","password":"pwd"}]
+	}`)
+	if err := h.Store.UpdateAccountToken("u@example.com", "abcdefgh"); err != nil {
+		t.Fatalf("seed runtime token: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/accounts?page=1&page_size=10", nil)
+	rec := httptest.NewRecorder()
+	h.listAccounts(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response failed: %v", err)
+	}
+	items, _ := payload["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	first, _ := items[0].(map[string]any)
+	if got, _ := first["token_preview"].(string); got != "ab****gh" {
+		t.Fatalf("expected masked token preview, got %q", got)
+	}
+}

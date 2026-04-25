@@ -58,14 +58,6 @@ func (h *Handler) listAccounts(w http.ResponseWriter, r *http.Request) {
 	for _, acc := range accounts[start:end] {
 		testStatus, _ := h.Store.AccountTestStatus(acc.Identifier())
 		token := strings.TrimSpace(acc.Token)
-		preview := ""
-		if token != "" {
-			if len(token) > 20 {
-				preview = token[:20] + "..."
-			} else {
-				preview = token
-			}
-		}
 		items = append(items, map[string]any{
 			"identifier":    acc.Identifier(),
 			"name":          acc.Name,
@@ -75,7 +67,7 @@ func (h *Handler) listAccounts(w http.ResponseWriter, r *http.Request) {
 			"proxy_id":      acc.ProxyID,
 			"has_password":  acc.Password != "",
 			"has_token":     token != "",
-			"token_preview": preview,
+			"token_preview": maskSecretPreview(token),
 			"test_status":   testStatus,
 		})
 	}

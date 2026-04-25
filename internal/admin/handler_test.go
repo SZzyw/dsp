@@ -1,6 +1,9 @@
 package admin
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -30,6 +33,53 @@ func TestFieldStringNilToEmpty(t *testing.T) {
 	}
 	if got := fieldString(map[string]any{}, "token"); got != "" {
 		t.Fatalf("expected empty string for missing field, got %q", got)
+	}
+}
+
+func TestMaskSecretPreviewKeepsOnlyFirstAndLastTwoChars(t *testing.T) {
+	cases := map[string]string{
+		"":         "",
+		"a":        "*",
+		"ab":       "**",
+		"abcd":     "****",
+		"abcdef":   "ab****ef",
+		"abc12345": "ab****45",
+	}
+
+	for input, want := range cases {
+		if got := maskSecretPreview(input); got != want {
+			t.Fatalf("maskSecretPreview(%q)=%q want %q", input, got, want)
+		}
+	}
+}
+
+func TestGetConfigMasksAccountTokenPreview(t *testing.T) {
+	h := newAdminTestHandler(t, `{
+		"accounts":[{"email":"u@example.com","password":"pwd"}]
+	}`)
+	if err := h.Store.UpdateAccountToken("u@example.com", "abcdefgh"); err != nil {
+		t.Fatalf("seed runtime token: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/config", nil)
+	rec := httptest.NewRecorder()
+	h.getConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response failed: %v", err)
+	}
+	accounts, _ := payload["accounts"].([]any)
+	if len(accounts) != 1 {
+		t.Fatalf("expected 1 account, got %d", len(accounts))
+	}
+	first, _ := accounts[0].(map[string]any)
+	if got, _ := first["token_preview"].(string); got != "ab****gh" {
+		t.Fatalf("expected masked token preview, got %q", got)
 	}
 }
 

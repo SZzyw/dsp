@@ -46,6 +46,17 @@ func nilIfZero(v int64) any {
 	return v
 }
 
+func maskSecretPreview(secret string) string {
+	secret = strings.TrimSpace(secret)
+	if secret == "" {
+		return ""
+	}
+	if len(secret) <= 4 {
+		return strings.Repeat("*", len(secret))
+	}
+	return secret[:2] + "****" + secret[len(secret)-2:]
+}
+
 func toStringSlice(v any) ([]string, bool) {
 	arr, ok := v.([]any)
 	if !ok {
