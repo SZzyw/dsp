@@ -24,5 +24,6 @@ These rules apply to all agent-made changes in this repository.
 
 ## Documentation Sync
 
+- When business logic or user-visible behavior changes, update the corresponding documentation in the same change.
 - `docs/prompt-compatibility.md` is the source-of-truth document for the “API -> pure-text web-chat context” compatibility flow.
 - If a change affects message normalization, tool prompt injection, prompt-visible tool history, file/reference handling, history split, or completion payload assembly, update `docs/prompt-compatibility.md` in the same change.

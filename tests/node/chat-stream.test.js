@@ -233,6 +233,24 @@ test('parseChunkForContent handles response/fragments APPEND with thinking and r
   ]);
 });
 
+test('parseChunkForContent drops thinking content when thinking is disabled', () => {
+  const thinking = parseChunkForContent(
+    { p: 'response/thinking_content', v: 'hidden thought' },
+    false,
+    'text',
+  );
+  assert.equal(thinking.finished, false);
+  assert.equal(thinking.newType, 'text');
+  assert.deepEqual(thinking.parts, []);
+
+  const answer = parseChunkForContent(
+    { p: 'response/content', v: 'visible answer' },
+    false,
+    thinking.newType,
+  );
+  assert.deepEqual(answer.parts, [{ text: 'visible answer', type: 'text' }]);
+});
+
 test('parseChunkForContent supports wrapped response.fragments object shape', () => {
   const chunk = {
     p: 'response',

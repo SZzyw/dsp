@@ -36,6 +36,11 @@ func (h *Handler) proxyViaOpenAI(w http.ResponseWriter, r *http.Request, stream 
 		return true
 	}
 	routeModel := strings.TrimSpace(chi.URLParam(r, "model"))
+	var req map[string]any
+	if err := json.Unmarshal(raw, &req); err != nil {
+		writeGeminiError(w, http.StatusBadRequest, "invalid json")
+		return true
+	}
 	translatedReq := translatorcliproxy.ToOpenAI(sdktranslator.FormatGemini, routeModel, raw, stream)
 	if !strings.Contains(string(translatedReq), `"stream"`) {
 		var reqMap map[string]any
@@ -46,6 +51,7 @@ func (h *Handler) proxyViaOpenAI(w http.ResponseWriter, r *http.Request, stream 
 			}
 		}
 	}
+	translatedReq = applyGeminiThinkingPolicyToOpenAIRequest(translatedReq, req)
 
 	isVercelPrepare := strings.TrimSpace(r.URL.Query().Get("__stream_prepare")) == "1"
 	isVercelRelease := strings.TrimSpace(r.URL.Query().Get("__stream_release")) == "1"
@@ -114,6 +120,72 @@ func (h *Handler) proxyViaOpenAI(w http.ResponseWriter, r *http.Request, stream 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(converted)
 	return true
+}
+
+func applyGeminiThinkingPolicyToOpenAIRequest(translated []byte, original map[string]any) []byte {
+	req := map[string]any{}
+	if err := json.Unmarshal(translated, &req); err != nil {
+		return translated
+	}
+	enabled, ok := resolveGeminiThinkingOverride(original)
+	if !ok {
+		return translated
+	}
+	typ := "disabled"
+	if enabled {
+		typ = "enabled"
+	}
+	req["thinking"] = map[string]any{"type": typ}
+	out, err := json.Marshal(req)
+	if err != nil {
+		return translated
+	}
+	return out
+}
+
+func resolveGeminiThinkingOverride(req map[string]any) (bool, bool) {
+	generationConfig, ok := req["generationConfig"].(map[string]any)
+	if !ok {
+		generationConfig, ok = req["generation_config"].(map[string]any)
+	}
+	if !ok {
+		return false, false
+	}
+	thinkingConfig, ok := generationConfig["thinkingConfig"].(map[string]any)
+	if !ok {
+		thinkingConfig, ok = generationConfig["thinking_config"].(map[string]any)
+	}
+	if !ok {
+		return false, false
+	}
+	budget, ok := numericAny(thinkingConfig["thinkingBudget"])
+	if !ok {
+		budget, ok = numericAny(thinkingConfig["thinking_budget"])
+	}
+	if !ok {
+		return false, false
+	}
+	return budget > 0, true
+}
+
+func numericAny(raw any) (float64, bool) {
+	switch v := raw.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case json.Number:
+		f, err := v.Float64()
+		return f, err == nil
+	default:
+		return 0, false
+	}
 }
 
 func writeGeminiErrorFromOpenAI(w http.ResponseWriter, status int, raw []byte) {

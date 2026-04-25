@@ -27,8 +27,29 @@ func TestNormalizeClaudeRequestUsesGlobalAliasMapping(t *testing.T) {
 	if out.Standard.ResolvedModel != "deepseek-v4-pro-search" {
 		t.Fatalf("resolved model mismatch: got=%q", out.Standard.ResolvedModel)
 	}
-	if !out.Standard.Thinking || !out.Standard.Search {
+	if out.Standard.Thinking || !out.Standard.Search {
 		t.Fatalf("unexpected flags: thinking=%v search=%v", out.Standard.Thinking, out.Standard.Search)
+	}
+}
+
+func TestNormalizeClaudeRequestEnablesThinkingWhenRequested(t *testing.T) {
+	req := map[string]any{
+		"model": "claude-opus-4-6",
+		"messages": []any{
+			map[string]any{"role": "user", "content": "hello"},
+		},
+		"thinking": map[string]any{"type": "enabled", "budget_tokens": 1024},
+	}
+	out, err := normalizeClaudeRequest(mockClaudeConfig{
+		aliases: map[string]string{
+			"claude-opus-4-6": "deepseek-v4-pro",
+		},
+	}, req)
+	if err != nil {
+		t.Fatalf("normalizeClaudeRequest error: %v", err)
+	}
+	if !out.Standard.Thinking {
+		t.Fatalf("expected explicit Claude thinking request to enable downstream thinking")
 	}
 }
 

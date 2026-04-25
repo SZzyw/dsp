@@ -290,6 +290,46 @@ func TestGeminiProxyTranslatesInlineImageToOpenAIDataURL(t *testing.T) {
 	}
 }
 
+func TestGeminiProxyViaOpenAIDisablesThinkingBudgetZero(t *testing.T) {
+	openAI := &geminiOpenAISuccessStub{}
+	h := &Handler{Store: testGeminiConfig{}, OpenAI: openAI}
+	r := chi.NewRouter()
+	RegisterRoutes(r, h)
+
+	body := `{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"thinkingConfig":{"thinkingBudget":0}}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-2.5-flash:generateContent", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	thinking, _ := openAI.seenReq["thinking"].(map[string]any)
+	if thinking["type"] != "disabled" {
+		t.Fatalf("expected Gemini thinkingBudget=0 to disable OpenAI thinking, got %#v", openAI.seenReq)
+	}
+}
+
+func TestGeminiProxyViaOpenAIEnablesPositiveThinkingBudget(t *testing.T) {
+	openAI := &geminiOpenAISuccessStub{}
+	h := &Handler{Store: testGeminiConfig{}, OpenAI: openAI}
+	r := chi.NewRouter()
+	RegisterRoutes(r, h)
+
+	body := `{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"thinkingConfig":{"thinkingBudget":1024}}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-2.5-flash:generateContent", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	thinking, _ := openAI.seenReq["thinking"].(map[string]any)
+	if thinking["type"] != "enabled" {
+		t.Fatalf("expected Gemini positive thinkingBudget to enable OpenAI thinking, got %#v", openAI.seenReq)
+	}
+}
+
 func TestGenerateContentOpenAIProxyErrorUsesGeminiEnvelope(t *testing.T) {
 	h := &Handler{
 		Store: testGeminiConfig{},

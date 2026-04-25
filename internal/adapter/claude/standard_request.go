@@ -31,12 +31,11 @@ func normalizeClaudeRequest(store ConfigReader, req map[string]any) (claudeNorma
 
 	dsPayload := convertClaudeToDeepSeek(payload, store)
 	dsModel, _ := dsPayload["model"].(string)
-	defaultThinkingEnabled, searchEnabled, ok := config.GetModelConfig(dsModel)
+	_, searchEnabled, ok := config.GetModelConfig(dsModel)
 	if !ok {
-		defaultThinkingEnabled = false
 		searchEnabled = false
 	}
-	thinkingEnabled := util.ResolveThinkingEnabled(req, defaultThinkingEnabled)
+	thinkingEnabled := util.ResolveThinkingEnabled(req, false)
 	finalPrompt := deepseek.MessagesPrepareWithThinking(toMessageMaps(dsPayload["messages"]), thinkingEnabled)
 	toolNames := extractClaudeToolNames(toolsRequested)
 	if len(toolNames) == 0 && len(toolsRequested) > 0 {
