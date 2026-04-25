@@ -145,12 +145,9 @@ func TestConfigJSONRoundtrip(t *testing.T) {
 	trueVal := true
 	falseVal := false
 	cfg := Config{
-		Keys:     []string{"key1", "key2"},
-		Accounts: []Account{{Email: "user@example.com", Password: "pass", Token: "tok"}},
-		ClaudeMapping: map[string]string{
-			"fast": "deepseek-v4-flash",
-			"slow": "deepseek-v4-pro",
-		},
+		Keys:         []string{"key1", "key2"},
+		Accounts:     []Account{{Email: "user@example.com", Password: "pass", Token: "tok"}},
+		ModelAliases: map[string]string{"Claude-Sonnet-4-6": "DeepSeek-V4-Flash"},
 		AutoDelete: AutoDeleteConfig{
 			Mode: "single",
 		},
@@ -188,8 +185,8 @@ func TestConfigJSONRoundtrip(t *testing.T) {
 	if len(decoded.Accounts) != 1 || decoded.Accounts[0].Email != "user@example.com" {
 		t.Fatalf("unexpected accounts: %#v", decoded.Accounts)
 	}
-	if decoded.ClaudeMapping["fast"] != "deepseek-v4-flash" {
-		t.Fatalf("unexpected claude mapping: %#v", decoded.ClaudeMapping)
+	if decoded.ModelAliases["claude-sonnet-4-6"] != "deepseek-v4-flash" {
+		t.Fatalf("unexpected normalized model aliases: %#v", decoded.ModelAliases)
 	}
 	if decoded.Runtime.TokenRefreshIntervalHours != 12 {
 		t.Fatalf("unexpected runtime refresh interval: %#v", decoded.Runtime.TokenRefreshIntervalHours)
@@ -255,6 +252,23 @@ func TestConfigUnmarshalJSONPreservesUnknownFields(t *testing.T) {
 	}
 }
 
+func TestConfigUnmarshalJSONIgnoresRemovedLegacyModelMappings(t *testing.T) {
+	raw := `{"keys":["k1"],"accounts":[],"claude_mapping":{"fast":"deepseek-v4-pro"},"claude_model_mapping":{"slow":"deepseek-v4-pro"}}`
+	var cfg Config
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if len(cfg.ModelAliases) != 0 {
+		t.Fatalf("expected removed legacy mappings to be ignored, got %#v", cfg.ModelAliases)
+	}
+	if _, ok := cfg.AdditionalFields["claude_mapping"]; ok {
+		t.Fatalf("expected removed legacy field not to persist in additional fields: %#v", cfg.AdditionalFields)
+	}
+	if _, ok := cfg.AdditionalFields["claude_model_mapping"]; ok {
+		t.Fatalf("expected removed legacy field not to persist in additional fields: %#v", cfg.AdditionalFields)
+	}
+}
+
 // ─── Config.Clone ────────────────────────────────────────────────────
 
 func TestConfigCloneIsDeepCopy(t *testing.T) {
@@ -262,11 +276,9 @@ func TestConfigCloneIsDeepCopy(t *testing.T) {
 	trueVal := true
 	turns := 2
 	cfg := Config{
-		Keys:     []string{"key1"},
-		Accounts: []Account{{Email: "user@test.com", Token: "token"}},
-		ClaudeMapping: map[string]string{
-			"fast": "deepseek-v4-flash",
-		},
+		Keys:         []string{"key1"},
+		Accounts:     []Account{{Email: "user@test.com", Token: "token"}},
+		ModelAliases: map[string]string{"claude-sonnet-4-6": "deepseek-v4-flash"},
 		Compat: CompatConfig{
 			StripReferenceMarkers: &falseVal,
 		},
@@ -282,7 +294,7 @@ func TestConfigCloneIsDeepCopy(t *testing.T) {
 	// Modify original
 	cfg.Keys[0] = "modified"
 	cfg.Accounts[0].Email = "modified@test.com"
-	cfg.ClaudeMapping["fast"] = "modified-model"
+	cfg.ModelAliases["claude-sonnet-4-6"] = "modified-model"
 	if cfg.Compat.StripReferenceMarkers != nil {
 		*cfg.Compat.StripReferenceMarkers = true
 	}
@@ -300,8 +312,8 @@ func TestConfigCloneIsDeepCopy(t *testing.T) {
 	if cloned.Accounts[0].Email != "user@test.com" {
 		t.Fatalf("clone accounts was affected: %#v", cloned.Accounts)
 	}
-	if cloned.ClaudeMapping["fast"] != "deepseek-v4-flash" {
-		t.Fatalf("clone claude mapping was affected: %#v", cloned.ClaudeMapping)
+	if cloned.ModelAliases["claude-sonnet-4-6"] != "deepseek-v4-flash" {
+		t.Fatalf("clone model aliases was affected: %#v", cloned.ModelAliases)
 	}
 	if cloned.Compat.StripReferenceMarkers == nil || *cloned.Compat.StripReferenceMarkers {
 		t.Fatalf("clone compat was affected: %#v", cloned.Compat.StripReferenceMarkers)
@@ -652,25 +664,27 @@ func TestNormalizeCredentialsPrefersStructuredAPIKeys(t *testing.T) {
 	}
 }
 
-func TestStoreClaudeMapping(t *testing.T) {
-	t.Setenv("DS2API_CONFIG_JSON", `{"keys":[],"accounts":[],"claude_mapping":{"fast":"deepseek-v4-flash","slow":"deepseek-v4-pro"}}`)
+func TestStoreModelAliasesIncludesDefaultsAndOverrides(t *testing.T) {
+	t.Setenv("DS2API_CONFIG_JSON", `{"keys":[],"accounts":[],"model_aliases":{"claude-opus-4-6":"deepseek-v4-pro-search"}}`)
 	store := LoadStore()
-	mapping := store.ClaudeMapping()
-	if mapping["fast"] != "deepseek-v4-flash" {
-		t.Fatalf("unexpected fast mapping: %q", mapping["fast"])
+	aliases := store.ModelAliases()
+	if aliases["claude-sonnet-4-6"] != "deepseek-v4-flash" {
+		t.Fatalf("expected default alias to remain available, got %q", aliases["claude-sonnet-4-6"])
 	}
-	if mapping["slow"] != "deepseek-v4-pro" {
-		t.Fatalf("unexpected slow mapping: %q", mapping["slow"])
+	if aliases["claude-opus-4-6"] != "deepseek-v4-pro-search" {
+		t.Fatalf("expected custom alias override, got %q", aliases["claude-opus-4-6"])
 	}
 }
 
-func TestStoreClaudeMappingEmpty(t *testing.T) {
+func TestStoreModelAliasesDefault(t *testing.T) {
 	t.Setenv("DS2API_CONFIG_JSON", `{"keys":[],"accounts":[]}`)
 	store := LoadStore()
-	mapping := store.ClaudeMapping()
-	// Even without config mapping, there are defaults
-	if mapping == nil {
-		t.Fatal("expected non-nil mapping (may contain defaults)")
+	aliases := store.ModelAliases()
+	if aliases == nil {
+		t.Fatal("expected non-nil aliases")
+	}
+	if aliases["claude-sonnet-4-6"] != "deepseek-v4-flash" {
+		t.Fatalf("expected built-in alias, got %q", aliases["claude-sonnet-4-6"])
 	}
 }
 

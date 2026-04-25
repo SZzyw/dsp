@@ -21,12 +21,7 @@ func (streamStatusClaudeOpenAIStub) ChatCompletions(w http.ResponseWriter, _ *ht
 
 type streamStatusClaudeStoreStub struct{}
 
-func (streamStatusClaudeStoreStub) ClaudeMapping() map[string]string {
-	return map[string]string{
-		"fast": "deepseek-v4-flash",
-		"slow": "deepseek-v4-pro",
-	}
-}
+func (streamStatusClaudeStoreStub) ModelAliases() map[string]string { return nil }
 
 func (streamStatusClaudeStoreStub) CompatStripReferenceMarkers() bool { return true }
 

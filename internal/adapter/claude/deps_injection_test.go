@@ -3,13 +3,13 @@ package claude
 import "testing"
 
 type mockClaudeConfig struct {
-	m map[string]string
+	aliases map[string]string
 }
 
-func (m mockClaudeConfig) ClaudeMapping() map[string]string { return m.m }
-func (mockClaudeConfig) CompatStripReferenceMarkers() bool  { return true }
+func (m mockClaudeConfig) ModelAliases() map[string]string { return m.aliases }
+func (mockClaudeConfig) CompatStripReferenceMarkers() bool { return true }
 
-func TestNormalizeClaudeRequestUsesConfigInterfaceMapping(t *testing.T) {
+func TestNormalizeClaudeRequestUsesGlobalAliasMapping(t *testing.T) {
 	req := map[string]any{
 		"model": "claude-opus-4-6",
 		"messages": []any{
@@ -17,9 +17,8 @@ func TestNormalizeClaudeRequestUsesConfigInterfaceMapping(t *testing.T) {
 		},
 	}
 	out, err := normalizeClaudeRequest(mockClaudeConfig{
-		m: map[string]string{
-			"fast": "deepseek-v4-flash",
-			"slow": "deepseek-v4-pro-search",
+		aliases: map[string]string{
+			"claude-opus-4-6": "deepseek-v4-pro-search",
 		},
 	}, req)
 	if err != nil {
@@ -30,5 +29,25 @@ func TestNormalizeClaudeRequestUsesConfigInterfaceMapping(t *testing.T) {
 	}
 	if !out.Standard.Thinking || !out.Standard.Search {
 		t.Fatalf("unexpected flags: thinking=%v search=%v", out.Standard.Thinking, out.Standard.Search)
+	}
+}
+
+func TestNormalizeClaudeRequestPrefersGlobalAliasMapping(t *testing.T) {
+	req := map[string]any{
+		"model": "claude-sonnet-4-6",
+		"messages": []any{
+			map[string]any{"role": "user", "content": "hello"},
+		},
+	}
+	out, err := normalizeClaudeRequest(mockClaudeConfig{
+		aliases: map[string]string{
+			"claude-sonnet-4-6": "deepseek-v4-flash",
+		},
+	}, req)
+	if err != nil {
+		t.Fatalf("normalizeClaudeRequest error: %v", err)
+	}
+	if out.Standard.ResolvedModel != "deepseek-v4-flash" {
+		t.Fatalf("expected global alias to win for explicit model, got=%q", out.Standard.ResolvedModel)
 	}
 }

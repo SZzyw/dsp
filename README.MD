@@ -122,18 +122,20 @@ flowchart LR
 | vision | `deepseek-v4-vision` | 默认开启，可由请求参数控制 | ❌ |
 | vision | `deepseek-v4-vision-search` | 默认开启，可由请求参数控制 | ✅ |
 
-除原生模型外，也支持常见 alias 输入（如 `gpt-5`、`gpt-5-mini`、`gpt-5-codex`、`gpt-4.1`、`o3`、`claude-opus-4-6`、`claude-sonnet-4-5`、`gemini-2.5-pro`、`gemini-2.5-flash` 等），但 `/v1/models` 返回的是规范化后的 DeepSeek 原生模型 ID。
+除原生模型外，也支持常见 alias 输入（如 `gpt-5.5`、`gpt-5.4`、`gpt-5.4-mini`、`gpt-5.3-codex`、`gpt-4.1`、`o3`、`claude-opus-4-6`、`claude-sonnet-4-6`、`gemini-2.5-pro`、`gemini-2.5-flash` 等），但 `/v1/models` 返回的是规范化后的 DeepSeek 原生模型 ID。
 
 ### Claude 接口（`GET /anthropic/v1/models`）
 
 | 当前常用模型 | 默认映射 |
 | --- | --- |
-| `claude-sonnet-4-5` | `deepseek-v4-flash` |
+| `claude-sonnet-4-6` | `deepseek-v4-flash` |
 | `claude-haiku-4-5`（兼容 `claude-3-5-haiku-latest`） | `deepseek-v4-flash` |
 | `claude-opus-4-6` | `deepseek-v4-pro` |
 
-可通过配置中的 `claude_mapping` 或 `claude_model_mapping` 覆盖映射关系。
-`/anthropic/v1/models` 除上述当前主别名外，还会返回 Claude 4.x snapshots，以及 3.x / 2.x / 1.x 历史模型 ID 与常见 alias，便于旧客户端直接兼容。
+可通过配置中的 `model_aliases` 覆盖映射关系。
+`/anthropic/v1/models` 除上述当前主别名外，还会返回 Claude 4.x snapshots，以及 3.x 历史模型 ID 与常见 alias，便于旧客户端直接兼容。
+
+> 截至 2026-04-26：Anthropic 官方模型页当前主推 `claude-opus-4-6`、`claude-sonnet-4-6`、`claude-haiku-4-5`；OpenAI 官方开发者模型页当前推荐从 `gpt-5.5` 开始，ChatGPT Help Center 当前主打 `GPT-5.3 Instant / GPT-5.5 Thinking / GPT-5.5 Pro`。本文档中的 alias 示例按“兼容客户端会传来的最新官方模型 ID”维护。
 
 #### Claude Code 接入避坑（实测）
 
@@ -289,9 +291,9 @@ go run ./cmd/ds2api
   ],
   "model_aliases": {
     "gpt-4o": "deepseek-v4-flash",
-    "gpt-5": "deepseek-v4-flash",
-    "gpt-5-mini": "deepseek-v4-flash",
-    "gpt-5-codex": "deepseek-v4-pro",
+    "gpt-5.5": "deepseek-v4-flash",
+    "gpt-5.4-mini": "deepseek-v4-flash",
+    "gpt-5.3-codex": "deepseek-v4-pro",
     "o3": "deepseek-v4-pro",
     "claude-opus-4-6": "deepseek-v4-pro",
     "gemini-2.5-flash": "deepseek-v4-flash"
@@ -305,10 +307,6 @@ go run ./cmd/ds2api
   },
   "embeddings": {
     "provider": "deterministic"
-  },
-  "claude_mapping": {
-    "fast": "deepseek-v4-flash",
-    "slow": "deepseek-v4-pro"
   },
   "admin": {
     "jwt_expire_hours": 24
@@ -335,7 +333,7 @@ go run ./cmd/ds2api
 - `toolcall`：旧字段，当前实现已固定为特征匹配 + 高置信早发；即使保留在配置里也会被忽略
 - `responses.store_ttl_seconds`：`/v1/responses/{id}` 的内存缓存 TTL
 - `embeddings.provider`：embedding 提供方（当前内置 `deterministic/mock/builtin`）
-- `claude_mapping`：字典中 `fast`/`slow` 后缀映射到对应 DeepSeek 模型（兼容读取 `claude_model_mapping`）
+- `model_aliases`：全局统一模型映射表，OpenAI / Claude / Gemini 共用；项目内只维护这一套映射入口
 - `admin`：管理后台设置（JWT 过期时间、密码哈希等），可通过 Admin Settings API 热更新
 - `runtime`：运行时参数（并发限制、队列大小、托管账号 token 刷新间隔），可通过 Admin Settings API 热更新；`account_max_queue=0`/`global_max_inflight=0` 表示按推荐值自动计算，`token_refresh_interval_hours=6` 为默认强制重登间隔
 - `auto_delete.mode`：请求结束后如何清理 DeepSeek 远端聊天记录，支持 `none`（默认，不删除）、`single`（仅删除当前会话）、`all`（清空全部会话）；旧配置里的 `auto_delete.sessions=true` 仍会被视为 `all`

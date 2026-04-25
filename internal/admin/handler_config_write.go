@@ -58,12 +58,12 @@ func (h *Handler) updateConfig(w http.ResponseWriter, r *http.Request) {
 			}
 			c.Accounts = accounts
 		}
-		if m, ok := req["claude_mapping"].(map[string]any); ok {
-			newMap := map[string]string{}
+		if m, ok := req["model_aliases"].(map[string]any); ok {
+			aliases := make(map[string]string, len(m))
 			for k, v := range m {
-				newMap[k] = fmt.Sprintf("%v", v)
+				aliases[k] = fmt.Sprintf("%v", v)
 			}
-			c.ClaudeMapping = newMap
+			c.ModelAliases = aliases
 		}
 		return nil
 	})

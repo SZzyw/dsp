@@ -82,23 +82,6 @@ func (h *Handler) configImport(w http.ResponseWriter, r *http.Request) {
 				importedAccounts++
 			}
 
-			if len(incoming.ClaudeMapping) > 0 {
-				if next.ClaudeMapping == nil {
-					next.ClaudeMapping = map[string]string{}
-				}
-				for k, v := range incoming.ClaudeMapping {
-					next.ClaudeMapping[k] = v
-				}
-			}
-			if len(incoming.ClaudeModelMap) > 0 {
-				if next.ClaudeModelMap == nil {
-					next.ClaudeModelMap = map[string]string{}
-				}
-				for k, v := range incoming.ClaudeModelMap {
-					next.ClaudeModelMap[k] = v
-				}
-			}
-
 			if len(incoming.ModelAliases) > 0 {
 				if next.ModelAliases == nil {
 					next.ModelAliases = map[string]string{}

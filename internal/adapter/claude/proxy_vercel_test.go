@@ -9,18 +9,37 @@ import (
 )
 
 type claudeProxyStoreStub struct {
-	mapping map[string]string
+	aliases map[string]string
 }
 
-func (s claudeProxyStoreStub) ClaudeMapping() map[string]string {
-	return s.mapping
-}
+func (s claudeProxyStoreStub) ModelAliases() map[string]string { return s.aliases }
 
 func (claudeProxyStoreStub) CompatStripReferenceMarkers() bool { return true }
 
 type openAIProxyStub struct {
 	status int
 	body   string
+}
+
+func TestClaudeProxyViaOpenAIPrefersGlobalAliasMapping(t *testing.T) {
+	openAI := &openAIProxyCaptureStub{}
+	h := &Handler{
+		Store: claudeProxyStoreStub{
+			aliases: map[string]string{"claude-sonnet-4-6": "deepseek-v4-flash"},
+		},
+		OpenAI: openAI,
+	}
+	req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hi"}],"stream":false}`))
+	rec := httptest.NewRecorder()
+
+	h.Messages(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := strings.TrimSpace(openAI.seenModel); got != "deepseek-v4-flash" {
+		t.Fatalf("expected global alias mapped proxy model deepseek-v4-flash, got %q", got)
+	}
 }
 
 func (s openAIProxyStub) ChatCompletions(w http.ResponseWriter, _ *http.Request) {
@@ -68,10 +87,10 @@ func TestClaudeProxyViaOpenAIVercelPreparePassthrough(t *testing.T) {
 	}
 }
 
-func TestClaudeProxyViaOpenAIPreservesClaudeMapping(t *testing.T) {
+func TestClaudeProxyViaOpenAIUsesGlobalAliasMapping(t *testing.T) {
 	openAI := &openAIProxyCaptureStub{}
 	h := &Handler{
-		Store:  claudeProxyStoreStub{mapping: map[string]string{"fast": "deepseek-v4-flash", "slow": "deepseek-v4-pro"}},
+		Store:  claudeProxyStoreStub{aliases: map[string]string{"claude-3-opus": "deepseek-v4-pro"}},
 		OpenAI: openAI,
 	}
 	req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", strings.NewReader(`{"model":"claude-3-opus","messages":[{"role":"user","content":"hi"}],"stream":false}`))

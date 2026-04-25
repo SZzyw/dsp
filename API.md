@@ -217,10 +217,12 @@ Gemini 兼容客户端还可以使用 `x-goog-api-key`、`?key=` 或 `?api_key=`
 
 当前内置默认 alias（节选）：
 
-- OpenAI：`gpt-4o`、`gpt-4.1`、`gpt-4.1-mini`、`gpt-4.1-nano`、`gpt-5`、`gpt-5-mini`、`gpt-5-codex`
+- OpenAI：`gpt-4o`、`gpt-4.1`、`gpt-4.1-mini`、`gpt-4.1-nano`、`gpt-5`、`gpt-5.4`、`gpt-5.5`、`gpt-5-mini`、`gpt-5.4-mini`、`gpt-5.4-nano`、`gpt-5.5-pro`、`gpt-5-codex`、`gpt-5.3-codex`
 - OpenAI Reasoning：`o1`、`o1-mini`、`o3`、`o3-mini`
-- Claude：`claude-sonnet-4-5`、`claude-haiku-4-5`、`claude-opus-4-6`（及 `claude-3-5-sonnet` / `claude-3-5-haiku` / `claude-3-opus` 兼容别名）
+- Claude：`claude-sonnet-4-6`、`claude-haiku-4-5`、`claude-opus-4-6`（及 `claude-sonnet-4-5` / `claude-3-5-sonnet` / `claude-3-5-haiku` / `claude-3-opus` 兼容别名）
 - Gemini：`gemini-2.5-pro`、`gemini-2.5-flash`
+
+> 截至 2026-04-26：OpenAI 开发者模型页当前推荐 `gpt-5.5` 作为旗舰 API 模型；ChatGPT Help Center 当前主打 `GPT-5.3 Instant / GPT-5.5 Thinking / GPT-5.5 Pro`；Anthropic 官方模型页当前主推 `claude-opus-4-6`、`claude-sonnet-4-6`、`claude-haiku-4-5`。
 
 ### `POST /v1/chat/completions`
 
@@ -235,7 +237,7 @@ Content-Type: application/json
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `model` | string | ✅ | 支持 DeepSeek 原生模型 + 常见 alias（如 `gpt-5`、`gpt-5-mini`、`gpt-5-codex`、`o3`、`claude-opus-4-6`、`gemini-2.5-pro`、`gemini-2.5-flash` 等） |
+| `model` | string | ✅ | 支持 DeepSeek 原生模型 + 常见 alias（如 `gpt-5.5`、`gpt-5.4-mini`、`gpt-5.3-codex`、`o3`、`claude-opus-4-6`、`claude-sonnet-4-6`、`gemini-2.5-pro`、`gemini-2.5-flash` 等） |
 | `messages` | array | ✅ | OpenAI 风格消息数组 |
 | `stream` | boolean | ❌ | 默认 `false` |
 | `tools` | array | ❌ | Function Calling 定义 |
@@ -443,17 +445,17 @@ data: [DONE]
 {
   "object": "list",
   "data": [
-    {"id": "claude-sonnet-4-5", "object": "model", "created": 1715635200, "owned_by": "anthropic"},
+    {"id": "claude-sonnet-4-6", "object": "model", "created": 1715635200, "owned_by": "anthropic"},
     {"id": "claude-haiku-4-5", "object": "model", "created": 1715635200, "owned_by": "anthropic"},
     {"id": "claude-opus-4-6", "object": "model", "created": 1715635200, "owned_by": "anthropic"}
   ],
   "first_id": "claude-opus-4-6",
-  "last_id": "claude-instant-1.0",
+  "last_id": "claude-3-haiku-20240307",
   "has_more": false
 }
 ```
 
-> 说明：示例仅展示部分模型；实际返回除当前主别名外，还包含 Claude 4.x snapshots，以及 3.x / 2.x / 1.x 历史模型 ID 与常见别名。
+> 说明：示例仅展示部分模型；实际返回除当前主别名外，还包含 Claude 4.x snapshots，以及 3.x 历史模型 ID 与常见别名。
 
 ### `POST /anthropic/v1/messages`
 
@@ -471,7 +473,7 @@ anthropic-version: 2023-06-01
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `model` | string | ✅ | 例如 `claude-sonnet-4-5` / `claude-opus-4-6` / `claude-haiku-4-5`（兼容 `claude-3-5-haiku-latest`），并支持历史 Claude 模型 ID |
+| `model` | string | ✅ | 例如 `claude-sonnet-4-6` / `claude-opus-4-6` / `claude-haiku-4-5`（兼容 `claude-sonnet-4-5`、`claude-3-5-haiku-latest`），并支持历史 Claude 模型 ID |
 | `messages` | array | ✅ | Claude 风格消息数组 |
 | `max_tokens` | number | ❌ | 缺省自动补 `8192`；当前实现不会硬性截断上游输出 |
 | `stream` | boolean | ❌ | 默认 `false` |
@@ -485,7 +487,7 @@ anthropic-version: 2023-06-01
   "id": "msg_1738400000000000000",
   "type": "message",
   "role": "assistant",
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "content": [
     {"type": "text", "text": "回复内容"}
   ],
@@ -539,7 +541,7 @@ data: {"type":"message_stop"}
 
 ```json
 {
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "messages": [
     {"role": "user", "content": "你好"}
   ]
@@ -667,16 +669,16 @@ data: {"type":"message_stop"}
       "token_preview": "abcde..."
     }
   ],
-  "claude_mapping": {
-    "fast": "deepseek-v4-flash",
-    "slow": "deepseek-v4-pro"
+  "model_aliases": {
+    "claude-sonnet-4-6": "deepseek-v4-flash",
+    "claude-opus-4-6": "deepseek-v4-pro"
   }
 }
 ```
 
 ### `POST /admin/config`
 
-只更新 `keys`、`api_keys`、`accounts`、`claude_mapping`。
+只更新 `keys`、`api_keys`、`accounts`、`model_aliases`。
 如果同时发送 `api_keys` 与 `keys`，优先保留 `api_keys` 中的结构化 `name` / `remark`；`keys` 仅作为旧格式兼容回退。
 
 **请求**：
@@ -691,9 +693,9 @@ data: {"type":"message_stop"}
   "accounts": [
     {"email": "user@example.com", "password": "pwd", "token": ""}
   ],
-  "claude_mapping": {
-    "fast": "deepseek-v4-flash",
-    "slow": "deepseek-v4-pro"
+  "model_aliases": {
+    "claude-sonnet-4-6": "deepseek-v4-flash",
+    "claude-opus-4-6": "deepseek-v4-pro"
   }
 }
 ```
@@ -708,7 +710,7 @@ data: {"type":"message_stop"}
 - `compat`（`wide_input_strict_output`、`strip_reference_markers`）
 - `responses` / `embeddings`
 - `auto_delete`（`mode`：`none` / `single` / `all`；旧配置 `sessions=true` 仍按 `all` 处理）
-- `claude_mapping` / `model_aliases`
+- `model_aliases`
 - `env_backed`、`needs_vercel_sync`
 - `toolcall` 策略已固定为 `feature_match + high`，不再通过 settings 返回或修改
 
@@ -722,7 +724,6 @@ data: {"type":"message_stop"}
 - `responses.store_ttl_seconds`
 - `embeddings.provider`
 - `auto_delete.mode`
-- `claude_mapping`
 - `model_aliases`
 - `toolcall` 策略已固定，不再作为可写入字段
 
@@ -747,7 +748,7 @@ data: {"type":"message_stop"}
 
 请求可直接传配置对象，或使用 `{"config": {...}, "mode":"merge"}` 包裹格式。
 也支持在查询参数里传 `?mode=merge` / `?mode=replace`。
-导入时会接受 `keys`、`api_keys`、`accounts`、`claude_mapping` / `claude_model_mapping`、`model_aliases`、`admin`、`runtime`、`responses`、`embeddings`、`auto_delete` 等字段；`toolcall` 相关字段会被忽略。
+导入时会接受 `keys`、`api_keys`、`accounts`、`model_aliases`、`admin`、`runtime`、`responses`、`embeddings`、`auto_delete` 等字段；`toolcall` 相关字段会被忽略。
 
 > `compat` 相关字段请通过 `/admin/settings` 或配置文件管理；该导入接口不会更新 `compat`。
 
@@ -1242,7 +1243,7 @@ curl http://localhost:5001/v1/responses \
   -H "Authorization: Bearer your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gpt-5-codex",
+    "model": "gpt-5.3-codex",
     "input": "写一个 golang 的 hello world",
     "stream": true
   }'
@@ -1341,7 +1342,7 @@ curl http://localhost:5001/anthropic/v1/messages \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
-    "model": "claude-sonnet-4-5",
+    "model": "claude-sonnet-4-6",
     "max_tokens": 1024,
     "messages": [{"role": "user", "content": "你好"}]
   }'

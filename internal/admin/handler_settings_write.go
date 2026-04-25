@@ -17,7 +17,7 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminCfg, runtimeCfg, compatCfg, responsesCfg, embeddingsCfg, autoDeleteCfg, historySplitCfg, claudeMap, aliasMap, err := parseSettingsUpdateRequest(req)
+	adminCfg, runtimeCfg, compatCfg, responsesCfg, embeddingsCfg, autoDeleteCfg, historySplitCfg, aliasMap, err := parseSettingsUpdateRequest(req)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"detail": err.Error()})
 		return
@@ -74,10 +74,6 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 			if historySplitCfg.TriggerAfterTurns != nil {
 				c.HistorySplit.TriggerAfterTurns = historySplitCfg.TriggerAfterTurns
 			}
-		}
-		if claudeMap != nil {
-			c.ClaudeMapping = claudeMap
-			c.ClaudeModelMap = nil
 		}
 		if aliasMap != nil {
 			c.ModelAliases = aliasMap

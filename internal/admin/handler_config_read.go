@@ -18,12 +18,7 @@ func (h *Handler) getConfig(w http.ResponseWriter, _ *http.Request) {
 		"env_source_present":    h.Store.HasEnvConfigSource(),
 		"env_writeback_enabled": h.Store.IsEnvWritebackEnabled(),
 		"config_path":           h.Store.ConfigPath(),
-		"claude_mapping": func() map[string]string {
-			if len(snap.ClaudeMapping) > 0 {
-				return snap.ClaudeMapping
-			}
-			return snap.ClaudeModelMap
-		}(),
+		"model_aliases":         snap.ModelAliases,
 	}
 	accounts := make([]map[string]any, 0, len(snap.Accounts))
 	for _, acc := range snap.Accounts {

@@ -21,7 +21,7 @@ func boolFrom(v any) bool {
 	}
 }
 
-func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *config.RuntimeConfig, *config.CompatConfig, *config.ResponsesConfig, *config.EmbeddingsConfig, *config.AutoDeleteConfig, *config.HistorySplitConfig, map[string]string, map[string]string, error) {
+func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *config.RuntimeConfig, *config.CompatConfig, *config.ResponsesConfig, *config.EmbeddingsConfig, *config.AutoDeleteConfig, *config.HistorySplitConfig, map[string]string, error) {
 	var (
 		adminCfg        *config.AdminConfig
 		runtimeCfg      *config.RuntimeConfig
@@ -30,7 +30,6 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		embCfg          *config.EmbeddingsConfig
 		autoDeleteCfg   *config.AutoDeleteConfig
 		historySplitCfg *config.HistorySplitConfig
-		claudeMap       map[string]string
 		aliasMap        map[string]string
 	)
 
@@ -39,7 +38,7 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		if v, exists := raw["jwt_expire_hours"]; exists {
 			n := intFrom(v)
 			if err := config.ValidateIntRange("admin.jwt_expire_hours", n, 1, 720, true); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.JWTExpireHours = n
 		}
@@ -51,33 +50,33 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		if v, exists := raw["account_max_inflight"]; exists {
 			n := intFrom(v)
 			if err := config.ValidateIntRange("runtime.account_max_inflight", n, 1, 256, true); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.AccountMaxInflight = n
 		}
 		if v, exists := raw["account_max_queue"]; exists {
 			n := intFrom(v)
 			if err := config.ValidateIntRange("runtime.account_max_queue", n, 1, 200000, true); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.AccountMaxQueue = n
 		}
 		if v, exists := raw["global_max_inflight"]; exists {
 			n := intFrom(v)
 			if err := config.ValidateIntRange("runtime.global_max_inflight", n, 1, 200000, true); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.GlobalMaxInflight = n
 		}
 		if v, exists := raw["token_refresh_interval_hours"]; exists {
 			n := intFrom(v)
 			if err := config.ValidateIntRange("runtime.token_refresh_interval_hours", n, 1, 720, true); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.TokenRefreshIntervalHours = n
 		}
 		if cfg.AccountMaxInflight > 0 && cfg.GlobalMaxInflight > 0 && cfg.GlobalMaxInflight < cfg.AccountMaxInflight {
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("runtime.global_max_inflight must be >= runtime.account_max_inflight")
+			return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("runtime.global_max_inflight must be >= runtime.account_max_inflight")
 		}
 		runtimeCfg = cfg
 	}
@@ -100,7 +99,7 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		if v, exists := raw["store_ttl_seconds"]; exists {
 			n := intFrom(v)
 			if err := config.ValidateIntRange("responses.store_ttl_seconds", n, 30, 86400, true); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.StoreTTLSeconds = n
 		}
@@ -112,27 +111,17 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		if v, exists := raw["provider"]; exists {
 			p := strings.TrimSpace(fmt.Sprintf("%v", v))
 			if err := config.ValidateTrimmedString("embeddings.provider", p, false); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.Provider = p
 		}
 		embCfg = cfg
 	}
 
-	if raw, ok := req["claude_mapping"].(map[string]any); ok {
-		claudeMap = map[string]string{}
-		for k, v := range raw {
-			key := strings.TrimSpace(k)
-			val := strings.TrimSpace(fmt.Sprintf("%v", v))
-			if key == "" || val == "" {
-				continue
-			}
-			claudeMap[key] = val
-		}
-	}
-
 	if raw, ok := req["model_aliases"].(map[string]any); ok {
-		aliasMap = map[string]string{}
+		if aliasMap == nil {
+			aliasMap = map[string]string{}
+		}
 		for k, v := range raw {
 			key := strings.TrimSpace(k)
 			val := strings.TrimSpace(fmt.Sprintf("%v", v))
@@ -148,7 +137,7 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		if v, exists := raw["mode"]; exists {
 			mode := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", v)))
 			if err := config.ValidateAutoDeleteMode(mode); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			if mode == "" {
 				mode = "none"
@@ -170,15 +159,15 @@ func parseSettingsUpdateRequest(req map[string]any) (*config.AdminConfig, *confi
 		if v, exists := raw["trigger_after_turns"]; exists {
 			n := intFrom(v)
 			if err := config.ValidateIntRange("history_split.trigger_after_turns", n, 1, 1000, true); err != nil {
-				return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, nil, nil, nil, err
 			}
 			cfg.TriggerAfterTurns = &n
 		}
 		if err := config.ValidateHistorySplitConfig(*cfg); err != nil {
-			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 		historySplitCfg = cfg
 	}
 
-	return adminCfg, runtimeCfg, compatCfg, respCfg, embCfg, autoDeleteCfg, historySplitCfg, claudeMap, aliasMap, nil
+	return adminCfg, runtimeCfg, compatCfg, respCfg, embCfg, autoDeleteCfg, historySplitCfg, aliasMap, nil
 }

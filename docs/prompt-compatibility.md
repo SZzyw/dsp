@@ -1,0 +1,391 @@
+# API -> 网页对话纯文本兼容主链路说明
+
+文档导航：[总览](../README.MD) / [架构说明](./ARCHITECTURE.md) / [接口文档](../API.md) / [测试指南](./TESTING.md)
+
+> 本文档是 DS2API“把 OpenAI / Claude / Gemini 风格 API 请求兼容成 DeepSeek 网页对话纯文本上下文”的专项说明。
+> 这是项目最重要的兼容产物之一。凡是修改消息标准化、tool prompt 注入、tool history 保留、文件引用、history split、下游 completion payload 组装等行为，都必须同步更新本文档。
+
+## 1. 核心结论
+
+DS2API 当前的核心思路，不是把客户端传来的 `messages`、`tools`、`attachments` 原样转发给下游。
+
+而是把这些高层 API 语义，统一压缩成 DeepSeek 网页对话更容易理解的三类输入：
+
+1. `prompt`
+   一个单字符串，里面带有角色标记、system 指令、历史消息、assistant reasoning 标签、历史 tool call XML 等。
+2. `ref_file_ids`
+   一个文件引用数组，承载附件、inline 上传文件，以及必要时被拆出去的历史文件。
+3. 控制位
+   例如 `thinking_enabled`、`search_enabled`、部分 passthrough 参数。
+
+也就是说，项目最重要的兼容动作，是把“结构化 API 会话”翻译成“网页对话纯文本上下文 + 文件引用”。
+
+## 2. 为什么这是核心产物
+
+因为对下游来说，真正稳定的输入面不是 OpenAI/Claude/Gemini 的原生 schema，而是：
+
+- 一段连续的对话 prompt
+- 一组可引用文件
+- 少量开关位
+
+这也是为什么很多表面上看像“协议兼容”的代码，最终都会收敛到同一类逻辑：
+
+- 先把不同协议的消息统一成内部消息序列
+- 再把工具声明改写成 system prompt 文本
+- 再把历史 tool call / tool result 改写成 prompt 可见内容
+- 最后输出成 DeepSeek completion payload
+
+## 3. 统一心智模型
+
+当前主链路可以这样理解：
+
+```text
+客户端请求
+  -> 协议适配层（OpenAI / Claude / Gemini）
+  -> 统一消息标准化
+  -> tool prompt 注入
+  -> DeepSeek 风格 prompt 拼装
+  -> 文件收集 / inline 上传 / history split
+  -> completion payload
+  -> 下游网页对话接口
+```
+
+对应的关键代码入口：
+
+- OpenAI Chat / Responses：
+  [internal/adapter/openai/standard_request.go](../internal/adapter/openai/standard_request.go)
+- OpenAI prompt 组装：
+  [internal/adapter/openai/prompt_build.go](../internal/adapter/openai/prompt_build.go)
+- OpenAI 消息标准化：
+  [internal/adapter/openai/message_normalize.go](../internal/adapter/openai/message_normalize.go)
+- Claude 标准化：
+  [internal/adapter/claude/standard_request.go](../internal/adapter/claude/standard_request.go)
+- Claude 消息与 tool_use/tool_result 归一：
+  [internal/adapter/claude/handler_utils.go](../internal/adapter/claude/handler_utils.go)
+- Gemini 复用 OpenAI prompt builder：
+  [internal/adapter/gemini/convert_request.go](../internal/adapter/gemini/convert_request.go)
+- DeepSeek prompt 角色标记拼装：
+  [internal/prompt/messages.go](../internal/prompt/messages.go)
+- prompt 可见 tool history XML：
+  [internal/prompt/tool_calls.go](../internal/prompt/tool_calls.go)
+- completion payload：
+  [internal/util/standard_request.go](../internal/util/standard_request.go)
+
+## 4. 下游真正收到的东西
+
+在“完成标准化后”，下游 completion payload 的核心形态是：
+
+```json
+{
+  "chat_session_id": "session-id",
+  "model_type": "default",
+  "parent_message_id": null,
+  "prompt": "<｜begin▁of▁sentence｜>...",
+  "ref_file_ids": [
+    "file-history",
+    "file-systemprompt",
+    "file-other-attachment"
+  ],
+  "thinking_enabled": true,
+  "search_enabled": false
+}
+```
+
+重点是：
+
+- `prompt` 才是对话上下文主载体。
+- `ref_file_ids` 只承载文件引用，不承载普通文本消息。
+- `tools` 不会作为“原生工具 schema”直接下发给下游，而是被改写进 `prompt`。
+
+## 5. prompt 是怎么拼出来的
+
+### 5.1 角色标记
+
+最终 prompt 使用 DeepSeek 风格角色标记：
+
+- `<｜begin▁of▁sentence｜>`
+- `<｜System｜>`
+- `<｜User｜>`
+- `<｜Assistant｜>`
+- `<｜Tool｜>`
+- `<｜end▁of▁instructions｜>`
+- `<｜end▁of▁sentence｜>`
+- `<｜end▁of▁toolresults｜>`
+
+实现位置：
+[internal/prompt/messages.go](../internal/prompt/messages.go)
+
+### 5.2 thinking continuity 说明
+
+如果启用了 thinking，会在最前面额外插入一个 system block，提醒模型：
+
+- 继续既有会话，不要重开
+- earlier messages 是 binding context
+- 不要把最终回答只留在 reasoning 里
+
+这部分不是客户端原始消息，而是兼容层主动补进去的连续性契约。
+
+### 5.3 相邻同角色消息会合并
+
+在最终 `MessagesPrepareWithThinking` 中，相邻同 role 的消息会被合并成一个块，中间插入空行。
+
+这意味着：
+
+- prompt 中看到的是“合并后的 role block”
+- 不是客户端传来的逐条 message 原样排列
+
+## 6. tools 为什么是“文本注入”，不是原生下发
+
+当前项目把工具能力视为“prompt 约束的一部分”。
+
+具体做法：
+
+1. 把每个 tool 的名称、描述、参数 schema 序列化成文本。
+2. 拼成 `You have access to these tools:` 大段说明。
+3. 再附上统一的 XML tool call 格式约束。
+4. 把这整段内容并入 system prompt。
+
+OpenAI 路径实现：
+[internal/adapter/openai/handler_toolcall_format.go](../internal/adapter/openai/handler_toolcall_format.go)
+
+Claude 路径实现：
+[internal/adapter/claude/handler_utils.go](../internal/adapter/claude/handler_utils.go)
+
+统一工具调用格式模板：
+[internal/toolcall/tool_prompt.go](../internal/toolcall/tool_prompt.go)
+
+这也是项目“网页对话纯文本兼容”的关键设计：
+
+- tools 对下游来说，本质上是 prompt 内规则
+- 不是 native tool schema transport
+
+## 7. assistant 的 tool_calls / reasoning 如何保留
+
+### 7.1 reasoning 保留方式
+
+assistant 的 reasoning 会变成一个显式标签块：
+
+```text
+[reasoning_content]
+...
+[/reasoning_content]
+```
+
+然后再接可见回答正文。
+
+### 7.2 历史 tool_calls 保留方式
+
+assistant 历史 `tool_calls` 不会保留成 OpenAI 原生 JSON，而会转成 prompt 可见的 XML：
+
+```xml
+<tools>
+  <tool_call>
+    <tool_name>read_file</tool_name>
+    <param>
+      <path><![CDATA[src/main.go]]></path>
+    </param>
+  </tool_call>
+</tools>
+```
+
+这件事很重要，因为它决定了：
+
+- 历史工具调用在 prompt 中是“可见文本历史”
+- 不是“隐藏结构化元数据”
+
+实现位置：
+[internal/prompt/tool_calls.go](../internal/prompt/tool_calls.go)
+
+### 7.3 tool result 保留方式
+
+tool / function role 的结果会作为 `<｜Tool｜>...<｜end▁of▁toolresults｜>` 进入 prompt。
+
+如果 tool content 为空，当前会补成字符串 `"null"`，避免整个 tool turn 丢失。
+
+## 8. files、附件、systemprompt 文件的实际语义
+
+这里要明确区分两类东西：
+
+1. 文本型 system prompt
+   例如 OpenAI `developer` / `system` / Responses `instructions` / Claude top-level `system`
+   这类会进入 `prompt`。
+2. 文件型 systemprompt
+   例如通过附件、`input_file`、base64、data URL 上传的文件
+   这类不会直接内联进 `prompt`，而是进入 `ref_file_ids`。
+
+OpenAI 文件相关实现：
+
+- inline/base64/data URL 上传：
+  [internal/adapter/openai/file_inline_upload.go](../internal/adapter/openai/file_inline_upload.go)
+- 文件 ID 收集：
+  [internal/adapter/openai/file_refs.go](../internal/adapter/openai/file_refs.go)
+
+结论：
+
+- “systemprompt 文字”在 prompt 里
+- “systemprompt 文件”通常只在 `ref_file_ids` 里
+
+除非调用方自己把文件内容展开后再塞进 system/developer 文本，否则文件内容不会自动出现在 prompt 正文。
+
+## 9. 多轮历史为什么不会一直完整内联在 prompt
+
+默认情况下，history split 是开启的，且默认从第 2 个 user turn 起就可能触发。
+
+相关实现：
+
+- 配置访问器：
+  [internal/config/store_accessors.go](../internal/config/store_accessors.go)
+- 历史拆分：
+  [internal/adapter/openai/history_split.go](../internal/adapter/openai/history_split.go)
+
+触发后行为：
+
+1. 旧历史消息被切出去。
+2. 旧历史会被重新序列化成一个文本文件。
+3. 文件名固定是 `IGNORE`。
+4. 该文件上传后，其 `file_id` 会排在 `ref_file_ids` 最前面。
+5. live prompt 只保留：
+   - system / developer
+   - 最新 user turn 起的上下文
+
+历史文件内容不是普通自由文本，而是用同一套角色标记再次序列化出的 transcript：
+
+```text
+[file content end]
+
+<｜begin▁of▁sentence｜><｜User｜>...<｜Assistant｜>...<｜Tool｜>...
+
+[file name]: IGNORE
+[file content begin]
+```
+
+所以“完整上下文”在当前实现里，其实通常分散在两处：
+
+- `prompt` 里的 live context
+- `ref_file_ids` 指向的 history transcript file
+
+## 10. 各协议入口的差异
+
+### 10.1 OpenAI Chat / Responses
+
+特点：
+
+- `developer` 会映射到 `system`
+- Responses `instructions` 会 prepend 为 system message
+- `tools` 会注入 system prompt
+- `attachments` / `input_file` / inline 文件会进入 `ref_file_ids`
+- history split 主要在这条链路里生效
+
+### 10.2 Claude Messages
+
+特点：
+
+- top-level `system` 优先作为系统提示
+- `tool_use` / `tool_result` 会被转换成统一的 assistant/tool 历史语义
+- `tools` 同样会被并进 system prompt
+- 当前代码里没有像 OpenAI 那样完整的 `ref_file_ids` 附件链路
+
+### 10.3 Gemini
+
+特点：
+
+- `systemInstruction`、`contents.parts`、`functionCall`、`functionResponse` 会先归一
+- tools 会转成 OpenAI 风格 function schema
+- prompt 构建复用 OpenAI 的 `BuildPromptForAdapter`
+
+也就是说，Gemini 在“最终 prompt 语义”上，尽量和 OpenAI 保持一致。
+
+## 11. 一份贴近真实的最终上下文示意
+
+假设用户发来一个多轮请求：
+
+- 有 system/developer 文本
+- 有 tools
+- 有一个文件型 systemprompt 附件
+- 有历史 assistant tool call / tool result
+- history split 已触发
+
+那么最终上下文更接近：
+
+```json
+{
+  "prompt": "<｜begin▁of▁sentence｜><｜System｜>continuity instructions...\\n\\n原 system / developer\\n\\nYou have access to these tools: ...<｜end▁of▁instructions｜><｜User｜>最新问题<｜Assistant｜>",
+  "ref_file_ids": [
+    "file-history-ignore",
+    "file-systemprompt",
+    "file-other-attachment"
+  ],
+  "thinking_enabled": true,
+  "search_enabled": false
+}
+```
+
+这正是“API 转网页对话纯文本”的核心成果：
+
+- 大部分结构化语义被压进 `prompt`
+- 文件保持文件
+- 历史必要时拆文件
+
+## 12. 修改时必须同步本文档的场景
+
+只要触碰以下任一类行为，就必须在同一提交或同一 PR 中更新本文档：
+
+- 角色映射变更
+- system / developer / instructions 合并规则变更
+- assistant reasoning 保留格式变更
+- assistant 历史 `tool_calls` 的 XML 呈现方式变更
+- tool result 注入方式变更
+- tool prompt 模板或 tool_choice 约束变更
+- inline 文件上传 / 文件引用收集规则变更
+- history split 触发条件、上传格式、`IGNORE` 包装格式变更
+- completion payload 字段语义变更
+- Claude / Gemini 对这套统一语义的复用关系变更
+
+优先检查这些文件：
+
+- `internal/adapter/openai/standard_request.go`
+- `internal/adapter/openai/prompt_build.go`
+- `internal/adapter/openai/message_normalize.go`
+- `internal/adapter/openai/handler_toolcall_format.go`
+- `internal/adapter/openai/file_inline_upload.go`
+- `internal/adapter/openai/file_refs.go`
+- `internal/adapter/openai/history_split.go`
+- `internal/adapter/openai/responses_input_normalize.go`
+- `internal/adapter/claude/standard_request.go`
+- `internal/adapter/claude/handler_utils.go`
+- `internal/adapter/gemini/convert_request.go`
+- `internal/adapter/gemini/convert_messages.go`
+- `internal/adapter/gemini/convert_tools.go`
+- `internal/prompt/messages.go`
+- `internal/prompt/tool_calls.go`
+- `internal/util/standard_request.go`
+
+## 13. 建议的最小验证
+
+改动这条链路后，至少补齐或检查这些测试：
+
+- `go test ./internal/prompt/...`
+- `go test ./internal/adapter/openai/...`
+- `go test ./internal/adapter/claude/...`
+- `go test ./internal/adapter/gemini/...`
+- `go test ./internal/util/...`
+
+如果改的是 tool call 相关兼容语义，还应同时检查：
+
+- `go test ./internal/toolcall/...`
+- `node --test tests/node/stream-tool-sieve.test.js`
+
+## 14. 文档同步约定
+
+本文档是这条兼容链路的专项说明。
+
+如果外部接口行为也变了，还应同步检查：
+
+- [API.md](../API.md)
+- [API.en.md](../API.en.md)
+- [docs/toolcall-semantics.md](./toolcall-semantics.md)
+
+原则是：
+
+- 内部主链路变化，至少更新本文档
+- 外部可见契约变化，再同步更新 API 文档

@@ -39,7 +39,8 @@
   ],
   "model_aliases": {
     "gpt-4o": "deepseek-v4-flash",
-    "gpt-5-codex": "deepseek-v4-pro",
+    "gpt-5.5": "deepseek-v4-flash",
+    "gpt-5.3-codex": "deepseek-v4-pro",
     "o3": "deepseek-v4-pro"
   },
   "compat": {
@@ -55,10 +56,6 @@
   },
   "embeddings": {
     "provider": "deterministic"
-  },
-  "claude_mapping": {
-    "fast": "deepseek-v4-flash",
-    "slow": "deepseek-v4-pro"
   },
   "admin": {
     "jwt_expire_hours": 24

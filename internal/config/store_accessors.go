@@ -6,18 +6,6 @@ import (
 	"strings"
 )
 
-func (s *Store) ClaudeMapping() map[string]string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if len(s.cfg.ClaudeModelMap) > 0 {
-		return cloneStringMap(s.cfg.ClaudeModelMap)
-	}
-	if len(s.cfg.ClaudeMapping) > 0 {
-		return cloneStringMap(s.cfg.ClaudeMapping)
-	}
-	return map[string]string{"fast": "deepseek-v4-flash", "slow": "deepseek-v4-pro"}
-}
-
 func (s *Store) ModelAliases() map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

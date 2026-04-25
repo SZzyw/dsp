@@ -217,9 +217,9 @@ For `chat` / `responses` / `embeddings`, DS2API follows a wide-input/strict-outp
 
 Current built-in default aliases (excerpt):
 
-- OpenAI: `gpt-4o`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-5`, `gpt-5-mini`, `gpt-5-codex`
-- OpenAI reasoning: `o1`, `o1-mini`, `o3`, `o3-mini`
-- Claude: `claude-sonnet-4-5`, `claude-haiku-4-5`, `claude-opus-4-6` (plus compatibility aliases `claude-3-5-sonnet` / `claude-3-5-haiku` / `claude-3-opus`)
+- OpenAI: `gpt-4o`, `gpt-4.1`, `gpt-5.5`, `gpt-5.4-mini`, `gpt-5.3-codex`
+- OpenAI reasoning: `o1`, `o1-mini`, `o3`, `o4-mini`
+- Claude: `claude-sonnet-4-6`, `claude-haiku-4-5`, `claude-opus-4-6` (plus compatibility aliases `claude-3-5-sonnet` / `claude-3-5-haiku` / `claude-3-opus`)
 - Gemini: `gemini-2.5-pro`, `gemini-2.5-flash`
 
 ### `POST /v1/chat/completions`
@@ -235,7 +235,7 @@ Content-Type: application/json
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `model` | string | ✅ | DeepSeek native models + common aliases (`gpt-5`, `gpt-5-mini`, `gpt-5-codex`, `o3`, `claude-opus-4-6`, `gemini-2.5-pro`, `gemini-2.5-flash`, etc.) |
+| `model` | string | ✅ | DeepSeek native models + common aliases (`gpt-5.5`, `gpt-5.4-mini`, `gpt-5.3-codex`, `o3`, `claude-opus-4-6`, `gemini-2.5-pro`, `gemini-2.5-flash`, etc.) |
 | `messages` | array | ✅ | OpenAI-style messages |
 | `stream` | boolean | ❌ | Default `false` |
 | `tools` | array | ❌ | Function calling schema |
@@ -442,17 +442,17 @@ No auth required.
 {
   "object": "list",
   "data": [
-    {"id": "claude-sonnet-4-5", "object": "model", "created": 1715635200, "owned_by": "anthropic"},
+    {"id": "claude-sonnet-4-6", "object": "model", "created": 1715635200, "owned_by": "anthropic"},
     {"id": "claude-haiku-4-5", "object": "model", "created": 1715635200, "owned_by": "anthropic"},
     {"id": "claude-opus-4-6", "object": "model", "created": 1715635200, "owned_by": "anthropic"}
   ],
   "first_id": "claude-opus-4-6",
-  "last_id": "claude-instant-1.0",
+  "last_id": "claude-3-haiku-20240307",
   "has_more": false
 }
 ```
 
-> Note: the example is partial; besides the current primary aliases, the real response also includes Claude 4.x snapshots plus historical 3.x / 2.x / 1.x IDs and common aliases.
+> Note: the example is partial; besides the current primary aliases, the real response also includes Claude 4.x snapshots plus historical 3.x IDs and common aliases.
 
 ### `POST /anthropic/v1/messages`
 
@@ -470,7 +470,7 @@ anthropic-version: 2023-06-01
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `model` | string | ✅ | For example `claude-sonnet-4-5` / `claude-opus-4-6` / `claude-haiku-4-5` (compatible with `claude-3-5-haiku-latest`), plus historical Claude model IDs |
+| `model` | string | ✅ | For example `claude-sonnet-4-6` / `claude-opus-4-6` / `claude-haiku-4-5` (compatible with `claude-3-5-haiku-latest`), plus historical Claude model IDs |
 | `messages` | array | ✅ | Claude-style messages |
 | `max_tokens` | number | ❌ | Auto-filled to `8192` when omitted; not strictly enforced by upstream bridge |
 | `stream` | boolean | ❌ | Default `false` |
@@ -484,7 +484,7 @@ anthropic-version: 2023-06-01
   "id": "msg_1738400000000000000",
   "type": "message",
   "role": "assistant",
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "content": [
     {"type": "text", "text": "response"}
   ],
@@ -538,7 +538,7 @@ data: {"type":"message_stop"}
 
 ```json
 {
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "messages": [
     {"role": "user", "content": "Hello"}
   ]
@@ -666,16 +666,16 @@ Returns sanitized config, including both `keys` and `api_keys`.
       "token_preview": "abcde..."
     }
   ],
-  "claude_mapping": {
-    "fast": "deepseek-v4-flash",
-    "slow": "deepseek-v4-pro"
+  "model_aliases": {
+    "claude-sonnet-4-6": "deepseek-v4-flash",
+    "claude-opus-4-6": "deepseek-v4-pro"
   }
 }
 ```
 
 ### `POST /admin/config`
 
-Only updates `keys`, `api_keys`, `accounts`, and `claude_mapping`.
+Only updates `keys`, `api_keys`, `accounts`, and `model_aliases`.
 If both `api_keys` and `keys` are sent, the structured `api_keys` entries win so `name` / `remark` metadata is preserved; `keys` remains a legacy fallback.
 
 **Request**:
@@ -690,9 +690,9 @@ If both `api_keys` and `keys` are sent, the structured `api_keys` entries win so
   "accounts": [
     {"email": "user@example.com", "password": "pwd", "token": ""}
   ],
-  "claude_mapping": {
-    "fast": "deepseek-v4-flash",
-    "slow": "deepseek-v4-pro"
+  "model_aliases": {
+    "claude-sonnet-4-6": "deepseek-v4-flash",
+    "claude-opus-4-6": "deepseek-v4-pro"
   }
 }
 ```
@@ -707,7 +707,7 @@ Reads runtime settings and status, including:
 - `compat` (`wide_input_strict_output`, `strip_reference_markers`)
 - `responses` / `embeddings`
 - `auto_delete` (`mode`: `none` / `single` / `all`; legacy `sessions=true` is still treated as `all`)
-- `claude_mapping` / `model_aliases`
+- `model_aliases`
 - `env_backed`, `needs_vercel_sync`
 - `toolcall` policy is fixed to `feature_match + high` and is no longer returned or editable via settings
 
@@ -721,7 +721,6 @@ Hot-updates runtime settings. Supported fields:
 - `responses.store_ttl_seconds`
 - `embeddings.provider`
 - `auto_delete.mode`
-- `claude_mapping`
 - `model_aliases`
 - `toolcall` policy is fixed and is no longer writable through settings
 
@@ -746,7 +745,7 @@ Imports full config with:
 
 The request can send config directly, or wrapped as `{"config": {...}, "mode":"merge"}`.
 Query params `?mode=merge` / `?mode=replace` are also supported.
-Import accepts `keys`, `api_keys`, `accounts`, `claude_mapping` / `claude_model_mapping`, `model_aliases`, `admin`, `runtime`, `responses`, `embeddings`, and `auto_delete`; legacy `toolcall` fields are ignored.
+Import accepts `keys`, `api_keys`, `accounts`, `model_aliases`, `admin`, `runtime`, `responses`, `embeddings`, and `auto_delete`; legacy `toolcall` fields are ignored.
 
 > `compat` fields are managed via `/admin/settings` or the config file; this import endpoint does not update `compat`.
 
@@ -1338,7 +1337,7 @@ curl http://localhost:5001/anthropic/v1/messages \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
-    "model": "claude-sonnet-4-5",
+    "model": "claude-sonnet-4-6",
     "max_tokens": 1024,
     "messages": [{"role": "user", "content": "Hello"}]
   }'

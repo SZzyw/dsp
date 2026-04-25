@@ -44,7 +44,7 @@ func (h *Handler) proxyViaOpenAI(w http.ResponseWriter, r *http.Request, store C
 	model, _ := req["model"].(string)
 	stream := util.ToBool(req["stream"])
 
-	// Preserve claude_mapping (fast/slow/opus routing) while proxying via OpenAI.
+	// Use the shared global model resolver so Claude/OpenAI/Gemini stay consistent.
 	translateModel := model
 	if store != nil {
 		if norm, normErr := normalizeClaudeRequest(store, cloneMap(req)); normErr == nil && strings.TrimSpace(norm.Standard.ResolvedModel) != "" {

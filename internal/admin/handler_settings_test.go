@@ -346,6 +346,34 @@ func TestUpdateConfigLegacyKeysPreserveStructuredMetadata(t *testing.T) {
 	}
 }
 
+func TestUpdateConfigReplacesModelAliases(t *testing.T) {
+	h := newAdminTestHandler(t, `{
+		"keys":["k1"],
+		"model_aliases":{"claude-sonnet-4-6":"deepseek-v4-flash"}
+	}`)
+
+	payload := map[string]any{
+		"model_aliases": map[string]any{
+			"gpt-5.5": "deepseek-v4-pro",
+		},
+	}
+	b, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/admin/config", bytes.NewReader(b))
+	rec := httptest.NewRecorder()
+	h.updateConfig(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	snap := h.Store.Snapshot()
+	if len(snap.ModelAliases) != 1 {
+		t.Fatalf("expected aliases to be replaced, got %#v", snap.ModelAliases)
+	}
+	if snap.ModelAliases["gpt-5.5"] != "deepseek-v4-pro" {
+		t.Fatalf("expected updated alias, got %#v", snap.ModelAliases)
+	}
+}
+
 func TestUpdateSettingsPasswordInvalidatesOldJWT(t *testing.T) {
 	hash := authn.HashAdminPassword("old-password")
 	h := newAdminTestHandler(t, `{"admin":{"password_hash":"`+hash+`"}}`)

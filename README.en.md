@@ -120,18 +120,18 @@ For the full module-by-module architecture and directory responsibilities, see [
 | vision | `deepseek-v4-vision` | enabled by default, request-controlled | ❌ |
 | vision | `deepseek-v4-vision-search` | enabled by default, request-controlled | ✅ |
 
-Besides native IDs, DS2API also accepts common aliases as input (for example `gpt-5`, `gpt-5-mini`, `gpt-5-codex`, `gpt-4.1`, `o3`, `claude-opus-4-6`, `claude-sonnet-4-5`, `gemini-2.5-pro`, `gemini-2.5-flash`), but `/v1/models` returns normalized DeepSeek native model IDs.
+Besides native IDs, DS2API also accepts common aliases as input (for example `gpt-5.5`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-4.1`, `o3`, `claude-opus-4-6`, `claude-sonnet-4-6`, `gemini-2.5-pro`, `gemini-2.5-flash`), but `/v1/models` returns normalized DeepSeek native model IDs.
 
 ### Claude Endpoint (`GET /anthropic/v1/models`)
 
 | Current common model | Default Mapping |
 | --- | --- |
-| `claude-sonnet-4-5` | `deepseek-v4-flash` |
+| `claude-sonnet-4-6` | `deepseek-v4-flash` |
 | `claude-haiku-4-5` (compatible with `claude-3-5-haiku-latest`) | `deepseek-v4-flash` |
 | `claude-opus-4-6` | `deepseek-v4-pro` |
 
-Override mapping via `claude_mapping` or `claude_model_mapping` in config.
-Besides the current primary aliases above, `/anthropic/v1/models` also returns Claude 4.x snapshots plus historical 3.x / 2.x / 1.x IDs and common aliases for legacy client compatibility.
+Override mapping via the global `model_aliases` config.
+Besides the current primary aliases above, `/anthropic/v1/models` also returns Claude 4.x snapshots plus historical 3.x IDs and common aliases for legacy client compatibility.
 
 #### Claude Code integration pitfalls (validated)
 
@@ -295,10 +295,6 @@ The server actually binds to `0.0.0.0:5001`, so devices on the same LAN can usua
   "embeddings": {
     "provider": "deterministic"
   },
-  "claude_mapping": {
-    "fast": "deepseek-v4-flash",
-    "slow": "deepseek-v4-pro"
-  },
   "admin": {
     "jwt_expire_hours": 24
   },
@@ -317,13 +313,12 @@ The server actually binds to `0.0.0.0:5001`, so devices on the same LAN can usua
 - `keys`: API access keys; clients authenticate via `Authorization: Bearer <key>`
 - `accounts`: DeepSeek account list, supports `email` or `mobile` login
 - `token`: Even if set in `config.json`, it is cleared during load (DS2API does not read persisted tokens from config); runtime tokens are maintained/refreshed in memory only
-- `model_aliases`: Map common model names (GPT/Codex/Claude) to DeepSeek models
+- `model_aliases`: Single global alias map shared by OpenAI / Claude / Gemini model names
 - `compat.wide_input_strict_output`: Keep `true` (current default policy)
 - `compat.strip_reference_markers`: Keep `true`; it strips reference markers from visible output
 - `toolcall`: Legacy field; the current behavior is fixed to feature matching + high-confidence early emit, and any config value is ignored
 - `responses.store_ttl_seconds`: In-memory TTL for `/v1/responses/{id}`
 - `embeddings.provider`: Embeddings provider (`deterministic/mock/builtin` built-in)
-- `claude_mapping`: Maps `fast`/`slow` suffixes to corresponding DeepSeek models (still compatible with `claude_model_mapping`)
 - `admin`: Admin panel settings (JWT expiry, password hash, etc.), hot-reloadable via Admin Settings API
 - `runtime`: Runtime parameters (concurrency limits, queue sizes, managed token refresh interval), hot-reloadable via Admin Settings API; `account_max_queue=0`/`global_max_inflight=0` means auto-calculate from recommended values, `token_refresh_interval_hours=6` is the default forced re-login interval
 - `auto_delete.mode`: How to clean up DeepSeek remote chat records after each request completes. Supported values: `none` (default, no deletion), `single` (delete only the current session), `all` (delete all sessions); legacy `auto_delete.sessions=true` is still treated as `all`

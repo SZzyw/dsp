@@ -20,6 +20,47 @@ func TestResolveModelAlias(t *testing.T) {
 	}
 }
 
+func TestResolveLatestOpenAIAlias(t *testing.T) {
+	got, ok := ResolveModel(nil, "gpt-5.5")
+	if !ok || got != "deepseek-v4-flash" {
+		t.Fatalf("expected alias gpt-5.5 -> deepseek-v4-flash, got ok=%v model=%q", ok, got)
+	}
+}
+
+func TestResolveLatestClaudeAlias(t *testing.T) {
+	got, ok := ResolveModel(nil, "claude-sonnet-4-6")
+	if !ok || got != "deepseek-v4-flash" {
+		t.Fatalf("expected alias claude-sonnet-4-6 -> deepseek-v4-flash, got ok=%v model=%q", ok, got)
+	}
+}
+
+func TestResolveExpandedHistoricalAliases(t *testing.T) {
+	cases := []struct {
+		name  string
+		model string
+		want  string
+	}{
+		{name: "openai old chatgpt", model: "chatgpt-4o", want: "deepseek-v4-flash"},
+		{name: "openai codex max", model: "gpt-5.1-codex-max", want: "deepseek-v4-pro"},
+		{name: "openai deep research", model: "o3-deep-research", want: "deepseek-v4-pro-search"},
+		{name: "openai historical reasoning", model: "o1-preview", want: "deepseek-v4-pro"},
+		{name: "claude latest historical", model: "claude-3-5-sonnet-latest", want: "deepseek-v4-flash"},
+		{name: "claude historical opus", model: "claude-3-opus-20240229", want: "deepseek-v4-pro"},
+		{name: "claude historical haiku", model: "claude-3-haiku-20240307", want: "deepseek-v4-flash"},
+		{name: "gemini latest alias", model: "gemini-flash-latest", want: "deepseek-v4-flash"},
+		{name: "gemini historical pro", model: "gemini-1.5-pro", want: "deepseek-v4-pro"},
+		{name: "gemini vision legacy", model: "gemini-pro-vision", want: "deepseek-v4-vision"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := ResolveModel(nil, tc.model)
+			if !ok || got != tc.want {
+				t.Fatalf("expected alias %s -> %s, got ok=%v model=%q", tc.model, tc.want, ok, got)
+			}
+		})
+	}
+}
+
 func TestResolveModelHeuristicReasoner(t *testing.T) {
 	got, ok := ResolveModel(nil, "o3-super")
 	if !ok || got != "deepseek-v4-pro" {
@@ -47,6 +88,19 @@ func TestResolveModelRejectsLegacyDeepSeekIDs(t *testing.T) {
 	for _, model := range legacyModels {
 		if got, ok := ResolveModel(nil, model); ok {
 			t.Fatalf("expected legacy model %q to be rejected, got %q", model, got)
+		}
+	}
+}
+
+func TestResolveModelRejectsRetiredHistoricalModels(t *testing.T) {
+	retiredModels := []string{
+		"claude-2.1",
+		"claude-instant-1.2",
+		"gpt-3.5-turbo",
+	}
+	for _, model := range retiredModels {
+		if got, ok := ResolveModel(nil, model); ok {
+			t.Fatalf("expected retired model %q to be rejected, got %q", model, got)
 		}
 	}
 }
