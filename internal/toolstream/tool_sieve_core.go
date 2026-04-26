@@ -193,5 +193,8 @@ func consumeToolCapture(state *State, toolNames []string) (prefix string, calls 
 	if hasOpenXMLToolTag(captured) {
 		return "", nil, "", false
 	}
-	return "", nil, "", false
+	if shouldKeepBareInvokeCapture(captured) {
+		return "", nil, "", false
+	}
+	return captured, nil, "", true
 }

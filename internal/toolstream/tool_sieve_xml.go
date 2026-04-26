@@ -90,6 +90,38 @@ func hasOpenXMLToolTag(captured string) bool {
 	return false
 }
 
+func shouldKeepBareInvokeCapture(captured string) bool {
+	lower := strings.ToLower(captured)
+	invokeIdx := strings.Index(lower, "<invoke")
+	if invokeIdx < 0 || strings.Contains(lower, "<tool_calls") {
+		return false
+	}
+	if findXMLCloseOutsideCDATA(captured, "</tool_calls>", invokeIdx) > invokeIdx {
+		return true
+	}
+
+	startEnd := findXMLTagEnd(captured, invokeIdx+len("<invoke"))
+	if startEnd < 0 {
+		return true
+	}
+	body := captured[startEnd+1:]
+	trimmedBody := strings.TrimLeft(body, " \t\r\n")
+	if trimmedBody == "" {
+		return true
+	}
+
+	invokeCloseIdx := findXMLCloseOutsideCDATA(captured, "</invoke>", startEnd+1)
+	if invokeCloseIdx >= 0 {
+		afterClose := captured[invokeCloseIdx+len("</invoke>"):]
+		return strings.TrimSpace(afterClose) == ""
+	}
+
+	trimmedLower := strings.ToLower(trimmedBody)
+	return strings.HasPrefix(trimmedLower, "<parameter") ||
+		strings.HasPrefix(trimmedLower, "{") ||
+		strings.HasPrefix(trimmedLower, "[")
+}
+
 func findXMLCloseOutsideCDATA(s, closeTag string, start int) int {
 	if s == "" || closeTag == "" {
 		return -1
@@ -117,6 +149,27 @@ func findXMLCloseOutsideCDATA(s, closeTag string, start int) int {
 			return i
 		default:
 			i++
+		}
+	}
+	return -1
+}
+
+func findXMLTagEnd(s string, start int) int {
+	quote := byte(0)
+	for i := start; i < len(s); i++ {
+		ch := s[i]
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		if ch == '"' || ch == '\'' {
+			quote = ch
+			continue
+		}
+		if ch == '>' {
+			return i
 		}
 	}
 	return -1
