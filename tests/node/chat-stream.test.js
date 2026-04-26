@@ -2,8 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
 
 const handler = require('../../api/chat-stream.js');
+const { handleVercelStream } = require('../../internal/js/chat-stream/vercel_stream.js');
 const {
   createToolSieveState,
   processToolSieveChunk,
@@ -41,9 +43,156 @@ function createMockResponse() {
   };
 }
 
+class MockStreamRequest extends EventEmitter {
+  constructor() {
+    super();
+    this.url = '/v1/chat/completions';
+    this.headers = { host: 'example.test', 'content-type': 'application/json' };
+  }
+}
+
+class MockStreamResponse extends EventEmitter {
+  constructor() {
+    super();
+    this.headers = new Map();
+    this.statusCode = 0;
+    this.chunks = [];
+    this.writableEnded = false;
+    this.destroyed = false;
+  }
+
+  setHeader(key, value) {
+    this.headers.set(String(key).toLowerCase(), value);
+  }
+
+  getHeader(key) {
+    return this.headers.get(String(key).toLowerCase());
+  }
+
+  write(chunk) {
+    this.chunks.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+    return true;
+  }
+
+  end(chunk) {
+    if (chunk) {
+      this.write(chunk);
+    }
+    this.writableEnded = true;
+  }
+
+  flushHeaders() {}
+
+  flush() {}
+
+  bodyText() {
+    return this.chunks.join('');
+  }
+}
+
+function jsonResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function sseResponse(lines) {
+  const encoder = new TextEncoder();
+  return new Response(new ReadableStream({
+    start(controller) {
+      for (const line of lines) {
+        controller.enqueue(encoder.encode(line));
+      }
+      controller.close();
+    },
+  }), {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' },
+  });
+}
+
+function parseSSEDataFrames(body) {
+  return body
+    .split('\n\n')
+    .map((frame) => frame.trim())
+    .filter((frame) => frame.startsWith('data:'))
+    .map((frame) => frame.slice(5).trim());
+}
+
+async function runMockVercelStream(upstreamLines, prepareOverrides = {}) {
+  const originalFetch = global.fetch;
+  const fetchURLs = [];
+  const prepareBody = {
+    session_id: 'chatcmpl-test',
+    lease_id: 'lease-test',
+    model: 'gpt-test',
+    final_prompt: 'hello',
+    thinking_enabled: false,
+    search_enabled: false,
+    compat: { strip_reference_markers: true },
+    tool_names: [],
+    deepseek_token: 'deepseek-token',
+    pow_header: 'pow-header',
+    payload: { prompt: 'hello' },
+    ...prepareOverrides,
+  };
+  global.fetch = async (url) => {
+    const textURL = String(url);
+    fetchURLs.push(textURL);
+    if (textURL.includes('__stream_prepare=1')) {
+      return jsonResponse(prepareBody);
+    }
+    if (textURL.includes('__stream_release=1')) {
+      return jsonResponse({ success: true });
+    }
+    return sseResponse(upstreamLines);
+  };
+  try {
+    const req = new MockStreamRequest();
+    const res = new MockStreamResponse();
+    const payload = { model: 'gpt-test', stream: true };
+    await handleVercelStream(req, res, Buffer.from(JSON.stringify(payload)), payload);
+    return { res, frames: parseSSEDataFrames(res.bodyText()), fetchURLs };
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
 test('chat-stream exposes parser test hooks', () => {
   assert.equal(typeof parseChunkForContent, 'function');
   assert.equal(typeof resolveToolcallPolicy, 'function');
+});
+
+test('vercel stream emits Go-parity empty-output failure on DONE', async () => {
+  const { frames } = await runMockVercelStream(['data: [DONE]\n\n']);
+  assert.equal(frames.length, 2);
+  const failed = JSON.parse(frames[0]);
+  assert.equal(failed.status_code, 429);
+  assert.equal(failed.error.type, 'rate_limit_error');
+  assert.equal(failed.error.code, 'upstream_empty_output');
+  assert.equal(frames[1], '[DONE]');
+});
+
+test('vercel stream emits content_filter failure when upstream filters empty output', async () => {
+  const { frames } = await runMockVercelStream(['data: {"code":"content_filter"}\n\n']);
+  assert.equal(frames.length, 2);
+  const failed = JSON.parse(frames[0]);
+  assert.equal(failed.status_code, 400);
+  assert.equal(failed.error.type, 'invalid_request_error');
+  assert.equal(failed.error.code, 'content_filter');
+  assert.equal(frames[1], '[DONE]');
+});
+
+test('vercel stream keeps stop finish when content_filter arrives after visible text', async () => {
+  const { frames } = await runMockVercelStream([
+    'data: {"p":"response/content","v":"hello"}\n\n',
+    'data: {"code":"content_filter"}\n\n',
+  ]);
+  const parsed = frames.filter((frame) => frame !== '[DONE]').map((frame) => JSON.parse(frame));
+  assert.equal(parsed[0].choices[0].delta.content, 'hello');
+  assert.equal(parsed[1].choices[0].finish_reason, 'stop');
+  assert.equal(parsed[1].usage.completion_tokens, 1);
 });
 
 test('resolveToolcallPolicy defaults to feature-match + early emit when prepare flags missing', () => {

@@ -311,6 +311,7 @@ api/index.go  api/chat-stream.js
 
 - `api/chat-stream.js` 仅对非流式请求回退到 Go 入口（`?__go=1`）
 - 流式请求（包括带 `tools`）走 Node 路径，并执行与 Go 对齐的 tool-call 防泄漏处理
+- Node 流式路径同时对齐 Go 的终结态语义：空可见输出会返回同形状错误 SSE，空 `content_filter` 会返回 `content_filter` 错误
 - WebUI 的"非流式测试"直接请求 `?__go=1`，避免 Node 中转造成长请求超时
 
 #### 函数时长

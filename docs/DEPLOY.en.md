@@ -301,6 +301,7 @@ Vercel Go Runtime applies platform-level response buffering, so this project use
 
 - `api/chat-stream.js` falls back to Go entry (`?__go=1`) for non-stream requests only
 - Streaming requests (including requests with `tools`) stay on the Node path and use Go-aligned tool-call anti-leak handling
+- The Node stream path also mirrors Go finalization semantics: empty visible output returns the same shaped error SSE, and empty `content_filter` returns a `content_filter` error
 - WebUI non-stream test calls `?__go=1` directly to avoid Node hop timeout on long requests
 
 #### Function Duration
