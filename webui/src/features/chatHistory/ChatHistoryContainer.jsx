@@ -8,8 +8,6 @@ const LIMIT_OPTIONS = [0, 10, 20, 50]
 const DISABLED_LIMIT = 0
 const MESSAGE_COLLAPSE_AT = 700
 const VIEW_MODE_KEY = 'ds2api_chat_history_view_mode'
-const HISTORY_WRAPPER_PREFIX = '[file content end]\n\n'
-const HISTORY_WRAPPER_SUFFIX = '\n[file name]: IGNORE\n[file content begin]'
 const BEGIN_SENTENCE_MARKER = '<｜begin▁of▁sentence｜>'
 const USER_MARKER = '<｜User｜>'
 const ASSISTANT_MARKER = '<｜Assistant｜>'
@@ -111,29 +109,20 @@ function MergeModeIcon() {
     )
 }
 
-function unwrapHistoryTranscript(historyText) {
-    const trimmed = String(historyText || '').trim()
-    if (!trimmed) return null
-
-    if (trimmed.startsWith(HISTORY_WRAPPER_PREFIX)) {
-        if (!trimmed.endsWith(HISTORY_WRAPPER_SUFFIX)) return null
-        return trimmed.slice(HISTORY_WRAPPER_PREFIX.length, trimmed.length - HISTORY_WRAPPER_SUFFIX.length).trim()
+function skipWhitespace(text, start) {
+    let cursor = start
+    while (cursor < text.length && /\s/.test(text[cursor])) {
+        cursor += 1
     }
-
-    if (
-        trimmed.includes('[file content end]')
-        || trimmed.includes('[file name]: IGNORE')
-        || trimmed.includes('[file content begin]')
-    ) {
-        return null
-    }
-
-    return trimmed
+    return cursor
 }
 
 function parseStrictHistoryMessages(historyText) {
-    const transcript = unwrapHistoryTranscript(historyText)
-    if (!transcript || !transcript.startsWith(BEGIN_SENTENCE_MARKER)) return null
+    const rawText = String(historyText || '')
+    const beginIndex = rawText.indexOf(BEGIN_SENTENCE_MARKER)
+    if (beginIndex < 0) return null
+
+    const transcript = rawText.slice(beginIndex)
 
     let cursor = BEGIN_SENTENCE_MARKER.length
     const parsed = []
@@ -160,7 +149,7 @@ function parseStrictHistoryMessages(historyText) {
             const nextSentenceEnd = transcript.indexOf(END_SENTENCE_MARKER, cursor)
             if (nextAssistant < 0) return null
             if (nextSentenceEnd >= 0 && nextSentenceEnd < nextAssistant) {
-                const assistantStart = nextSentenceEnd + END_SENTENCE_MARKER.length
+                const assistantStart = skipWhitespace(transcript, nextSentenceEnd + END_SENTENCE_MARKER.length)
                 if (!transcript.startsWith(ASSISTANT_MARKER, assistantStart)) return null
                 parsed.push({
                     role: 'user',
@@ -175,7 +164,7 @@ function parseStrictHistoryMessages(historyText) {
                 content: transcript.slice(cursor, nextAssistant),
             })
             const assistantStart = nextAssistant + ASSISTANT_MARKER.length
-            if (transcript.slice(assistantStart).trim() === '') {
+            if (transcript.indexOf(END_SENTENCE_MARKER, assistantStart) < 0) {
                 trailingAssistantPromptOnly = true
                 cursor = assistantStart
                 break
@@ -199,6 +188,7 @@ function parseStrictHistoryMessages(historyText) {
             continue
         }
 
+        if (parsed.length && expectedRole === 'user') break
         if (transcript.slice(cursor).trim() === '') break
         return null
     }
