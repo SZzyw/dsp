@@ -121,8 +121,8 @@ func emptyOutputRetryMaxAttempts() int {
 	return shared.EmptyOutputRetryMaxAttempts()
 }
 
-func clonePayloadWithEmptyOutputRetryPrompt(payload map[string]any) map[string]any {
-	return shared.ClonePayloadWithEmptyOutputRetryPrompt(payload)
+func clonePayloadForEmptyOutputRetry(payload map[string]any, parentMessageID int) map[string]any {
+	return shared.ClonePayloadForEmptyOutputRetry(payload, parentMessageID)
 }
 
 func usagePromptWithEmptyOutputRetry(originalPrompt string, retryAttempts int) string {

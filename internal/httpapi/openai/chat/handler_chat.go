@@ -22,6 +22,10 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 		h.handleVercelStreamRelease(w, r)
 		return
 	}
+	if isVercelStreamPowRequest(r) {
+		h.handleVercelStreamPow(w, r)
+		return
+	}
 	if isVercelStreamPrepareRequest(r) {
 		h.handleVercelStreamPrepare(w, r)
 		return
