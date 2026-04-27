@@ -6,7 +6,7 @@ func TestNormalizeGeminiRequestNoThinkingModelForcesThinkingOff(t *testing.T) {
 	req := map[string]any{
 		"contents": []any{
 			map[string]any{
-				"role": "user",
+				"role":  "user",
 				"parts": []any{map[string]any{"text": "hello"}},
 			},
 		},

@@ -83,8 +83,8 @@ func TestNormalizeOpenAIChatRequestWithConfigInterface(t *testing.T) {
 func TestNormalizeOpenAIChatRequestDisablesThinkingForNoThinkingModel(t *testing.T) {
 	cfg := mockOpenAIConfig{wideInput: true}
 	req := map[string]any{
-		"model": "deepseek-v4-pro-nothinking",
-		"messages": []any{map[string]any{"role": "user", "content": "hello"}},
+		"model":            "deepseek-v4-pro-nothinking",
+		"messages":         []any{map[string]any{"role": "user", "content": "hello"}},
 		"reasoning_effort": "high",
 	}
 	out, err := promptcompat.NormalizeOpenAIChatRequest(cfg, req, "")

@@ -748,17 +748,17 @@ func TestOpenAIModelsResponse(t *testing.T) {
 		t.Fatal("expected non-empty models list")
 	}
 	expected := map[string]bool{
-		"deepseek-v4-flash":              false,
-		"deepseek-v4-flash-nothinking":   false,
-		"deepseek-v4-pro":                false,
-		"deepseek-v4-pro-nothinking":     false,
-		"deepseek-v4-flash-search":       false,
-		"deepseek-v4-flash-search-nothinking": false,
-		"deepseek-v4-pro-search":         false,
-		"deepseek-v4-pro-search-nothinking": false,
-		"deepseek-v4-vision":             false,
-		"deepseek-v4-vision-nothinking":  false,
-		"deepseek-v4-vision-search":      false,
+		"deepseek-v4-flash":                    false,
+		"deepseek-v4-flash-nothinking":         false,
+		"deepseek-v4-pro":                      false,
+		"deepseek-v4-pro-nothinking":           false,
+		"deepseek-v4-flash-search":             false,
+		"deepseek-v4-flash-search-nothinking":  false,
+		"deepseek-v4-pro-search":               false,
+		"deepseek-v4-pro-search-nothinking":    false,
+		"deepseek-v4-vision":                   false,
+		"deepseek-v4-vision-nothinking":        false,
+		"deepseek-v4-vision-search":            false,
 		"deepseek-v4-vision-search-nothinking": false,
 	}
 	for _, model := range data {
