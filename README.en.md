@@ -28,6 +28,30 @@ Documentation entry: [Docs Index](docs/README.md) / [Architecture](docs/ARCHITEC
 >
 > Do not use this project in ways that violate service terms, agreements, laws, or platform rules. Before any commercial use, review the `LICENSE`, the relevant terms, and confirm that you have the author's written permission.
 
+## Table of Contents
+
+- [Architecture Overview (Summary)](#architecture-overview-summary)
+- [Key Capabilities](#key-capabilities)
+- [Platform Compatibility Matrix](#platform-compatibility-matrix)
+- [Model Support](#model-support)
+  - [OpenAI Endpoint](#openai-endpoint-get-v1models)
+  - [Claude Endpoint](#claude-endpoint-get-anthropicv1models)
+  - [Gemini Endpoint](#gemini-endpoint)
+- [Quick Start](#quick-start)
+  - [Option 1: Download Release Binaries](#option-1-download-release-binaries)
+  - [Option 2: Docker / GHCR](#option-2-docker--ghcr)
+  - [Option 3: Vercel](#option-3-vercel)
+  - [Option 4: Local Run](#option-4-local-run)
+- [Configuration](#configuration)
+- [Authentication Modes](#authentication-modes)
+- [Concurrency Model](#concurrency-model)
+- [Tool Call Adaptation](#tool-call-adaptation)
+- [Local Dev Packet Capture](#local-dev-packet-capture)
+- [Documentation Index](#documentation-index)
+- [Testing](#testing)
+- [Release Artifact Automation (GitHub Actions)](#release-artifact-automation-github-actions)
+- [Disclaimer](#disclaimer)
+
 ## Architecture Overview (Summary)
 
 ```mermaid
