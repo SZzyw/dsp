@@ -9,6 +9,7 @@ type StandardRequest struct {
 	ResponseModel           string
 	Messages                []any
 	HistoryText             string
+	PromptTokenText         string
 	CurrentInputFileApplied bool
 	ToolsRaw                any
 	FinalPrompt             string
