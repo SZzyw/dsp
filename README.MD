@@ -131,6 +131,8 @@ flowchart LR
 | WebUI 管理台 | `/admin` 单页应用（中英文双语、深色模式，支持查看服务器端对话记录） |
 | 运维探针 | `GET /healthz`（存活）、`GET /readyz`（就绪） |
 
+OpenAI `/v1/*` 仍是推荐的规范路径；同时支持 `/models`、`/chat/completions`、`/responses`、`/embeddings`、`/files` 等根路径快捷路由，方便只配置 DS2API 根地址的第三方客户端。
+
 ## 平台兼容矩阵
 
 | 级别 | 平台 | 当前状态 |
