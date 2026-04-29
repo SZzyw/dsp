@@ -35,6 +35,10 @@ func (s Service) ApplyCurrentInputFile(ctx context.Context, a *auth.RequestAuth,
 	if strings.TrimSpace(fileText) == "" {
 		return stdReq, errors.New("current user input file produced empty transcript")
 	}
+	originalPromptTokenText := strings.TrimSpace(stdReq.PromptTokenText)
+	if originalPromptTokenText == "" {
+		originalPromptTokenText = strings.TrimSpace(stdReq.FinalPrompt)
+	}
 
 	result, err := s.DS.UploadFile(ctx, a, dsclient.UploadFileRequest{
 		Filename:    currentInputFilename,
@@ -61,6 +65,7 @@ func (s Service) ApplyCurrentInputFile(ctx context.Context, a *auth.RequestAuth,
 	stdReq.CurrentInputFileApplied = true
 	stdReq.RefFileIDs = prependUniqueRefFileID(stdReq.RefFileIDs, fileID)
 	stdReq.FinalPrompt, stdReq.ToolNames = promptcompat.BuildOpenAIPrompt(messages, stdReq.ToolsRaw, "", stdReq.ToolChoice, stdReq.Thinking)
+	stdReq.PromptTokenText = originalPromptTokenText
 	return stdReq, nil
 }
 
