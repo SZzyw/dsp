@@ -2,10 +2,10 @@ package openai
 
 import "ds2api/internal/util"
 
-func BuildChatUsage(finalPrompt, finalThinking, finalText string) map[string]any {
-	promptTokens := util.EstimateTokens(finalPrompt)
-	reasoningTokens := util.EstimateTokens(finalThinking)
-	completionTokens := util.EstimateTokens(finalText)
+func BuildChatUsageForModel(model, finalPrompt, finalThinking, finalText string) map[string]any {
+	promptTokens := util.CountPromptTokens(finalPrompt, model)
+	reasoningTokens := util.CountOutputTokens(finalThinking, model)
+	completionTokens := util.CountOutputTokens(finalText, model)
 	return map[string]any{
 		"prompt_tokens":     promptTokens,
 		"completion_tokens": reasoningTokens + completionTokens,
@@ -16,13 +16,21 @@ func BuildChatUsage(finalPrompt, finalThinking, finalText string) map[string]any
 	}
 }
 
-func BuildResponsesUsage(finalPrompt, finalThinking, finalText string) map[string]any {
-	promptTokens := util.EstimateTokens(finalPrompt)
-	reasoningTokens := util.EstimateTokens(finalThinking)
-	completionTokens := util.EstimateTokens(finalText)
+func BuildChatUsage(finalPrompt, finalThinking, finalText string) map[string]any {
+	return BuildChatUsageForModel("", finalPrompt, finalThinking, finalText)
+}
+
+func BuildResponsesUsageForModel(model, finalPrompt, finalThinking, finalText string) map[string]any {
+	promptTokens := util.CountPromptTokens(finalPrompt, model)
+	reasoningTokens := util.CountOutputTokens(finalThinking, model)
+	completionTokens := util.CountOutputTokens(finalText, model)
 	return map[string]any{
 		"input_tokens":  promptTokens,
 		"output_tokens": reasoningTokens + completionTokens,
 		"total_tokens":  promptTokens + reasoningTokens + completionTokens,
 	}
+}
+
+func BuildResponsesUsage(finalPrompt, finalThinking, finalText string) map[string]any {
+	return BuildResponsesUsageForModel("", finalPrompt, finalThinking, finalText)
 }
