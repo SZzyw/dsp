@@ -249,7 +249,7 @@ OpenAI 文件相关实现：
 
 兼容层现在只保留 `current_input_file` 这一种拆分方式；旧的 `history_split` 已废弃，只保留为兼容旧配置的字段，不再参与请求处理。
 
-- `current_input_file` 默认开启；它用于把“完整上下文”合并进 `DS2API_HISTORY.txt` 上下文文件。当最新 user turn 的纯文本长度达到 `current_input_file.min_chars`（默认 `0`）时，兼容层会上传一个文件名为 `DS2API_HISTORY.txt` 的上下文文件。文件内容会先做 OpenAI 消息标准化，再序列化成按轮次编号的 `DS2API_HISTORY.txt` 风格 transcript，带有 `# DS2API_HISTORY.txt` 标题和 `=== N. ROLE ===` 分段；live prompt 中则只保留一个中性的 user 消息要求模型直接回答最新请求，不再暴露文件名或要求模型读取本地文件。
+- `current_input_file` 默认开启；它用于把“完整上下文”合并进 `DS2API_HISTORY.txt` 上下文文件。当最新 user turn 的纯文本长度达到 `current_input_file.min_chars`（默认 `0`）时，兼容层会上传一个文件名为 `DS2API_HISTORY.txt` 的上下文文件。文件内容会先做 OpenAI 消息标准化，再序列化成按轮次编号的 `DS2API_HISTORY.txt` 风格 transcript，带有 `# DS2API_HISTORY.txt` 标题和 `=== N. ROLE ===` 分段；live prompt 中则会给出一个 continuation 语气的 user 消息，引导模型从 `DS2API_HISTORY.txt` 的最新状态继续推进，并直接回答最新请求，避免把任务拉回起点。
 - 如果 `current_input_file.enabled=false`，请求会直接透传，不上传任何拆分上下文文件。
 - 旧的 `history_split.enabled` / `history_split.trigger_after_turns` 会被读取进配置对象以保持兼容，但不会触发拆分上传，也不会影响 `current_input_file` 的默认开启。
 - 即使触发 `current_input_file` 后 live prompt 被缩短，对客户端回包里的上下文 token 统计，仍会沿用**拆分前的完整 prompt 语义**做计数，而不是按缩短后的占位 prompt 计算；否则会把真实上下文显著算小。
@@ -332,7 +332,7 @@ Prior conversation history and tool progress.
 
 ```json
 {
-  "prompt": "<｜begin▁of▁sentence｜><｜System｜>原 system / developer\n\nYou have access to these tools: ...<｜end▁of▁instructions｜><｜User｜>The current request and prior conversation context have already been provided. Answer the latest user request directly.<｜Assistant｜>",
+  "prompt": "<｜begin▁of▁sentence｜><｜System｜>原 system / developer\n\nYou have access to these tools: ...<｜end▁of▁instructions｜><｜User｜>Continue from the latest state in the attached DS2API_HISTORY.txt context. Treat it as the current working state and answer the latest user request directly.<｜Assistant｜>",
   "ref_file_ids": [
     "file-current-input-ignore",
     "file-systemprompt",

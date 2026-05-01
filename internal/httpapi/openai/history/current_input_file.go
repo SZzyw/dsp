@@ -62,7 +62,7 @@ func (s Service) ApplyCurrentInputFile(ctx context.Context, a *auth.RequestAuth,
 	stdReq.RefFileIDs = prependUniqueRefFileID(stdReq.RefFileIDs, fileID)
 	stdReq.FinalPrompt, stdReq.ToolNames = promptcompat.BuildOpenAIPrompt(messages, stdReq.ToolsRaw, "", stdReq.ToolChoice, stdReq.Thinking)
 	// Token accounting must reflect the actual downstream context:
-	// the uploaded DS2API_HISTORY.txt file content + the neutral live prompt.
+	// the uploaded DS2API_HISTORY.txt file content + the continuation live prompt.
 	stdReq.PromptTokenText = fileText + "\n" + stdReq.FinalPrompt
 	return stdReq, nil
 }
@@ -87,5 +87,5 @@ func latestUserInputForFile(messages []any) (int, string) {
 }
 
 func currentInputFilePrompt() string {
-	return "The current request and prior conversation context have already been provided. Answer the latest user request directly."
+	return "Continue from the latest state in the attached DS2API_HISTORY.txt context. Treat it as the current working state and answer the latest user request directly."
 }
