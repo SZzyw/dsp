@@ -64,8 +64,8 @@ cp config.example.json config.json
 
 仓库内置 GitHub Actions 工作流：`.github/workflows/release-artifacts.yml`
 
-- **触发条件**：仅在 Release `published` 时触发（普通 push 不会构建）
-- **构建产物**：多平台二进制压缩包 + `sha256sums.txt`
+- **触发条件**：默认仅在 Release `published` 时自动触发；也支持在 Actions 页面手动 `workflow_dispatch`，并填写 `release_tag` 复跑/补发
+- **构建产物**：多平台二进制压缩包、Linux Docker 镜像导出包 + `sha256sums.txt`
 - **容器镜像发布**：仅发布到 GHCR（`ghcr.io/cjackhwang/ds2api`）
 
 | 平台 | 架构 | 文件格式 |
@@ -429,7 +429,7 @@ go run ./cmd/ds2api
 
 ```bash
 cd webui
-npm install
+npm ci
 npm run build
 # 产物输出到 static/admin/
 ```

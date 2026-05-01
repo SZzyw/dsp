@@ -64,8 +64,8 @@ Use `config.json` as the single source of truth:
 
 Built-in GitHub Actions workflow: `.github/workflows/release-artifacts.yml`
 
-- **Trigger**: only on Release `published` (no build on normal push)
-- **Outputs**: multi-platform binary archives + `sha256sums.txt`
+- **Trigger**: by default only on Release `published`; you can also run it manually via `workflow_dispatch` and pass `release_tag` to rerun / backfill
+- **Outputs**: multi-platform binary archives, Linux Docker image export tarballs, and `sha256sums.txt`
 - **Container publishing**: GHCR only (`ghcr.io/cjackhwang/ds2api`)
 
 | Platform | Architecture | Format |
@@ -419,7 +419,7 @@ Or step by step:
 
 ```bash
 cd webui
-npm install
+npm ci
 npm run build
 # Output goes to static/admin/
 ```
