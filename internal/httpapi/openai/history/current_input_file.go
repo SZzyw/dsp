@@ -62,7 +62,7 @@ func (s Service) ApplyCurrentInputFile(ctx context.Context, a *auth.RequestAuth,
 	stdReq.RefFileIDs = prependUniqueRefFileID(stdReq.RefFileIDs, fileID)
 	stdReq.FinalPrompt, stdReq.ToolNames = promptcompat.BuildOpenAIPrompt(messages, stdReq.ToolsRaw, "", stdReq.ToolChoice, stdReq.Thinking)
 	// Token accounting must reflect the actual downstream context:
-	// the uploaded history.txt file content + the neutral live prompt.
+	// the uploaded HISTORY.txt file content + the neutral live prompt.
 	stdReq.PromptTokenText = fileText + "\n" + stdReq.FinalPrompt
 	return stdReq, nil
 }
