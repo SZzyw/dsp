@@ -271,6 +271,7 @@ VERCEL_TEAM_ID=team_xxxxxxxxxxxx   # optional for personal accounts
 | `VERCEL_TOKEN` | Vercel sync token | — |
 | `VERCEL_PROJECT_ID` | Vercel project ID | — |
 | `VERCEL_TEAM_ID` | Vercel team ID | — |
+| `DS2API_CHAT_HISTORY_PATH` | Chat history storage path (must be set to `/tmp/chat_history.json` on Vercel, otherwise unavailable due to read-only filesystem) | `data/chat_history.json` |
 | `DS2API_VERCEL_PROTECTION_BYPASS` | Deployment protection bypass for internal Node→Go calls | — |
 
 ### 3.4 Vercel Architecture
@@ -359,6 +360,22 @@ If API responses return Vercel HTML `Authentication Required`:
 - **Option A**: Disable Deployment Protection for that environment (recommended for public APIs)
 - **Option B**: Add `x-vercel-protection-bypass` header to requests
 - **Option C**: Set `VERCEL_AUTOMATION_BYPASS_SECRET` (or `DS2API_VERCEL_PROTECTION_BYPASS`) for internal Node→Go calls
+
+#### Chat History Unavailable (read-only file system)
+
+```text
+create chat history dir: mkdir /var/task/data: read-only file system
+```
+
+**Cause**: Vercel Serverless functions have a read-only filesystem (`/var/task`). Chat history fails because it cannot create directories there.
+
+**Fix**: Add the following in Vercel Project Settings → Environment Variables:
+
+```text
+DS2API_CHAT_HISTORY_PATH=/tmp/chat_history.json
+```
+
+`/tmp` is the only writable directory in Vercel Serverless. Data is ephemeral (not persisted across cold starts), but the feature works within a single instance lifetime.
 
 ### 3.6 Build Artifacts Not Committed
 
