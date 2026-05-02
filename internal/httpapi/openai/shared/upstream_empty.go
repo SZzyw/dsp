@@ -6,7 +6,7 @@ import (
 )
 
 func ShouldWriteUpstreamEmptyOutputError(text, thinking string) bool {
-	return strings.TrimSpace(text) == "" && strings.TrimSpace(thinking) == ""
+	return strings.TrimSpace(text) == ""
 }
 
 func UpstreamEmptyOutputDetail(contentFilter bool, text, thinking string) (int, string, string) {

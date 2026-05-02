@@ -151,8 +151,7 @@ func shouldRetryChatNonStream(result chatNonStreamResult, attempts int) bool {
 		attempts < emptyOutputRetryMaxAttempts() &&
 		!result.contentFilter &&
 		result.detectedCalls == 0 &&
-		strings.TrimSpace(result.text) == "" &&
-		strings.TrimSpace(result.thinking) == ""
+		strings.TrimSpace(result.text) == ""
 }
 
 func (h *Handler) handleStreamWithRetry(w http.ResponseWriter, r *http.Request, a *auth.RequestAuth, resp *http.Response, payload map[string]any, pow, completionID, model, finalPrompt string, refFileTokens int, thinkingEnabled, searchEnabled bool, toolNames []string, toolsRaw any, toolChoice promptcompat.ToolChoicePolicy, historySession *chatHistorySession) {

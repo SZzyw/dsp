@@ -206,11 +206,6 @@ func ValidateTurn(turn Turn, policy promptcompat.ToolChoicePolicy) *OutputError 
 	if strings.TrimSpace(turn.Text) != "" {
 		return nil
 	}
-	// Thinking-only with no visible text is not an immediate error;
-	// the caller should retry via ShouldRetryEmptyOutput first.
-	if strings.TrimSpace(turn.Thinking) != "" {
-		return nil
-	}
 	status, message, code := UpstreamEmptyOutputDetail(turn.ContentFilter, turn.Text, turn.Thinking)
 	return &OutputError{Status: status, Message: message, Code: code}
 }
