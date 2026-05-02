@@ -99,7 +99,21 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 		}
 	}
 	for _, p := range parsed.Parts {
-		cleanedText := cleanVisibleOutput(p.Text, s.stripReferenceMarkers)
+		var rawTrimmed string
+		if p.Type == "thinking" {
+			rawTrimmed = sse.TrimContinuationOverlapFromBuilder(&s.rawThinking, p.Text)
+		} else {
+			rawTrimmed = sse.TrimContinuationOverlapFromBuilder(&s.rawText, p.Text)
+		}
+		if rawTrimmed == "" {
+			continue
+		}
+		if p.Type == "thinking" {
+			s.rawThinking.WriteString(rawTrimmed)
+		} else {
+			s.rawText.WriteString(rawTrimmed)
+		}
+		cleanedText := cleanVisibleOutput(rawTrimmed, s.stripReferenceMarkers)
 		if cleanedText == "" {
 			continue
 		}
@@ -109,14 +123,14 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 		contentSeen = true
 
 		if p.Type == "thinking" {
-			s.rawThinking.WriteString(p.Text)
 			if !s.thinkingEnabled {
 				continue
 			}
-			if cleanedText == "" {
+			trimmed := sse.TrimContinuationOverlapFromBuilder(&s.thinking, cleanedText)
+			if trimmed == "" {
 				continue
 			}
-			s.thinking.WriteString(cleanedText)
+			s.thinking.WriteString(trimmed)
 			s.closeTextBlock()
 			if !s.thinkingBlockOpen {
 				s.thinkingBlockIndex = s.nextBlockIndex
@@ -136,21 +150,15 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 				"index": s.thinkingBlockIndex,
 				"delta": map[string]any{
 					"type":     "thinking_delta",
-					"thinking": cleanedText,
+					"thinking": trimmed,
 				},
 			})
 			continue
 		}
 
-		s.rawText.WriteString(p.Text)
-		if cleanedText != "" {
-			s.text.WriteString(cleanedText)
-		}
+		s.text.WriteString(cleanedText)
 
 		if !s.bufferToolContent {
-			if cleanedText == "" {
-				continue
-			}
 			s.closeThinkingBlock()
 			if !s.textBlockOpen {
 				s.textBlockIndex = s.nextBlockIndex
@@ -176,7 +184,7 @@ func (s *claudeStreamRuntime) onParsed(parsed sse.LineResult) streamengine.Parse
 			continue
 		}
 
-		events := toolstream.ProcessChunk(&s.sieve, p.Text, s.toolNames)
+		events := toolstream.ProcessChunk(&s.sieve, rawTrimmed, s.toolNames)
 		for _, evt := range events {
 			if len(evt.ToolCalls) > 0 {
 				s.closeTextBlock()

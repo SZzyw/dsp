@@ -111,6 +111,32 @@ func TestHandleClaudeStreamRealtimeTextIncrementsWithEventHeaders(t *testing.T) 
 	}
 }
 
+func TestHandleClaudeStreamRealtimeTrimsContinuationReplay(t *testing.T) {
+	h := &Handler{}
+	prefix := strings.Repeat("A", 40)
+	resp := makeClaudeSSEHTTPResponse(
+		`data: {"p":"response/content","v":"`+prefix+`"}`,
+		`data: {"p":"response/content","v":"`+prefix+` tail"}`,
+		`data: [DONE]`,
+	)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", nil)
+
+	h.handleClaudeStreamRealtime(rec, req, resp, "claude-sonnet-4-5", []any{map[string]any{"role": "user", "content": "hi"}}, false, false, nil, nil)
+
+	frames := parseClaudeFrames(t, rec.Body.String())
+	combined := strings.Builder{}
+	for _, f := range findClaudeFrames(frames, "content_block_delta") {
+		delta, _ := f.Payload["delta"].(map[string]any)
+		if delta["type"] == "text_delta" {
+			combined.WriteString(asString(delta["text"]))
+		}
+	}
+	if got, want := combined.String(), prefix+" tail"; got != want {
+		t.Fatalf("unexpected combined text: got %q want %q body=%s", got, want, rec.Body.String())
+	}
+}
+
 func TestHandleClaudeStreamRealtimeThinkingDelta(t *testing.T) {
 	h := &Handler{}
 	resp := makeClaudeSSEHTTPResponse(
