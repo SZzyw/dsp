@@ -33,7 +33,7 @@ type StreamAccumulatorResult struct {
 func (a *StreamAccumulator) Apply(parsed sse.LineResult) StreamAccumulatorResult {
 	out := StreamAccumulatorResult{}
 	for _, p := range parsed.ToolDetectionThinkingParts {
-		trimmed := sse.TrimContinuationOverlap(a.ToolDetectionThinking.String(), p.Text)
+		trimmed := sse.TrimContinuationOverlapFromBuilder(&a.ToolDetectionThinking, p.Text)
 		if trimmed != "" {
 			a.ToolDetectionThinking.WriteString(trimmed)
 		}
@@ -61,7 +61,7 @@ func (a *StreamAccumulator) Apply(parsed sse.LineResult) StreamAccumulatorResult
 }
 
 func (a *StreamAccumulator) applyThinkingPart(text string) StreamPartDelta {
-	rawTrimmed := sse.TrimContinuationOverlap(a.RawThinking.String(), text)
+	rawTrimmed := sse.TrimContinuationOverlapFromBuilder(&a.RawThinking, text)
 	if rawTrimmed != "" {
 		a.RawThinking.WriteString(rawTrimmed)
 	}
@@ -73,7 +73,7 @@ func (a *StreamAccumulator) applyThinkingPart(text string) StreamPartDelta {
 	if cleanedText == "" {
 		return delta
 	}
-	trimmed := sse.TrimContinuationOverlap(a.Thinking.String(), cleanedText)
+	trimmed := sse.TrimContinuationOverlapFromBuilder(&a.Thinking, cleanedText)
 	if trimmed == "" {
 		return delta
 	}
@@ -83,7 +83,7 @@ func (a *StreamAccumulator) applyThinkingPart(text string) StreamPartDelta {
 }
 
 func (a *StreamAccumulator) applyTextPart(text string) StreamPartDelta {
-	rawTrimmed := sse.TrimContinuationOverlap(a.RawText.String(), text)
+	rawTrimmed := sse.TrimContinuationOverlapFromBuilder(&a.RawText, text)
 	if rawTrimmed == "" {
 		return StreamPartDelta{Type: "text"}
 	}
@@ -94,7 +94,7 @@ func (a *StreamAccumulator) applyTextPart(text string) StreamPartDelta {
 		delta.CitationOnly = true
 		return delta
 	}
-	trimmed := sse.TrimContinuationOverlap(a.Text.String(), cleanedText)
+	trimmed := sse.TrimContinuationOverlapFromBuilder(&a.Text, cleanedText)
 	if trimmed == "" {
 		return delta
 	}
