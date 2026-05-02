@@ -15,6 +15,7 @@ ds2api/
 │   └── workflows/                        # GitHub Actions workflows
 ├── api/                                  # Serverless entrypoints (Vercel Go/Node)
 ├── app/                                  # Application-level handler assembly
+├── artifacts/                            # Debug artifacts (raw-stream-sim, stream-debug, etc.)
 ├── cmd/                                  # Executable entrypoints
 │   ├── ds2api/                           # Main service bootstrap
 │   └── ds2api-tests/                     # E2E testsuite CLI bootstrap
@@ -40,13 +41,14 @@ ds2api/
 │   │   ├── admin/                        # Admin API root assembly and resource packages
 │   │   ├── claude/                       # Claude HTTP protocol adapter
 │   │   ├── gemini/                       # Gemini HTTP protocol adapter
-│   │   └── openai/                       # OpenAI HTTP surface
-│   │       ├── chat/                     # Chat Completions execution entrypoint
-│   │       ├── responses/                # Responses API and response store
-│   │       ├── files/                    # Files API and inline-file preprocessing
-│   │       ├── embeddings/               # Embeddings API
-│   │       ├── history/                  # OpenAI context file handling
-│   │       └── shared/                   # OpenAI HTTP errors/models/tool formatting
+│   │   ├── openai/                       # OpenAI HTTP surface
+│   │   │   ├── chat/                     # Chat Completions execution entrypoint
+│   │   │   ├── responses/                # Responses API and response store
+│   │   │   ├── files/                    # Files API and inline-file preprocessing
+│   │   │   ├── embeddings/               # Embeddings API
+│   │   │   ├── history/                  # OpenAI context file handling
+│   │   │   └── shared/                   # OpenAI HTTP errors/models/tool formatting
+│   │   └── requestbody/                  # HTTP body reading and UTF-8/JSON validation helpers
 │   ├── js/                               # Node runtime related logic
 │   │   ├── chat-stream/                  # Node streaming bridge
 │   │   ├── helpers/                      # JS helper modules
@@ -70,6 +72,7 @@ ds2api/
 ├── plans/                                # Stage plans and manual QA records
 ├── pow/                                  # PoW standalone implementation + benchmarks
 ├── scripts/                              # Build/release helper scripts
+├── static/                               # Build artifacts (admin static resources)
 ├── tests/                                # Test assets and scripts
 │   ├── compat/                           # Compatibility fixtures + expected outputs
 │   │   ├── expected/                     # Expected output samples
@@ -78,9 +81,9 @@ ds2api/
 │   │       └── toolcalls/                # Tool-call fixtures
 │   ├── node/                             # Node unit tests
 │   ├── raw_stream_samples/               # Upstream raw SSE samples
-│   │   ├── content-filter-trigger-20260405-jwt3/          # Content-filter terminal sample
 │   │   ├── continue-thinking-snapshot-replay-20260405/    # Continue-thinking sample
-│   │   ├── guangzhou-weather-reasoner-search-20260404/    # Search/reference sample
+│   │   ├── longtext-deepseek-v4-flash-20260429/           # Flash long-text/file-upload sample
+│   │   ├── longtext-deepseek-v4-pro-20260429/             # Pro long-text/file-upload sample
 │   │   ├── markdown-format-example-20260405/              # Markdown sample
 │   │   └── markdown-format-example-20260405-spacefix/     # Space-fix sample
 │   ├── scripts/                          # Test entry scripts
@@ -93,6 +96,8 @@ ds2api/
         ├── features/                     # Feature modules
         │   ├── account/                  # Account management page
         │   ├── apiTester/                # API tester page
+        │   ├── chatHistory/              # Server-side conversation history page
+        │   ├── proxy/                    # Proxy management page
         │   ├── settings/                 # Settings page
         │   └── vercel/                   # Vercel sync page
         ├── layout/                       # Layout components
@@ -126,8 +131,11 @@ flowchart LR
     subgraph RUNTIME[Shared runtime]
         AUTH[internal/auth]
         POOL[internal/account queue + concurrency]
+        CR[internal/completionruntime]
+        TURN[internal/assistantturn]
         STREAM[internal/stream + internal/sse]
         TOOL[internal/toolcall + internal/toolstream]
+        FMT[internal/format/openai + claude]
         DS[internal/deepseek/client]
         POW[pow + internal/deepseek/protocol]
     end
@@ -153,16 +161,24 @@ flowchart LR
     PC --> PROMPT
     PC -.long history.-> HIST
     PC --> AUTH
+    PC --> CR
 
     NCS -.Go prepare/release.-> CHAT
     NCS --> JS
     JS --> TOOL
 
     AUTH --> POOL
-    CHAT --> STREAM
-    RESP --> STREAM
+    CHAT --> CR
+    RESP --> CR
+    CA --> CR
+    GA --> CR
+    CR --> DS
+    CR --> STREAM
+    CR --> TURN
+    STREAM --> TURN
     STREAM --> TOOL
-    POOL --> DS
+    TURN --> FMT
+    POOL --> CR
     DS --> POW
     DS --> U[DeepSeek upstream]
 ```
@@ -171,7 +187,8 @@ flowchart LR
 
 - `internal/server`: router tree + middlewares (health, protocol routes, Admin/WebUI).
 - `internal/httpapi/openai/*`: OpenAI HTTP surface split into chat, responses, files, embeddings, history, and shared packages; chat/responses share the promptcompat, stream, and toolcall semantics.
-- `internal/httpapi/{claude,gemini}`: protocol wrappers that normalize into the same prompt compatibility semantics without duplicating upstream execution.
+- `internal/httpapi/{claude,gemini}`: protocol adapters that normalize into the same prompt compatibility semantics; direct paths share DeepSeek session/PoW/completion execution through `completionruntime`, while Vercel/proxy paths can still translate through `translatorcliproxy` into the OpenAI handler.
+- `internal/httpapi/requestbody`: shared HTTP body reading, JSON pre-validation, and UTF-8 error helpers across protocol adapters.
 - `internal/promptcompat`: compatibility core for turning OpenAI/Claude/Gemini requests into DeepSeek web-chat plain-text context.
 - `internal/assistantturn`: Go output-side canonical semantics, converting DeepSeek SSE collection results and stream finalization state into assistant turns and centralizing thinking, tool call, citation, usage, stop/error behavior.
 - `internal/completionruntime`: shared Go completion execution helpers for DeepSeek session/PoW/call startup, non-stream collection, and empty-output retry; streaming paths use it to start upstream requests, continue to use `internal/stream` for real-time consumption, and use `assistantturn` during finalization.
@@ -184,6 +201,13 @@ flowchart LR
 - `internal/chathistory`: server-side conversation history persistence, pagination, detail lookup, and retention policy.
 - `internal/config`: config loading/validation + runtime settings hot-reload.
 - `internal/account`: managed account pool, inflight slots, waiting queue.
+- `internal/textclean`: text cleanup helpers, e.g. stripping `[reference: N]` markers.
+- `internal/claudeconv`: Claude API request to DeepSeek format conversion.
+- `internal/compat`: compatibility regression tests using SSE fixtures to verify output consistency.
+- `internal/rawsample`: upstream raw response capture, read/write, and management.
+- `internal/devcapture`: developer debug capture, storing HTTP request/response for troubleshooting.
+- `internal/util`: cross-package utilities including JSON writing, type conversion, token counting, thinking parsing, etc.
+- `internal/version`: version query and comparison, supporting build-time injection and runtime resolution.
 
 ## 4. WebUI Runtime Relation
 

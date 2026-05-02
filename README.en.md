@@ -73,13 +73,14 @@ flowchart LR
 
         subgraph Runtime["Runtime + Core Capabilities"]
             Compat["PromptCompat\n(API -> web-chat plain text context)"]
-            Chat["Chat / Responses Runtime\n(unified tools + stream semantics)"]
+            Completion["Completion Runtime\n(session / PoW / completion)"]
+            Turn["AssistantTurn\n(output semantic normalization)"]
             Auth["Auth Resolver\n(API key / bearer / x-goog-api-key)"]
             Pool["Account Pool + Queue\n(in-flight slots + wait queue)"]
             DSClient["DeepSeek Client\n(session / auth / completion / files)"]
             Pow["PoW Solver\n(Pure Go)"]
             Tool["Tool Sieve\n(Go/Node semantic parity)"]
-            History["History Split\n(long history as files)"]
+            History["Current Input File\n(DS2API_HISTORY.txt)"]
         end
     end
 
@@ -91,18 +92,19 @@ flowchart LR
 
     OA --> Compat
     CA & GA --> Compat
-    Compat --> Chat
-    Compat -.long history.-> History
-    Vercel -.Go prepare.-> Chat
+    Compat --> Completion
+    Completion -.full context.-> History
+    Completion --> Turn
+    Vercel -.Go prepare.-> Completion
     Vercel -.Node SSE.-> Tool
-    Chat --> Auth
-    Chat -.account rotation.-> Pool
-    Chat -.tool-call parsing.-> Tool
-    Chat -.PoW solving.-> Pow
+    Completion --> Auth
+    Completion -.account rotation.-> Pool
+    Completion -.tool-call parsing.-> Tool
+    Completion -.PoW solving.-> Pow
     Auth --> DSClient
     DSClient --> Upstream
     Upstream --> DSClient
-    Chat --> Client
+    Turn --> Client
     Vercel --> Client
 ```
 

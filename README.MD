@@ -76,13 +76,14 @@ flowchart LR
 
         subgraph Runtime["运行时核心能力"]
             Compat["PromptCompat\n(API -> 网页纯文本上下文)"]
-            Chat["Chat / Responses Runtime\n(统一工具调用与流式语义)"]
+            Completion["Completion Runtime\n(Session / PoW / Completion)"]
+            Turn["AssistantTurn\n(输出语义归一)"]
             Auth["Auth Resolver\n(API key / bearer / x-goog-api-key)"]
             Pool["Account Pool + Queue\n(并发槽位 + 等待队列)"]
             DSClient["DeepSeek Client\n(Session / Auth / Completion / Files)"]
             Pow["PoW 实现\n(纯 Go)"]
             Tool["Tool Sieve\n(Go/Node 语义对齐)"]
-            History["History Split\n(长历史文件化)"]
+            History["Current Input File\n(DS2API_HISTORY.txt)"]
         end
     end
 
@@ -94,18 +95,19 @@ flowchart LR
 
     OA --> Compat
     CA & GA --> Compat
-    Compat --> Chat
-    Compat -.长历史.-> History
-    Vercel -.Go prepare.-> Chat
+    Compat --> Completion
+    Completion -.完整上下文.-> History
+    Completion --> Turn
+    Vercel -.Go prepare.-> Completion
     Vercel -.Node SSE.-> Tool
-    Chat --> Auth
-    Chat -.账号轮询.-> Pool
-    Chat -.工具调用解析.-> Tool
-    Chat -.PoW 计算.-> Pow
+    Completion --> Auth
+    Completion -.账号轮询.-> Pool
+    Completion -.工具调用解析.-> Tool
+    Completion -.PoW 计算.-> Pow
     Auth --> DSClient
     DSClient --> Upstream
     Upstream --> DSClient
-    Chat --> Client
+    Turn --> Client
     Vercel --> Client
 ```
 

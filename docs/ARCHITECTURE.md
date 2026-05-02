@@ -15,6 +15,7 @@ ds2api/
 │   └── workflows/                        # GitHub Actions 工作流
 ├── api/                                  # Serverless 入口（Vercel Go/Node）
 ├── app/                                  # 应用级 handler 装配层
+├── artifacts/                            # 调试产物（raw-stream-sim, stream-debug 等）
 ├── cmd/                                  # 可执行程序入口
 │   ├── ds2api/                           # 主服务启动入口
 │   └── ds2api-tests/                     # E2E 测试集 CLI 入口
@@ -40,13 +41,14 @@ ds2api/
 │   │   ├── admin/                        # Admin API 根装配与资源子包
 │   │   ├── claude/                       # Claude HTTP 协议适配
 │   │   ├── gemini/                       # Gemini HTTP 协议适配
-│   │   └── openai/                       # OpenAI HTTP surface
-│   │       ├── chat/                     # Chat Completions 执行入口
-│   │       ├── responses/                # Responses API 与 response store
-│   │       ├── files/                    # Files API 与 inline file 预处理
-│   │       ├── embeddings/               # Embeddings API
-│   │       ├── history/                  # OpenAI context file handling
-│   │       └── shared/                   # OpenAI HTTP 公共错误/模型/工具格式
+│   │   ├── openai/                       # OpenAI HTTP surface
+│   │   │   ├── chat/                     # Chat Completions 执行入口
+│   │   │   ├── responses/                # Responses API 与 response store
+│   │   │   ├── files/                    # Files API 与 inline file 预处理
+│   │   │   ├── embeddings/               # Embeddings API
+│   │   │   ├── history/                  # OpenAI context file handling
+│   │   │   └── shared/                   # OpenAI HTTP 公共错误/模型/工具格式
+│   │   └── requestbody/                  # HTTP 请求体读取与 UTF-8/JSON 校验辅助
 │   ├── js/                               # Node Runtime 相关逻辑
 │   │   ├── chat-stream/                  # Node 流式输出桥接
 │   │   ├── helpers/                      # JS 辅助函数
@@ -70,6 +72,7 @@ ds2api/
 ├── plans/                                # 阶段计划与人工验收记录
 ├── pow/                                  # PoW 独立实现与基准
 ├── scripts/                              # 构建/发布/辅助脚本
+├── static/                               # 构建产物（admin 等静态资源）
 ├── tests/                                # 测试资源与脚本
 │   ├── compat/                           # 兼容性夹具与期望输出
 │   │   ├── expected/                     # 预期结果样本
@@ -78,9 +81,9 @@ ds2api/
 │   │       └── toolcalls/                # toolcall 夹具
 │   ├── node/                             # Node 单元测试
 │   ├── raw_stream_samples/               # 上游原始 SSE 样本
-│   │   ├── content-filter-trigger-20260405-jwt3/          # 风控终态样本
 │   │   ├── continue-thinking-snapshot-replay-20260405/    # continue 样本
-│   │   ├── guangzhou-weather-reasoner-search-20260404/    # 搜索+引用样本
+│   │   ├── longtext-deepseek-v4-flash-20260429/           # flash 长文本/文件上传样本
+│   │   ├── longtext-deepseek-v4-pro-20260429/             # pro 长文本/文件上传样本
 │   │   ├── markdown-format-example-20260405/              # Markdown 样本
 │   │   └── markdown-format-example-20260405-spacefix/     # 空格修复样本
 │   ├── scripts/                          # 测试脚本入口
@@ -93,6 +96,8 @@ ds2api/
         ├── features/                     # 功能模块
         │   ├── account/                  # 账号管理页面
         │   ├── apiTester/                # API 测试页面
+        │   ├── chatHistory/              # 服务器端对话记录页面
+        │   ├── proxy/                    # 代理管理页面
         │   ├── settings/                 # 设置页面
         │   └── vercel/                   # Vercel 同步页面
         ├── layout/                       # 布局组件
@@ -126,8 +131,11 @@ flowchart LR
     subgraph RUNTIME[Shared runtime]
         AUTH[internal/auth]
         POOL[internal/account queue + concurrency]
+        CR[internal/completionruntime]
+        TURN[internal/assistantturn]
         STREAM[internal/stream + internal/sse]
         TOOL[internal/toolcall + internal/toolstream]
+        FMT[internal/format/openai + claude]
         DS[internal/deepseek/client]
         POW[pow + internal/deepseek/protocol]
     end
@@ -153,16 +161,24 @@ flowchart LR
     PC --> PROMPT
     PC -.长历史.-> HIST
     PC --> AUTH
+    PC --> CR
 
     NCS -.Go prepare/release.-> CHAT
     NCS --> JS
     JS --> TOOL
 
     AUTH --> POOL
-    CHAT --> STREAM
-    RESP --> STREAM
+    CHAT --> CR
+    RESP --> CR
+    CA --> CR
+    GA --> CR
+    CR --> DS
+    CR --> STREAM
+    CR --> TURN
+    STREAM --> TURN
     STREAM --> TOOL
-    POOL --> DS
+    TURN --> FMT
+    POOL --> CR
     DS --> POW
     DS --> U[DeepSeek upstream]
 ```
@@ -171,7 +187,8 @@ flowchart LR
 
 - `internal/server`：路由树和中间件挂载（健康检查、协议入口、Admin/WebUI）。
 - `internal/httpapi/openai/*`：OpenAI HTTP surface，按 chat、responses、files、embeddings、history、shared 拆分；chat/responses 共享 promptcompat、stream、toolcall 等核心语义。
-- `internal/httpapi/{claude,gemini}`：协议输入输出适配，归一到同一套 prompt compatibility 语义，不重复实现上游调用逻辑。
+- `internal/httpapi/{claude,gemini}`：协议输入输出适配，归一到同一套 prompt compatibility 语义；直连路径通过 `completionruntime` 共享 DeepSeek session/PoW/completion 调用，Vercel/代理路径仍可经 `translatorcliproxy` 转到 OpenAI handler。
+- `internal/httpapi/requestbody`：跨协议复用的请求体读取、JSON 解码前置校验与 UTF-8 错误处理辅助。
 - `internal/promptcompat`：OpenAI/Claude/Gemini 请求到 DeepSeek 网页纯文本上下文的兼容内核。
 - `internal/assistantturn`：Go 输出侧统一语义层，把 DeepSeek SSE 收集结果和流式收尾状态归一成 assistant turn，集中处理 thinking、tool call、citation、usage、stop/error 语义。
 - `internal/completionruntime`：Go surface 共享的 completion 执行辅助，负责 DeepSeek session/PoW/call 启动、非流式 collect 和 empty-output retry；流式路径复用它启动上游请求，继续用 `internal/stream` 做实时消费，并在最终收尾阶段接入 `assistantturn`。
@@ -184,6 +201,13 @@ flowchart LR
 - `internal/chathistory`：服务器端对话记录持久化、分页、单条详情和保留策略。
 - `internal/config`：配置加载、校验、运行时 settings 热更新。
 - `internal/account`：托管账号池、并发槽位、等待队列。
+- `internal/textclean`：文本清洗，移除 `[reference: N]` 标记等噪声。
+- `internal/claudeconv`：Claude API 请求到 DeepSeek 格式的协议转换。
+- `internal/compat`：兼容性回归测试套件，用 SSE 夹具验证输出一致性。
+- `internal/rawsample`：上游原始响应的采集、读写与管理。
+- `internal/devcapture`：开发调试抓包，存储 HTTP 请求/响应用于问题排查。
+- `internal/util`：跨包通用工具，含 JSON 写入、类型转换、token 计数、thinking 解析等。
+- `internal/version`：版本号查询与比较，支持构建注入和运行时解析。
 
 ## 4. WebUI 与运行时关系
 
