@@ -12,6 +12,7 @@ import (
 	"ds2api/internal/httpapi/openai/history"
 	"ds2api/internal/httpapi/openai/shared"
 	"ds2api/internal/promptcompat"
+	"ds2api/internal/textclean"
 	"ds2api/internal/toolcall"
 	"ds2api/internal/toolstream"
 )
@@ -36,7 +37,7 @@ type streamLease struct {
 }
 
 func stripReferenceMarkersEnabled() bool {
-	return true
+	return textclean.StripReferenceMarkersEnabled()
 }
 
 func (h *Handler) applyCurrentInputFile(ctx context.Context, a *auth.RequestAuth, stdReq promptcompat.StandardRequest) (promptcompat.StandardRequest, error) {

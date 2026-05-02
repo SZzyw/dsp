@@ -98,6 +98,9 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 			}
 		case "compat":
 			// Removed field ignored instead of persisted.
+			if Logger != nil {
+				Logger.Warn("config key \"compat\" is deprecated and ignored; remove it from your configuration")
+			}
 		case "toolcall":
 			// Legacy field ignored. Toolcall policy is fixed and no longer configurable.
 		case "responses":

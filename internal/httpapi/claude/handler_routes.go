@@ -8,6 +8,7 @@ import (
 
 	"ds2api/internal/config"
 	dsprotocol "ds2api/internal/deepseek/protocol"
+	"ds2api/internal/textclean"
 	"ds2api/internal/util"
 )
 
@@ -22,7 +23,7 @@ type Handler struct {
 }
 
 func stripReferenceMarkersEnabled() bool {
-	return true
+	return textclean.StripReferenceMarkersEnabled()
 }
 
 var (
