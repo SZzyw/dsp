@@ -98,12 +98,11 @@ func (h *Handler) collectChatNonStreamAttempt(w http.ResponseWriter, resp *http.
 	}
 	result := sse.CollectStream(resp, thinkingEnabled, true)
 	turn := assistantturn.BuildTurnFromCollected(result, assistantturn.BuildOptions{
-		Model:                 model,
-		Prompt:                usagePrompt,
-		SearchEnabled:         searchEnabled,
-		StripReferenceMarkers: stripReferenceMarkersEnabled(),
-		ToolNames:             toolNames,
-		ToolsRaw:              toolsRaw,
+		Model:         model,
+		Prompt:        usagePrompt,
+		SearchEnabled: searchEnabled,
+		ToolNames:     toolNames,
+		ToolsRaw:      toolsRaw,
 	})
 	respBody := openaifmt.BuildChatCompletionWithToolCalls(completionID, model, usagePrompt, turn.Thinking, turn.Text, turn.ToolCalls, toolsRaw)
 	return chatNonStreamResult{

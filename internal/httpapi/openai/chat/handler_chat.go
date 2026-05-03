@@ -80,9 +80,8 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	if !stdReq.Stream {
 		result, outErr := completionruntime.ExecuteNonStreamWithRetry(r.Context(), h.DS, a, stdReq, completionruntime.Options{
-			StripReferenceMarkers: stripReferenceMarkersEnabled(),
-			RetryEnabled:          true,
-			CurrentInputFile:      h.Store,
+			RetryEnabled:     true,
+			CurrentInputFile: h.Store,
 		})
 		sessionID = result.SessionID
 		if outErr != nil {
@@ -164,14 +163,13 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, resp *http.Response, co
 	result := sse.CollectStream(resp, thinkingEnabled, true)
 
 	turn := assistantturn.BuildTurnFromCollected(result, assistantturn.BuildOptions{
-		Model:                 model,
-		Prompt:                finalPrompt,
-		RefFileTokens:         refFileTokens,
-		SearchEnabled:         searchEnabled,
-		StripReferenceMarkers: stripReferenceMarkersEnabled(),
-		ToolNames:             toolNames,
-		ToolsRaw:              toolsRaw,
-		ToolChoice:            promptcompat.DefaultToolChoicePolicy(),
+		Model:         model,
+		Prompt:        finalPrompt,
+		RefFileTokens: refFileTokens,
+		SearchEnabled: searchEnabled,
+		ToolNames:     toolNames,
+		ToolsRaw:      toolsRaw,
+		ToolChoice:    promptcompat.DefaultToolChoicePolicy(),
 	})
 	outcome := assistantturn.FinalizeTurn(turn, assistantturn.FinalizeOptions{})
 	if outcome.ShouldFail {

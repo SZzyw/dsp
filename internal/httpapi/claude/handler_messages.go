@@ -100,9 +100,8 @@ func (h *Handler) handleClaudeDirect(w http.ResponseWriter, r *http.Request) boo
 		return true
 	}
 	result, outErr := completionruntime.ExecuteNonStreamWithRetry(r.Context(), h.DS, a, stdReq, completionruntime.Options{
-		StripReferenceMarkers: stripReferenceMarkersEnabled(),
-		RetryEnabled:          true,
-		CurrentInputFile:      h.Store,
+		RetryEnabled:     true,
+		CurrentInputFile: h.Store,
 	})
 	if outErr != nil {
 		if historySession != nil {

@@ -105,9 +105,8 @@ func (h *Handler) Responses(w http.ResponseWriter, r *http.Request) {
 	})
 	if !stdReq.Stream {
 		result, outErr := completionruntime.ExecuteNonStreamWithRetry(r.Context(), h.DS, a, stdReq, completionruntime.Options{
-			StripReferenceMarkers: stripReferenceMarkersEnabled(),
-			RetryEnabled:          true,
-			CurrentInputFile:      h.Store,
+			RetryEnabled:     true,
+			CurrentInputFile: h.Store,
 		})
 		if outErr != nil {
 			if historySession != nil {
@@ -152,14 +151,13 @@ func (h *Handler) handleResponsesNonStream(w http.ResponseWriter, resp *http.Res
 	result := sse.CollectStream(resp, thinkingEnabled, true)
 
 	turn := assistantturn.BuildTurnFromCollected(result, assistantturn.BuildOptions{
-		Model:                 model,
-		Prompt:                finalPrompt,
-		RefFileTokens:         refFileTokens,
-		SearchEnabled:         searchEnabled,
-		StripReferenceMarkers: stripReferenceMarkersEnabled(),
-		ToolNames:             toolNames,
-		ToolsRaw:              toolsRaw,
-		ToolChoice:            toolChoice,
+		Model:         model,
+		Prompt:        finalPrompt,
+		RefFileTokens: refFileTokens,
+		SearchEnabled: searchEnabled,
+		ToolNames:     toolNames,
+		ToolsRaw:      toolsRaw,
+		ToolChoice:    toolChoice,
 	})
 	logResponsesToolPolicyRejection(traceID, toolChoice, turn.ParsedToolCalls, "text")
 	outcome := assistantturn.FinalizeTurn(turn, assistantturn.FinalizeOptions{})
