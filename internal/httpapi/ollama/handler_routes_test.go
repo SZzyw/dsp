@@ -1,22 +1,30 @@
 package ollama
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"strings"
-	"github.com/go-chi/chi/v5"
+    "net/http"
+    "net/http/httptest"
+    "testing"
+    "strings"
+    "github.com/go-chi/chi/v5"
 )
 
 type ollamaTestSurface struct {
-	Store       ConfigReader
-	handler     *Handler
+    Store       ConfigReader
+    handler     *Handler
 }
 
+func (h *ollamaTestSurface) apiHandler() *Handler {
+    if h.handler == nil {
+        h.handler = &Handler{Store: h.Store}
+    }
+    return h.handler
+}
+
+
 func registerOllamaTestRoutes(r chi.Router, h *ollamaTestSurface) {
-	r.Get("/api/version", h.handler().GetVersion)
-	r.Get("/api/tags", h.handler().ListOllamaModels)
-	r.Post("/api/show", h.handler().GetOllamaModel)
+    r.Get("/api/version", h.apiHandler().GetVersion)
+    r.Get("/api/tags", h.apiHandler().ListOllamaModels)
+    r.Post("/api/show", h.apiHandler().GetOllamaModel)
 }
 
 
@@ -74,7 +82,7 @@ func TestGetOllamaModelRoute(t *testing.T) {
 	})
 
 	t.Run("direct_expert", func(t *testing.T) {
-		body := `{"model":"models/deepseek-v4-pro"}`
+		body := `{"model":"deepseek-v4-pro"}`
     	req := httptest.NewRequest(http.MethodPost, "/api/show", strings.NewReader(body))    
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
