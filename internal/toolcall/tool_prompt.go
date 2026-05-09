@@ -140,21 +140,21 @@ func firstScriptExample(names []string) (promptToolExample, bool) {
 
 func renderToolExampleBlock(calls []promptToolExample) string {
 	var b strings.Builder
-	b.WriteString("<|DSML|tool_calls>\n")
+	b.WriteString("<｜DSML｜tool_calls>\n")
 	for _, call := range calls {
-		b.WriteString(`  <|DSML|invoke name="`)
+		b.WriteString(`  <｜DSML｜invoke name="`)
 		b.WriteString(call.name)
 		b.WriteString(`">` + "\n")
 		b.WriteString(indentPromptParameters(call.params, "    "))
-		b.WriteString("\n  </|DSML|invoke>\n")
+		b.WriteString("\n  </｜DSML｜invoke>\n")
 	}
-	b.WriteString("</|DSML|tool_calls>")
+	b.WriteString("</｜DSML｜tool_calls>")
 	return b.String()
 }
 
 func indentPromptParameters(body, indent string) string {
 	if strings.TrimSpace(body) == "" {
-		return indent + `<|DSML|parameter name="content"></|DSML|parameter>`
+		return indent + `<｜DSML｜parameter name="content"></｜DSML｜parameter>`
 	}
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
@@ -168,7 +168,7 @@ func indentPromptParameters(body, indent string) string {
 }
 
 func wrapParameter(name, inner string) string {
-	return `<|DSML|parameter name="` + name + `">` + inner + `</|DSML|parameter>`
+	return `<｜DSML｜parameter name="` + name + `">` + inner + `</｜DSML｜parameter>`
 }
 
 func exampleBasicParams(name string) (string, bool) {
@@ -194,7 +194,7 @@ func exampleBasicParams(name string) (string, bool) {
 	case "Edit":
 		return wrapParameter("file_path", promptCDATA("README.md")) + "\n" + wrapParameter("old_string", promptCDATA("foo")) + "\n" + wrapParameter("new_string", promptCDATA("bar")), true
 	case "MultiEdit":
-		return wrapParameter("file_path", promptCDATA("README.md")) + "\n" + `<|DSML|parameter name="edits"><item><old_string>` + promptCDATA("foo") + `</old_string><new_string>` + promptCDATA("bar") + `</new_string></item></|DSML|parameter>`, true
+		return wrapParameter("file_path", promptCDATA("README.md")) + "\n" + `<｜DSML｜parameter name="edits"><item><old_string>` + promptCDATA("foo") + `</old_string><new_string>` + promptCDATA("bar") + `</new_string></item></｜DSML｜parameter>`, true
 	}
 	return "", false
 }
@@ -202,11 +202,11 @@ func exampleBasicParams(name string) (string, bool) {
 func exampleNestedParams(name string) (string, bool) {
 	switch strings.TrimSpace(name) {
 	case "MultiEdit":
-		return wrapParameter("file_path", promptCDATA("README.md")) + "\n" + `<|DSML|parameter name="edits"><item><old_string>` + promptCDATA("foo") + `</old_string><new_string>` + promptCDATA("bar") + `</new_string></item></|DSML|parameter>`, true
+		return wrapParameter("file_path", promptCDATA("README.md")) + "\n" + `<｜DSML｜parameter name="edits"><item><old_string>` + promptCDATA("foo") + `</old_string><new_string>` + promptCDATA("bar") + `</new_string></item></｜DSML｜parameter>`, true
 	case "Task":
 		return wrapParameter("description", promptCDATA("Investigate flaky tests")) + "\n" + wrapParameter("prompt", promptCDATA("Run targeted tests and summarize failures")), true
 	case "ask_followup_question":
-		return wrapParameter("question", promptCDATA("Which approach do you prefer?")) + "\n" + `<|DSML|parameter name="follow_up"><item><text>` + promptCDATA("Option A") + `</text></item><item><text>` + promptCDATA("Option B") + `</text></item></|DSML|parameter>`, true
+		return wrapParameter("question", promptCDATA("Which approach do you prefer?")) + "\n" + `<｜DSML｜parameter name="follow_up"><item><text>` + promptCDATA("Option A") + `</text></item><item><text>` + promptCDATA("Option B") + `</text></item></｜DSML｜parameter>`, true
 	}
 	return "", false
 }
