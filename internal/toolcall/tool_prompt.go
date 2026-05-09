@@ -21,6 +21,7 @@ RULES:
 1) Use the <｜DSML｜tool_calls> wrapper format.
 2) Put one or more <｜DSML｜invoke> entries under a single <｜DSML｜tool_calls> root.
 3) Put the tool name in the invoke name attribute: <｜DSML｜invoke name="TOOL_NAME">.
+3a) Tag punctuation alphabet: ASCII < > / = " plus the fullwidth vertical bar ｜.
 4) All string values must use <![CDATA[...]]>, even short ones. This includes code, scripts, file contents, prompts, paths, names, and queries.
 5) Every top-level argument must be a <｜DSML｜parameter name="ARG_NAME">...</｜DSML｜parameter> node.
 6) Objects use nested XML elements inside the parameter body. Arrays may repeat <item> children.

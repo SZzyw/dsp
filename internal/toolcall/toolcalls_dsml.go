@@ -86,7 +86,7 @@ func normalizeToolMarkupTagTailForXML(tail string) string {
 		case '"', '\'':
 			quote = ch
 			b.WriteRune(ch)
-		case '|':
+		case '|', '!':
 			j := i + size
 			for j < len(tail) {
 				next, nextSize := utf8.DecodeRuneInString(tail[j:])

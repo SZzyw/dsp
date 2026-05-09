@@ -112,6 +112,23 @@ test('parseToolCalls parses arbitrary-prefixed tool markup shells', () => {
   }
 });
 
+test('parseToolCalls parses camel-prefixed tool markup shell', () => {
+  const payload = '<DSmartToolCalls><DSmartInvoke name="Bash"><DSmartParameter name="command"><![CDATA[git push]]></DSmartParameter><DSmartParameter name="description"><![CDATA[Push dev branch to origin]]></DSmartParameter></DSmartInvoke></DSmartToolCalls>';
+  const calls = parseToolCalls(payload, ['Bash']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'Bash');
+  assert.deepEqual(calls[0].input, {
+    command: 'git push',
+    description: 'Push dev branch to origin',
+  });
+});
+
+test('parseToolCalls ignores camel-prefixed tool markup lookalike', () => {
+  const payload = '<DSmartToolCallsExtra><DSmartInvoke name="Bash"><DSmartParameter name="command">git push</DSmartParameter></DSmartInvoke></DSmartToolCallsExtra>';
+  const calls = parseToolCalls(payload, ['Bash']);
+  assert.equal(calls.length, 0);
+});
+
 test('parseToolCalls parses fullwidth DSML shell drift', () => {
   const payload = `<ｄＳＭＬ｜tool_calls>
   <ｄＳＭＬ｜invoke name="Read">
@@ -150,6 +167,40 @@ test('parseToolCalls parses CJK-angle DSM drift', () => {
   assert.equal(calls[0].input.command, 'git log --oneline origin/dev..dev');
   assert.equal(calls[1].input.description, 'Show commits on origin/dev not on local dev');
   assert.equal(calls[2].input.command, 'git status -b --short');
+});
+
+test('parseToolCalls parses fullwidth-bang DSML drift', () => {
+  const payload = `<！DSML！tool_calls>
+  <！DSML！invoke name=“Bash”>
+  <！DSML！parameter name=“command”><！[CDATA[lsof -i :4321 -t]]><！/DSML！parameter>
+  <！DSML！parameter name=“description”><！[CDATA[Verify port 4321 is free]]><！/DSML！parameter>
+  <！/DSML！invoke>
+  <！/DSML！tool_calls>`;
+  const calls = parseToolCalls(payload, ['Bash']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'Bash');
+  assert.equal(calls[0].input.command, 'lsof -i :4321 -t');
+  assert.equal(calls[0].input.description, 'Verify port 4321 is free');
+});
+
+test('parseToolCalls parses ideographic-comma DSML drift', () => {
+  const payload = `<、DSML、tool_calls>
+  <、DSML、invoke name="Bash">
+    <、DSML、parameter name="command"><、[CDATA[git commit -m "$(cat <<'EOF'
+feat: expand fullwidth bang separator and curly quote tolerance in DSML tool parsing
+
+Co-Authored-By: Claude Opus 4.6 noreply@anthropic.com
+EOF
+)"]]><、/DSML、parameter>
+    <、DSML、parameter name="description"><、[CDATA[Create commit with staged changes]]><、/DSML、parameter>
+  <、/DSML、invoke>
+<、/DSML、tool_calls>`;
+  const calls = parseToolCalls(payload, ['Bash']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'Bash');
+  assert.equal(calls[0].input.command.includes('git commit -m "$(cat <<\'EOF\''), true);
+  assert.equal(calls[0].input.command.includes('Co-Authored-By: Claude Opus 4.6 noreply@anthropic.com'), true);
+  assert.equal(calls[0].input.description, 'Create commit with staged changes');
 });
 
 test('parseToolCalls parses DSML control separator drift', () => {
@@ -211,6 +262,20 @@ test('parseToolCalls tolerates DSML trailing pipe tag terminator', () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].name, 'terminal');
   assert.deepEqual(calls[0].input, { command: 'find "/home" -type d', timeout: 10 });
+});
+
+test('parseToolCalls tolerates DSML trailing novel separator tag terminator', () => {
+  const payload = [
+    '<DSMLtool_calls※>',
+    '  <DSMLinvoke name="Bash"※>',
+    '    <DSMLparameter name="command"※><![CDATA[pwd]]></DSMLparameter※>',
+    '  </DSMLinvoke※>',
+    '</DSMLtool_calls※>',
+  ].join('\n');
+  const calls = parseToolCalls(payload, ['Bash']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'Bash');
+  assert.deepEqual(calls[0].input, { command: 'pwd' });
 });
 
 test('parseToolCalls tolerates extra leading less-than before DSML tags', () => {
@@ -559,6 +624,42 @@ test('sieve emits tool_calls for CJK-angle DSM drift', () => {
   assert.equal(finalCalls.length, 1);
   assert.equal(finalCalls[0].name, 'Bash');
   assert.equal(finalCalls[0].input.command, 'git status -b --short');
+  assert.equal(collectText(events), '');
+});
+
+test('sieve emits tool_calls for fullwidth-bang DSML drift', () => {
+  const events = runSieve([
+    '<！DSML！tool_calls>\n',
+    '  <！DSML！invoke name=“Bash”>\n',
+    '  <！DSML！parameter name=“command”><！[CDATA[lsof -i :4321 -t]]><！/DSML！parameter>\n',
+    '  <！DSML！parameter name=“description”><！[CDATA[Verify port 4321 is free]]><！/DSML！parameter>\n',
+    '  <！/DSML！invoke>\n',
+    '  <！/DSML！tool_calls>',
+  ], ['Bash']);
+  const finalCalls = events.flatMap((evt) => (evt.type === 'tool_calls' ? evt.calls : []));
+  assert.equal(finalCalls.length, 1);
+  assert.equal(finalCalls[0].name, 'Bash');
+  assert.equal(finalCalls[0].input.command, 'lsof -i :4321 -t');
+  assert.equal(collectText(events), '');
+});
+
+test('sieve emits tool_calls for ideographic-comma DSML drift', () => {
+  const events = runSieve([
+    '<、DSML、tool_calls>\n',
+    '  <、DSML、invoke name="Bash">\n',
+    "    <、DSML、parameter name=\"command\"><、[CDATA[git commit -m \"$(cat <<'EOF'\n",
+    'feat: expand fullwidth bang separator and curly quote tolerance in DSML tool parsing\n\n',
+    'Co-Authored-By: Claude Opus 4.6 noreply@anthropic.com\n',
+    'EOF\n',
+    ')"]]><、/DSML、parameter>\n',
+    '    <、DSML、parameter name="description"><、[CDATA[Create commit with staged changes]]><、/DSML、parameter>\n',
+    '  <、/DSML、invoke>\n',
+    '<、/DSML、tool_calls>',
+  ], ['Bash']);
+  const finalCalls = events.flatMap((evt) => (evt.type === 'tool_calls' ? evt.calls : []));
+  assert.equal(finalCalls.length, 1);
+  assert.equal(finalCalls[0].name, 'Bash');
+  assert.equal(finalCalls[0].input.command.includes('git commit -m'), true);
   assert.equal(collectText(events), '');
 });
 

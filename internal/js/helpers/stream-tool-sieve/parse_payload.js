@@ -1,10 +1,11 @@
 'use strict';
 
-const CDATA_PATTERN = /^(?:<|〈)!\[CDATA\[([\s\S]*?)]](?:>|＞|〉)$/i;
+const CDATA_PATTERN = /^(?:<|〈)(?:!|！)\[CDATA\[([\s\S]*?)]](?:>|＞|〉)$/i;
 const XML_ATTR_PATTERN = /\b([a-z0-9_:-]+)\s*=\s*("([^"]*)"|'([^']*)')/gi;
 const TOOL_MARKUP_NAMES = [
   { raw: 'tool_calls', canonical: 'tool_calls' },
   { raw: 'tool-calls', canonical: 'tool_calls', dsmlOnly: true },
+  { raw: 'toolcalls', canonical: 'tool_calls', dsmlOnly: true },
   { raw: 'invoke', canonical: 'invoke' },
   { raw: 'parameter', canonical: 'parameter' },
 ];
@@ -87,7 +88,8 @@ function isFenceCloseLine(trimmed, fenceChar, fenceLen) {
 }
 
 function cdataStartsBeforeFence(line) {
-  const cdataIdx = line.toLowerCase().indexOf('<![cdata[');
+  const cdataOpen = findNextCDATAOpen(line, 0);
+  const cdataIdx = cdataOpen.ok ? cdataOpen.start : -1;
   if (cdataIdx < 0) return false;
   const fenceIdx = Math.min(
     line.indexOf('```') >= 0 ? line.indexOf('```') : Infinity,
@@ -109,9 +111,9 @@ function updateCDATAStateLine(inCDATA, line) {
       state = false;
       continue;
     }
-    const start = lower.indexOf('<![cdata[', pos);
-    if (start < 0) return false;
-    pos = start + '<![cdata['.length;
+    const start = findNextCDATAOpen(line, pos);
+    if (!start.ok) return false;
+    pos = start.bodyStart;
     state = true;
   }
   return state;
@@ -410,8 +412,9 @@ function findMatchingXmlEndTagOutsideCDATA(text, tag, from) {
 }
 
 function skipXmlIgnoredSection(lower, i) {
-  if (lower.startsWith('<![cdata[', i)) {
-    const cdataEnd = findCDATAEnd(lower, i + '<![cdata['.length);
+  const cdataOpen = matchCDATAOpenAt(lower, i);
+  if (cdataOpen.ok) {
+    const cdataEnd = findCDATAEnd(lower, cdataOpen.bodyStart);
     const end = cdataEnd.index;
     if (end < 0) {
       return { advanced: false, blocked: true, next: i };
@@ -426,6 +429,43 @@ function skipXmlIgnoredSection(lower, i) {
     return { advanced: true, blocked: false, next: end + '-->'.length };
   }
   return { advanced: false, blocked: false, next: i };
+}
+
+function findNextCDATAOpen(text, from) {
+  const raw = toStringSafe(text);
+  for (let i = Math.max(0, from || 0); i < raw.length; i += 1) {
+    if (normalizeFullwidthASCIIChar(raw[i]) !== '<') {
+      continue;
+    }
+    const open = matchCDATAOpenAt(raw, i);
+    if (open.ok) {
+      return { ok: true, start: i, bodyStart: open.bodyStart };
+    }
+  }
+  return { ok: false, start: -1, bodyStart: -1 };
+}
+
+function matchCDATAOpenAt(text, start) {
+  const raw = toStringSafe(text);
+  if (start < 0 || start >= raw.length || normalizeFullwidthASCIIChar(raw[start]) !== '<') {
+    return { ok: false, bodyStart: start };
+  }
+  let i = start + 1;
+  for (let skipped = 0; skipped <= 4 && i < raw.length; skipped += 1) {
+    const matched = matchNormalizedASCII(raw, i, '[cdata[');
+    if (matched.ok) {
+      return { ok: true, bodyStart: i + matched.len };
+    }
+    if (!isCDATAOpenSeparator(raw[i])) {
+      break;
+    }
+    i += 1;
+  }
+  return { ok: false, bodyStart: start };
+}
+
+function isCDATAOpenSeparator(ch) {
+  return isToolMarkupSeparator(ch);
 }
 
 function findCDATAEnd(text, from) {
@@ -458,7 +498,7 @@ function scanToolMarkupTagAt(text, start) {
   while (i < raw.length && normalizeFullwidthASCIIChar(raw[i]) === '<') {
     i += 1;
   }
-  const closing = raw[i] === '/';
+  let closing = raw[i] === '/';
   if (closing) {
     i += 1;
   }
@@ -472,6 +512,9 @@ function scanToolMarkupTagAt(text, start) {
     if (!fallback.ok) {
       return null;
     }
+    if (!closing && toolMarkupPrefixContainsSlash(raw.slice(prefixStart, fallback.start))) {
+      closing = true;
+    }
     name = fallback.name;
     i = fallback.start;
     len = fallback.len;
@@ -479,21 +522,21 @@ function scanToolMarkupTagAt(text, start) {
   }
   const originalNameEnd = i + len;
   let nameEnd = originalNameEnd;
-  while (nameEnd < raw.length && isToolMarkupPipe(raw[nameEnd])) {
+  while (nameEnd < raw.length && isToolMarkupSeparator(raw[nameEnd])) {
     nameEnd += 1;
   }
-  const hasTrailingPipe = nameEnd > originalNameEnd;
+  const hasTrailingSeparator = nameEnd > originalNameEnd;
   if (!hasXmlTagBoundary(raw, nameEnd)) {
     return null;
   }
   let end = findXmlTagEnd(raw, nameEnd);
   if (end < 0) {
-    if (!hasTrailingPipe) {
+    if (!hasTrailingSeparator) {
       return null;
     }
     end = nameEnd - 1;
   }
-  if (hasTrailingPipe) {
+  if (hasTrailingSeparator) {
     const nextLT = raw.indexOf('<', nameEnd);
     if (nextLT >= 0 && end >= nextLT) {
       end = nameEnd - 1;
@@ -586,8 +629,15 @@ function includeDuplicateLeadingLessThan(text, idx) {
   return out;
 }
 
-function isToolMarkupPipe(ch) {
-  return ch === '|' || ch === '｜' || ch === '␂' || ch === '\x02';
+function isToolMarkupSeparator(ch) {
+  const normalized = normalizeFullwidthASCIIChar(ch || '');
+  if (!normalized || ['<', '>', '/', '=', '"', "'", '['].includes(normalized)) {
+    return false;
+  }
+  if ([' ', '\t', '\n', '\r'].includes(normalized)) {
+    return false;
+  }
+  return !/^[A-Za-z0-9]$/.test(normalized);
 }
 
 function isPartialToolMarkupTagPrefix(text) {
@@ -649,7 +699,7 @@ function matchToolMarkupNameAfterArbitraryPrefix(raw, start) {
     for (const name of TOOL_MARKUP_NAMES) {
       const matched = matchNormalizedASCII(raw, idx, name.raw);
       if (!matched.ok) continue;
-      if (!toolMarkupPrefixAllowsLocalName(raw.slice(start, idx))) continue;
+      if (!toolMarkupPrefixAllowsLocalNameAt(raw, start, idx)) continue;
       return { ok: true, name: name.canonical, start: idx, len: matched.len };
     }
     idx += 1;
@@ -662,10 +712,10 @@ function hasPartialToolMarkupNameAfterArbitraryPrefix(raw, start) {
     if (isToolMarkupTagTerminator(raw, idx)) {
       return false;
     }
-    if (toolMarkupPrefixAllowsLocalName(raw.slice(start, idx)) && hasToolMarkupNamePrefix(raw, idx)) {
+    if (toolMarkupPrefixAllowsLocalNameAt(raw, start, idx) && hasToolMarkupNamePrefix(raw, idx)) {
       return true;
     }
-    if (toolMarkupPrefixAllowsLocalName(raw.slice(start, idx)) && hasDSMLNamePrefixOrPartial(raw, idx)) {
+    if (toolMarkupPrefixAllowsLocalNameAt(raw, start, idx) && hasDSMLNamePrefixOrPartial(raw, idx)) {
       return true;
     }
     idx += 1;
@@ -692,12 +742,37 @@ function toolMarkupPrefixAllowsLocalName(prefix) {
   return !/^[A-Za-z0-9]$/.test(previous);
 }
 
+function toolMarkupPrefixAllowsLocalNameAt(raw, start, localStart) {
+  if (start < 0 || localStart <= start || localStart > raw.length) {
+    return false;
+  }
+  const prefix = raw.slice(start, localStart);
+  if (toolMarkupPrefixAllowsLocalName(prefix)) {
+    return true;
+  }
+  if (/[="'"]/.test(prefix)) {
+    return false;
+  }
+  const previous = normalizeFullwidthASCIIChar(prefix[prefix.length - 1] || '');
+  const next = normalizeFullwidthASCIIChar(raw[localStart] || '');
+  return /^[A-Za-z0-9]$/.test(previous) && /^[A-Z]$/.test(next);
+}
+
+function toolMarkupPrefixContainsSlash(prefix) {
+  for (const ch of toStringSafe(prefix)) {
+    if (normalizeFullwidthASCIIChar(ch) === '/') {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isToolMarkupTagTerminator(raw, idx) {
   return raw[idx] === '>' || normalizeFullwidthASCIIChar(raw[idx] || '') === '>';
 }
 
 function consumeToolMarkupNamePrefixOnce(raw, lower, idx) {
-  if (idx < raw.length && isToolMarkupPipe(raw[idx])) {
+  if (idx < raw.length && isToolMarkupSeparator(raw[idx])) {
     return { next: idx + 1, ok: true };
   }
   if (idx < raw.length && [' ', '\t', '\r', '\n'].includes(raw[idx])) {
@@ -736,7 +811,7 @@ function consumeArbitraryToolMarkupNamePrefix(raw, lower, idx) {
   }
   let next = k;
   let ok = false;
-  if (next < raw.length && isToolMarkupPipe(raw[next])) {
+  if (next < raw.length && isToolMarkupSeparator(raw[next])) {
     next += 1;
     ok = true;
   } else if (next < raw.length && ['_', '-'].includes(normalizeFullwidthASCIIChar(raw[next]))) {
@@ -833,6 +908,12 @@ function normalizeFullwidthASCIIChar(ch) {
   if (ch === '〉') {
     return '>';
   }
+  if (ch === '“' || ch === '”') {
+    return '"';
+  }
+  if (ch === '‘' || ch === '’') {
+    return "'";
+  }
   const code = ch.charCodeAt(0);
   if (code >= 0xff01 && code <= 0xff5e) {
     return String.fromCharCode(code - 0xfee0);
@@ -882,7 +963,7 @@ function normalizeToolMarkupTagTailForXML(tail) {
     } else if (normalized === '"' || normalized === "'") {
       quote = normalized;
       out += normalized;
-    } else if (normalized === '|') {
+    } else if (normalized === '|' || normalized === '!') {
       let j = i + 1;
       while (j < raw.length && [' ', '\t', '\r', '\n'].includes(raw[j])) {
         j += 1;
@@ -1239,14 +1320,32 @@ function unescapeHtml(safe) {
 
 function extractStandaloneCDATA(inner) {
   const s = toStringSafe(inner).trim();
-  const cdataMatch = s.match(CDATA_PATTERN);
-  if (cdataMatch && cdataMatch[1] !== undefined) {
-    return { ok: true, value: cdataMatch[1] };
-  }
-  if (s.toLowerCase().startsWith('<![cdata[')) {
-    return { ok: true, value: s.slice('<![CDATA['.length) };
+  const open = matchCDATAOpenAt(s, 0);
+  if (open.ok) {
+    const close = findStandaloneCDATAEnd(s, open.bodyStart);
+    if (close.index < 0) {
+      return { ok: true, value: s.slice(open.bodyStart) };
+    }
+    return { ok: true, value: s.slice(open.bodyStart, close.index) };
   }
   return { ok: false, value: '' };
+}
+
+function findStandaloneCDATAEnd(text, from) {
+  const raw = toStringSafe(text);
+  let best = { index: -1, len: 0 };
+  for (let searchFrom = Math.max(0, from || 0); searchFrom < raw.length;) {
+    const close = findCDATAEnd(raw, searchFrom);
+    if (close.index < 0) {
+      break;
+    }
+    const closeEnd = close.index + close.len;
+    if (!raw.slice(closeEnd).trim()) {
+      best = close;
+    }
+    searchFrom = closeEnd;
+  }
+  return best;
 }
 
 function parseJSONLiteralValue(raw) {
