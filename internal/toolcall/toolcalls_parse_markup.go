@@ -209,13 +209,14 @@ func skipXMLIgnoredSection(text string, i int) (next int, advanced bool, blocked
 	if i < 0 || i >= len(text) {
 		return i, false, false
 	}
-	switch {
-	case hasASCIIPrefixFoldAt(text, i, "<![cdata["):
-		end := findToolCDATAEnd(text, i+len("<![cdata["))
+	if bodyStart, ok := matchToolCDATAOpenAt(text, i); ok {
+		end := findToolCDATAEnd(text, bodyStart)
 		if end < 0 {
 			return 0, false, true
 		}
 		return end + toolCDATACloseLenAt(text, end), true, false
+	}
+	switch {
 	case strings.HasPrefix(text[i:], "<!--"):
 		end := strings.Index(text[i+len("<!--"):], "-->")
 		if end < 0 {
@@ -225,6 +226,38 @@ func skipXMLIgnoredSection(text string, i int) (next int, advanced bool, blocked
 	default:
 		return i, false, false
 	}
+}
+
+func matchToolCDATAOpenAt(text string, start int) (int, bool) {
+	i, ok := consumeToolMarkupLessThan(text, start)
+	if !ok {
+		return start, false
+	}
+	for skipped := 0; skipped <= 4 && i < len(text); skipped++ {
+		if cdataLen, ok := matchASCIIPrefixFoldAt(text, i, "[cdata["); ok {
+			return i + cdataLen, true
+		}
+		r, size := utf8.DecodeRuneInString(text[i:])
+		if size <= 0 || !isToolCDATAOpenSeparator(r) {
+			break
+		}
+		i += size
+	}
+	return start, false
+}
+
+func isToolCDATAOpenSeparator(r rune) bool {
+	ch := normalizeFullwidthASCII(r)
+	if ch == 0 || ch == '<' || ch == '>' || ch == '/' || ch == '=' || ch == '"' || ch == '\'' || ch == '[' {
+		return false
+	}
+	if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+		return false
+	}
+	if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') {
+		return false
+	}
+	return true
 }
 
 func hasASCIIPrefixFoldAt(text string, start int, prefix string) bool {

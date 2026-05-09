@@ -133,6 +133,19 @@ func TestBuildToolCallInstructions_RejectsEmptyParametersInPrompt(t *testing.T) 
 	}
 }
 
+func TestBuildToolCallInstructions_UsesPositiveTagPunctuationAlphabet(t *testing.T) {
+	out := BuildToolCallInstructions([]string{"Bash"})
+	want := `Tag punctuation alphabet: ASCII < > / = " plus the fullwidth vertical bar ｜.`
+	if !strings.Contains(out, want) {
+		t.Fatalf("expected positive tag punctuation alphabet %q, got: %s", want, out)
+	}
+	for _, bad := range []string{"lookalike", "substitute", "！", "〈", "〉", "“", "”", "、"} {
+		if strings.Contains(out, bad) {
+			t.Fatalf("tool prompt should not include negative punctuation examples %q, got: %s", bad, out)
+		}
+	}
+}
+
 func findInvokeBlocks(text, name string) []string {
 	open := `<｜DSML｜invoke name="` + name + `">`
 	remaining := text

@@ -1262,3 +1262,76 @@ func TestProcessToolSieveCJKAngleDSMDriftDoesNotLeak(t *testing.T) {
 		t.Fatalf("unexpected CJK-angle DSM drift call: %#v", calls[0])
 	}
 }
+
+func TestProcessToolSieveFullwidthBangDSMLDriftDoesNotLeak(t *testing.T) {
+	var state State
+	chunks := []string{
+		"<！DSML！tool_calls>\n",
+		"  <！DSML！invoke name=“Bash”>\n",
+		"  <！DSML！parameter name=“command”><！[CDATA[lsof -i :4321 -t]]><！/DSML！parameter>\n",
+		"  <！DSML！parameter name=“description”><！[CDATA[Verify port 4321 is free]]><！/DSML！parameter>\n",
+		"  <！/DSML！invoke>\n",
+		"  <！/DSML！tool_calls>",
+	}
+	var events []Event
+	for _, c := range chunks {
+		events = append(events, ProcessChunk(&state, c, []string{"Bash"})...)
+	}
+	events = append(events, Flush(&state, []string{"Bash"})...)
+
+	var textContent string
+	var calls []toolcall.ParsedToolCall
+	for _, evt := range events {
+		textContent += evt.Content
+		calls = append(calls, evt.ToolCalls...)
+	}
+
+	if strings.Contains(textContent, "DSML") || strings.Contains(textContent, "lsof") {
+		t.Fatalf("fullwidth-bang DSML drift leaked to text: %q events=%#v", textContent, events)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected one fullwidth-bang DSML drift tool call, got %d events=%#v", len(calls), events)
+	}
+	if calls[0].Name != "Bash" || calls[0].Input["command"] != "lsof -i :4321 -t" {
+		t.Fatalf("unexpected fullwidth-bang DSML drift call: %#v", calls[0])
+	}
+}
+
+func TestProcessToolSieveIdeographicCommaDSMLDriftDoesNotLeak(t *testing.T) {
+	var state State
+	chunks := []string{
+		"<、DSML、tool_calls>\n",
+		"  <、DSML、invoke name=\"Bash\">\n",
+		"    <、DSML、parameter name=\"command\"><、[CDATA[git commit -m \"$(cat <<'EOF'\n",
+		"feat: expand fullwidth bang separator and curly quote tolerance in DSML tool parsing\n\n",
+		"Co-Authored-By: Claude Opus 4.6 noreply@anthropic.com\n",
+		"EOF\n",
+		")\"]]><、/DSML、parameter>\n",
+		"    <、DSML、parameter name=\"description\"><、[CDATA[Create commit with staged changes]]><、/DSML、parameter>\n",
+		"  <、/DSML、invoke>\n",
+		"<、/DSML、tool_calls>",
+	}
+	var events []Event
+	for _, c := range chunks {
+		events = append(events, ProcessChunk(&state, c, []string{"Bash"})...)
+	}
+	events = append(events, Flush(&state, []string{"Bash"})...)
+
+	var textContent string
+	var calls []toolcall.ParsedToolCall
+	for _, evt := range events {
+		textContent += evt.Content
+		calls = append(calls, evt.ToolCalls...)
+	}
+
+	if strings.Contains(textContent, "DSML") || strings.Contains(textContent, "git commit") {
+		t.Fatalf("ideographic-comma DSML drift leaked to text: %q events=%#v", textContent, events)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected one ideographic-comma DSML drift tool call, got %d events=%#v", len(calls), events)
+	}
+	command, _ := calls[0].Input["command"].(string)
+	if calls[0].Name != "Bash" || !strings.Contains(command, "git commit -m") {
+		t.Fatalf("unexpected ideographic-comma DSML drift call: %#v", calls[0])
+	}
+}

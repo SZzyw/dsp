@@ -159,6 +159,9 @@ func scanToolMarkupTagAt(text string, start int) (ToolMarkupTag, bool) {
 		if !ok {
 			return ToolMarkupTag{}, false
 		}
+		if !closing && toolMarkupPrefixContainsSlash(text[prefixStart:fallbackStart]) {
+			closing = true
+		}
 		name = fallbackName
 		i = fallbackStart
 		nameLen = fallbackLen
@@ -461,6 +464,9 @@ func consumeToolMarkupPipe(text string, idx int) (int, bool) {
 	if strings.HasPrefix(text[idx:], "␂") {
 		return idx + len("␂"), true
 	}
+	if ch, size := normalizedASCIIAt(text, idx); ch == '!' {
+		return idx + size, true
+	}
 	return idx, false
 }
 
@@ -506,9 +512,22 @@ func normalizeFullwidthASCII(r rune) rune {
 		return '<'
 	case '〉':
 		return '>'
+	case '“', '”':
+		return '"'
+	case '‘', '’':
+		return '\''
 	}
 	if r >= '！' && r <= '～' {
 		return r - 0xFEE0
 	}
 	return r
+}
+
+func toolMarkupPrefixContainsSlash(prefix string) bool {
+	for _, r := range prefix {
+		if normalizeFullwidthASCII(r) == '/' {
+			return true
+		}
+	}
+	return false
 }

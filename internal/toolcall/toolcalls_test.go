@@ -163,6 +163,49 @@ func TestParseToolCallsSupportsCJKAngleDSMDrift(t *testing.T) {
 	}
 }
 
+func TestParseToolCallsSupportsFullwidthBangDSMLDrift(t *testing.T) {
+	text := `<！DSML！tool_calls>
+  <！DSML！invoke name=“Bash”>
+  <！DSML！parameter name=“command”><！[CDATA[lsof -i :4321 -t]]><！/DSML！parameter>
+  <！DSML！parameter name=“description”><！[CDATA[Verify port 4321 is free]]><！/DSML！parameter>
+  <！/DSML！invoke>
+  <！/DSML！tool_calls>`
+
+	calls := ParseToolCalls(text, []string{"Bash"})
+	if len(calls) != 1 {
+		t.Fatalf("expected one fullwidth-bang DSML drift call, got %#v", calls)
+	}
+	if calls[0].Name != "Bash" || calls[0].Input["command"] != "lsof -i :4321 -t" || calls[0].Input["description"] != "Verify port 4321 is free" {
+		t.Fatalf("unexpected fullwidth-bang DSML drift call: %#v", calls[0])
+	}
+}
+
+func TestParseToolCallsSupportsIdeographicCommaDSMLDrift(t *testing.T) {
+	text := `<、DSML、tool_calls>
+  <、DSML、invoke name="Bash">
+    <、DSML、parameter name="command"><、[CDATA[git commit -m "$(cat <<'EOF'
+feat: expand fullwidth bang separator and curly quote tolerance in DSML tool parsing
+
+Co-Authored-By: Claude Opus 4.6 noreply@anthropic.com
+EOF
+)"]]><、/DSML、parameter>
+    <、DSML、parameter name="description"><、[CDATA[Create commit with staged changes]]><、/DSML、parameter>
+  <、/DSML、invoke>
+<、/DSML、tool_calls>`
+
+	calls := ParseToolCalls(text, []string{"Bash"})
+	if len(calls) != 1 {
+		t.Fatalf("expected one ideographic-comma DSML drift call, got %#v", calls)
+	}
+	command, _ := calls[0].Input["command"].(string)
+	if calls[0].Name != "Bash" || !strings.Contains(command, `git commit -m "$(cat <<'EOF'`) || !strings.Contains(command, "Co-Authored-By: Claude Opus 4.6 noreply@anthropic.com") {
+		t.Fatalf("unexpected ideographic-comma DSML drift call: %#v", calls[0])
+	}
+	if calls[0].Input["description"] != "Create commit with staged changes" {
+		t.Fatalf("unexpected ideographic-comma description: %#v", calls[0])
+	}
+}
+
 func TestParseToolCallsIgnoresBareHyphenatedToolCallsLookalike(t *testing.T) {
 	text := `<tool-calls><invoke name="Bash"><parameter name="command">pwd</parameter></invoke></tool-calls>`
 	calls := ParseToolCalls(text, []string{"Bash"})
