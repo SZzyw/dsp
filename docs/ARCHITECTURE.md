@@ -41,6 +41,7 @@ ds2api/
 │   │   ├── admin/                        # Admin API 根装配与资源子包
 │   │   ├── claude/                       # Claude HTTP 协议适配
 │   │   ├── gemini/                       # Gemini HTTP 协议适配
+│   │   ├── ollama/                       # Ollama 兼容模型/能力查询接口
 │   │   ├── openai/                       # OpenAI HTTP surface
 │   │   │   ├── chat/                     # Chat Completions 执行入口
 │   │   │   ├── responses/                # Responses API 与 response store
@@ -57,6 +58,7 @@ ds2api/
 │   ├── prompt/                           # Prompt 组装
 │   ├── promptcompat/                     # API 请求到 DeepSeek 网页纯文本上下文兼容层
 │   ├── rawsample/                        # raw sample 读写与管理
+│   ├── responsehistory/                  # DeepSeek 上游响应归档与会话快照
 │   ├── server/                           # 路由与中间件装配
 │   │   └── data/                         # 路由/运行时辅助数据
 │   ├── sse/                              # SSE 解析工具
@@ -188,6 +190,7 @@ flowchart LR
 - `internal/server`：路由树和中间件挂载（健康检查、协议入口、Admin/WebUI）。
 - `internal/httpapi/openai/*`：OpenAI HTTP surface，按 chat、responses、files、embeddings、history、shared 拆分；chat/responses 共享 promptcompat、stream、toolcall 等核心语义。
 - `internal/httpapi/{claude,gemini}`：协议输入输出适配，归一到同一套 prompt compatibility 语义；正常直连路径必须通过 `completionruntime` 共享 DeepSeek session/PoW/completion 调用，`translatorcliproxy` 仅保留给 Vercel prepare/release、后端缺失 fallback 和回归测试。
+- `internal/httpapi/ollama`：Ollama 兼容的模型列表与能力查询入口。
 - `internal/httpapi/requestbody`：跨协议复用的请求体读取、JSON 解码前置校验与 UTF-8 错误处理辅助。
 - `internal/promptcompat`：OpenAI/Claude/Gemini 请求到 DeepSeek 网页纯文本上下文的兼容内核。
 - `internal/assistantturn`：Go 输出侧统一语义层，把 DeepSeek SSE 收集结果和流式收尾状态归一成 assistant turn，集中处理 thinking、tool call、citation、usage、stop/error 语义。
@@ -199,6 +202,7 @@ flowchart LR
 - `internal/toolcall` + `internal/toolstream`：DSML 外壳兼容与 canonical XML 工具调用解析、防泄漏筛分；DSML 会在入口归一化回 XML，内部仍按 XML 语义解析。
 - `internal/httpapi/admin/*`：Admin API 根装配与 auth/accounts/config/settings/proxies/rawsamples/vercel/history/devcapture/version 等资源子包。
 - `internal/chathistory`：服务器端对话记录持久化、分页、单条详情和保留策略。
+- `internal/responsehistory`：DeepSeek 上游响应归档，会在协议回译/裁剪前保存 assistant text、thinking、tool-call 原始片段和流式详情。
 - `internal/config`：配置加载、校验、运行时 settings 热更新。
 - `internal/account`：托管账号池、并发槽位、等待队列。
 - `internal/textclean`：文本清洗，移除 `[reference: N]` 标记等噪声。

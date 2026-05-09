@@ -93,10 +93,10 @@ func TestNormalizeClaudeMessagesToolUseToAssistantToolCalls(t *testing.T) {
 		t.Fatalf("expected call id preserved, got %#v", call)
 	}
 	content, _ := m["content"].(string)
-	if !containsStr(content, "<|DSML|tool_calls>") || !containsStr(content, `<|DSML|invoke name="search_web">`) {
+	if !containsStr(content, "<｜DSML｜tool_calls>") || !containsStr(content, `<｜DSML｜invoke name="search_web">`) {
 		t.Fatalf("expected assistant content to include DSML tool call history, got %q", content)
 	}
-	if !containsStr(content, `<|DSML|parameter name="query"><![CDATA[latest]]></|DSML|parameter>`) {
+	if !containsStr(content, `<｜DSML｜parameter name="query"><![CDATA[latest]]></｜DSML｜parameter>`) {
 		t.Fatalf("expected assistant content to include serialized parameters, got %q", content)
 	}
 }
@@ -133,7 +133,7 @@ func TestNormalizeClaudeMessagesPreservesThinkingOnToolUseHistory(t *testing.T) 
 	if !containsStr(prompt, "[reasoning_content]\nneed live search before answering\n[/reasoning_content]") {
 		t.Fatalf("expected thinking in prompt history, got %q", prompt)
 	}
-	if !containsStr(prompt, `<|DSML|invoke name="search_web">`) {
+	if !containsStr(prompt, `<｜DSML｜invoke name="search_web">`) {
 		t.Fatalf("expected tool call in prompt history, got %q", prompt)
 	}
 }

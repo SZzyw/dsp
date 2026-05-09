@@ -6,14 +6,14 @@
 
 ## 1) 当前可执行格式
 
-当前版本推荐模型输出 DSML 外壳：
+当前版本推荐模型输出全角分隔符 DSML 外壳：
 
 ```xml
-<|DSML|tool_calls>
-  <|DSML|invoke name="read_file">
-    <|DSML|parameter name="path"><![CDATA[README.MD]]></|DSML|parameter>
-  </|DSML|invoke>
-</|DSML|tool_calls>
+<｜DSML｜tool_calls>
+  <｜DSML｜invoke name="read_file">
+    <｜DSML｜parameter name="path"><![CDATA[README.MD]]></｜DSML｜parameter>
+  </｜DSML｜invoke>
+</｜DSML｜tool_calls>
 ```
 
 兼容层仍接受旧式 canonical XML：
@@ -30,10 +30,10 @@
 
 约束：
 
-- 必须有 `<|DSML|tool_calls>...</|DSML|tool_calls>` 或 `<tool_calls>...</tool_calls>` wrapper
-- 每个调用必须在 `<|DSML|invoke name="...">...</|DSML|invoke>` 或 `<invoke name="...">...</invoke>` 内
+- 必须有 `<｜DSML｜tool_calls>...</｜DSML｜tool_calls>` 或 `<tool_calls>...</tool_calls>` wrapper
+- 每个调用必须在 `<｜DSML｜invoke name="...">...</｜DSML｜invoke>` 或 `<invoke name="...">...</invoke>` 内
 - 工具名必须放在 `invoke` 的 `name` 属性
-- 参数必须使用 `<|DSML|parameter name="...">...</|DSML|parameter>` 或 `<parameter name="...">...</parameter>`
+- 参数必须使用 `<｜DSML｜parameter name="...">...</｜DSML｜parameter>` 或 `<parameter name="...">...</parameter>`
 - 同一个工具块内不要混用 DSML 标签和旧 XML 工具标签；混搭会被视为非法工具块
 
 兼容修复：
@@ -54,7 +54,7 @@
 
 在流式链路中（Go / Node 一致）：
 
-- DSML `<|DSML|tool_calls>` wrapper、短横线形式（如 `<dsml-tool-calls>` / `<dsml-invoke>` / `<dsml-parameter>`）、基于固定本地标签名的 DSML 噪声容错形态、尾部管道符形态（如 `<|DSML|tool_calls|`）和 canonical `<tool_calls>` wrapper 都会进入结构化捕获
+- DSML `<｜DSML｜tool_calls>` wrapper、短横线形式（如 `<dsml-tool-calls>` / `<dsml-invoke>` / `<dsml-parameter>`）、基于固定本地标签名的 DSML 噪声容错形态、尾部管道符形态（如 `<|DSML|tool_calls|`）和 canonical `<tool_calls>` wrapper 都会进入结构化捕获
 - 如果流里直接从 invoke 开始，但后面补上了 closing wrapper，Go 流式筛分也会按缺失 opening wrapper 的修复路径尝试恢复
 - 已识别成功的工具调用不会再次回流到普通文本
 - 不符合新格式的块不会执行，并继续按原样文本透传
@@ -80,6 +80,8 @@
 
 解析层不会因为参数值为空而丢弃工具调用。若模型输出了显式空字符串或纯空白参数，它们会按空字符串进入结构化 `tool_calls`；是否拒绝缺参或空命令应由后续工具执行侧 / 客户端 schema 校验决定。Prompt 层仍会要求模型不要主动输出空参数。
 
+完整的 DSML / XML wrapper 只有在成功解析出有效 `invoke name`，并且参数节点（如存在）符合 `parameter` 语义后，才会变成结构化工具调用；真正的零参数工具调用仍然有效。如果 wrapper 完整但内部不是可执行工具调用形态（例如使用 `<param>`、缺少有效 `invoke name`、或其他 malformed XML 工具壳），流式 sieve 会把原始 wrapper 作为普通文本释放，不会吞掉内容，也不会生成空的工具调用。
+
 ## 5) 落地建议
 
 1. Prompt 里只示范 DSML 外壳语法。
@@ -93,17 +95,18 @@
 
 ```bash
 go test -v -run 'TestParseToolCalls|TestProcessToolSieve' ./internal/toolcall ./internal/toolstream ./internal/httpapi/openai/...
-node --test tests/node/stream-tool-sieve.test.js
+./tests/scripts/run-unit-node.sh
 ```
 
 重点覆盖：
 
-- DSML `<|DSML|tool_calls>` wrapper 正常解析
+- DSML `<｜DSML｜tool_calls>` wrapper 正常解析
 - legacy canonical `<tool_calls>` wrapper 正常解析
 - 固定本地标签名的 DSML 噪声容错形态（如 `<DSML|tool_calls>`、`<<|DSML|tool_calls>`、`<|DSML tool_calls>`、`<DSMLtool_calls>`、`<<DSML|DSML|tool_calls>`）正常解析
 - 混搭标签（DSML wrapper + canonical inner）归一化后正常解析
 - 波浪线围栏 `~~~` 内的示例不执行
 - 嵌套围栏（4 反引号嵌套 3 反引号）内的示例不执行
 - 文本 mention 标签名后紧跟真正工具调用的场景（含同一 wrapper 变体）
+- 空参数结构化保留，malformed executable-looking XML wrapper 作为文本释放
 - 非兼容内容按普通文本透传
 - 代码块示例不执行
