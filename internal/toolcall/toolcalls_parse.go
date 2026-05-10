@@ -153,6 +153,29 @@ func stripFencedCodeBlocks(text string) string {
 	return b.String()
 }
 
+func markdownCodeSpanEnd(text string, start int) (int, bool) {
+	if start < 0 || start >= len(text) || text[start] != '`' {
+		return start, false
+	}
+	count := countLeadingFenceChars(text[start:], '`')
+	if count == 0 {
+		return start, false
+	}
+	search := start + count
+	for search < len(text) {
+		if text[search] != '`' {
+			search++
+			continue
+		}
+		run := countLeadingFenceChars(text[search:], '`')
+		if run == count {
+			return search + run, true
+		}
+		search += run
+	}
+	return start, false
+}
+
 func cdataStartsBeforeFence(line string) bool {
 	cdataIdx := indexToolCDATAOpen(line, 0)
 	if cdataIdx < 0 {

@@ -10,16 +10,14 @@ import (
 )
 
 var xmlAttrPattern = regexp.MustCompile(`(?is)\b([a-z0-9_:-]+)\s*=\s*("([^"]*)"|'([^']*)')`)
-var xmlToolCallsClosePattern = regexp.MustCompile(`(?is)</tool_calls>`)
-var xmlInvokeStartPattern = regexp.MustCompile(`(?is)<invoke\b[^>]*\bname\s*=\s*("([^"]*)"|'([^']*)')`)
 var cdataBRSeparatorPattern = regexp.MustCompile(`(?i)<br\s*/?>`)
 
 func parseXMLToolCalls(text string) []ParsedToolCall {
-	wrappers := findXMLElementBlocks(text, "tool_calls")
+	wrappers := findToolCallElementBlocksOutsideIgnored(text)
 	if len(wrappers) == 0 {
 		repaired := repairMissingXMLToolCallsOpeningWrapper(text)
 		if repaired != text {
-			wrappers = findXMLElementBlocks(repaired, "tool_calls")
+			wrappers = findToolCallElementBlocksOutsideIgnored(repaired)
 		}
 	}
 	if len(wrappers) == 0 {
@@ -41,26 +39,89 @@ func parseXMLToolCalls(text string) []ParsedToolCall {
 	return out
 }
 
+func findToolCallElementBlocksOutsideIgnored(text string) []xmlElementBlock {
+	if text == "" {
+		return nil
+	}
+	var out []xmlElementBlock
+	for searchFrom := 0; searchFrom < len(text); {
+		tag, ok := FindToolMarkupTagOutsideIgnored(text, searchFrom)
+		if !ok {
+			break
+		}
+		if tag.Closing || tag.Name != "tool_calls" {
+			searchFrom = tag.End + 1
+			continue
+		}
+		closeTag, ok := FindMatchingToolMarkupClose(text, tag)
+		if !ok {
+			searchFrom = tag.End + 1
+			continue
+		}
+		attrsEnd := tag.End + 1
+		if delimLen := xmlTagEndDelimiterLenEndingAt(text, tag.End); delimLen > 0 {
+			attrsEnd = tag.End + 1 - delimLen
+		}
+		out = append(out, xmlElementBlock{
+			Attrs: text[tag.NameEnd:attrsEnd],
+			Body:  text[tag.End+1 : closeTag.Start],
+			Start: tag.Start,
+			End:   closeTag.End + 1,
+		})
+		searchFrom = closeTag.End + 1
+	}
+	return out
+}
+
 func repairMissingXMLToolCallsOpeningWrapper(text string) string {
-	lower := strings.ToLower(text)
-	if strings.Contains(lower, "<tool_calls") {
+	if _, ok := firstToolMarkupTagByName(text, "tool_calls", false); ok {
 		return text
 	}
 
-	closeMatches := xmlToolCallsClosePattern.FindAllStringIndex(text, -1)
-	if len(closeMatches) == 0 {
+	invokeTag, ok := firstToolMarkupTagByName(text, "invoke", false)
+	if !ok {
 		return text
 	}
-	invokeLoc := xmlInvokeStartPattern.FindStringIndex(text)
-	if invokeLoc == nil {
-		return text
-	}
-	closeLoc := closeMatches[len(closeMatches)-1]
-	if invokeLoc[0] >= closeLoc[0] {
+	closeTag, ok := lastToolMarkupTagByName(text, "tool_calls", true)
+	if !ok || invokeTag.Start >= closeTag.Start {
 		return text
 	}
 
-	return text[:invokeLoc[0]] + "<tool_calls>" + text[invokeLoc[0]:closeLoc[0]] + "</tool_calls>" + text[closeLoc[1]:]
+	return text[:invokeTag.Start] + "<tool_calls>" + text[invokeTag.Start:closeTag.Start] + "</tool_calls>" + text[closeTag.End+1:]
+}
+
+func firstToolMarkupTagByName(text, name string, closing bool) (ToolMarkupTag, bool) {
+	for searchFrom := 0; searchFrom < len(text); {
+		tag, ok := FindToolMarkupTagOutsideIgnored(text, searchFrom)
+		if !ok {
+			break
+		}
+		if tag.Name == name && tag.Closing == closing {
+			return tag, true
+		}
+		searchFrom = tag.End + 1
+	}
+	return ToolMarkupTag{}, false
+}
+
+func lastToolMarkupTagByName(text, name string, closing bool) (ToolMarkupTag, bool) {
+	var last ToolMarkupTag
+	found := false
+	for searchFrom := 0; searchFrom < len(text); {
+		tag, ok := FindToolMarkupTagOutsideIgnored(text, searchFrom)
+		if !ok {
+			break
+		}
+		if tag.Name == name && tag.Closing == closing {
+			last = tag
+			found = true
+		}
+		searchFrom = tag.End + 1
+	}
+	if !found {
+		return ToolMarkupTag{}, false
+	}
+	return last, true
 }
 
 func parseSingleXMLToolCall(block xmlElementBlock) (ParsedToolCall, bool) {

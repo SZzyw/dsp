@@ -33,6 +33,11 @@ func rewriteDSMLToolMarkupOutsideIgnored(text string) string {
 			i = next
 			continue
 		}
+		if end, ok := markdownCodeSpanEnd(text, i); ok {
+			b.WriteString(text[i:end])
+			i = end
+			continue
+		}
 		tag, ok := scanToolMarkupTagAt(text, i)
 		if !ok {
 			b.WriteByte(text[i])

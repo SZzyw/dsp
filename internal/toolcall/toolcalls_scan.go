@@ -42,6 +42,10 @@ func ContainsToolMarkupSyntaxOutsideIgnored(text string) (hasDSML, hasCanonical 
 			i = next
 			continue
 		}
+		if end, ok := markdownCodeSpanEnd(text, i); ok {
+			i = end
+			continue
+		}
 		if tag, ok := scanToolMarkupTagAt(text, i); ok {
 			if tag.DSMLLike {
 				hasDSML = true
@@ -67,6 +71,10 @@ func ContainsToolCallWrapperSyntaxOutsideIgnored(text string) (hasDSML, hasCanon
 		}
 		if advanced {
 			i = next
+			continue
+		}
+		if end, ok := markdownCodeSpanEnd(text, i); ok {
+			i = end
 			continue
 		}
 		if tag, ok := scanToolMarkupTagAt(text, i); ok {
@@ -98,6 +106,10 @@ func FindToolMarkupTagOutsideIgnored(text string, start int) (ToolMarkupTag, boo
 		}
 		if advanced {
 			i = next
+			continue
+		}
+		if end, ok := markdownCodeSpanEnd(text, i); ok {
+			i = end
 			continue
 		}
 		if tag, ok := scanToolMarkupTagAt(text, i); ok {

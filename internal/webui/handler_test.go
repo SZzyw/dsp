@@ -78,6 +78,33 @@ func TestServeFromDiskPinsContentType(t *testing.T) {
 	}
 }
 
+func TestServeFromDiskRejectsSiblingDirectoryWithSharedPrefix(t *testing.T) {
+	parent := t.TempDir()
+	staticDir := filepath.Join(parent, "admin")
+	siblingDir := filepath.Join(parent, "admin-leak")
+	if err := os.MkdirAll(staticDir, 0o755); err != nil {
+		t.Fatalf("mkdir static dir: %v", err)
+	}
+	if err := os.MkdirAll(siblingDir, 0o755); err != nil {
+		t.Fatalf("mkdir sibling dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(siblingDir, "secret.txt"), []byte("secret"), 0o644); err != nil {
+		t.Fatalf("write sibling secret: %v", err)
+	}
+
+	h := &Handler{StaticDir: staticDir}
+	req := httptest.NewRequest(http.MethodGet, "/admin/../admin-leak/secret.txt", nil)
+	rec := httptest.NewRecorder()
+	h.serveFromDisk(rec, req, staticDir)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	if body := rec.Body.String(); strings.Contains(body, "secret") {
+		t.Fatal("served content from sibling directory")
+	}
+}
+
 // TestSetStaticContentTypeUnknownExtensionFallsThrough verifies that unknown
 // extensions leave the Content-Type header unset, so http.ServeFile can apply
 // its own detection (sniffing or mime.TypeByExtension) for cases the pinned

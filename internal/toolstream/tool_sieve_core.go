@@ -155,7 +155,7 @@ func splitSafeContentForToolDetection(state *State, s string) (safe, hold string
 		return "", ""
 	}
 	if xmlIdx := findPartialXMLToolTagStart(s); xmlIdx >= 0 {
-		if insideCodeFenceWithState(state, s[:xmlIdx]) {
+		if insideCodeFenceWithState(state, s[:xmlIdx]) || insideMarkdownCodeSpanWithState(state, s[:xmlIdx]) {
 			return s, ""
 		}
 		if xmlIdx > 0 {
@@ -177,7 +177,7 @@ func findToolSegmentStart(state *State, s string) int {
 			return -1
 		}
 		start := includeDuplicateLeadingLessThan(s, tag.Start)
-		if !insideCodeFenceWithState(state, s[:start]) {
+		if !insideCodeFenceWithState(state, s[:start]) && !insideMarkdownCodeSpanWithState(state, s[:start]) {
 			return start
 		}
 		offset = tag.End + 1

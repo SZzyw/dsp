@@ -568,6 +568,19 @@ test('parseToolCalls skips prose mention of same wrapper variant', () => {
   assert.equal(calls[0].input.command, 'git status');
 });
 
+test('parseToolCalls ignores inline markdown tool example', () => {
+  const payload = '示例：`<tool_calls><invoke name="read_file"><parameter name="path">README.md</parameter></invoke></tool_calls>`';
+  const calls = parseToolCalls(payload, ['read_file']);
+  assert.equal(calls.length, 0);
+});
+
+test('parseToolCalls preserves backticks inside tool parameters', () => {
+  const payload = '<tool_calls><invoke name="Bash"><parameter name="command">echo `date`</parameter></invoke></tool_calls>';
+  const calls = parseToolCalls(payload, ['Bash']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].input.command, 'echo `date`');
+});
+
 test('sieve emits tool_calls after prose mentions same wrapper variant', () => {
   const events = runSieve([
     'Summary: support canonical <tool_calls> and DSML <|DSML|tool_calls> wrappers.\n\n',
@@ -582,6 +595,53 @@ test('sieve emits tool_calls after prose mentions same wrapper variant', () => {
   assert.equal(finalCalls[0].name, 'Bash');
   assert.equal(finalCalls[0].input.command, 'git status');
   assert.equal(collectText(events).includes('Summary:'), true);
+});
+
+test('sieve ignores markdown documentation examples', () => {
+  const events = runSieve([
+    '解析器支持多种工具调用格式。\n\n',
+    '入口函数 `ParseToolCalls(text, availableToolNames)` 会返回调用列表。\n\n',
+    '核心流程会解析 XML 格式的 `<tool_calls>` / `<invoke>` 标记。\n\n',
+    '### 标准 XML 结构\n',
+    '```xml\n',
+    '<tool_calls>\n',
+    '  <invoke name="read_file">\n',
+    '    <parameter name="path">config.json</parameter>\n',
+    '  </invoke>\n',
+    '</tool_calls>\n',
+    '```\n\n',
+    'DSML 风格形如 `<invoke name="tool">...</invoke>`，也可能提到 `<tool_calls>` 包裹。\n',
+  ], ['read_file']);
+  const finalCalls = events.filter((evt) => evt.type === 'tool_calls').flatMap((evt) => evt.calls || []);
+  const text = collectText(events);
+  assert.equal(finalCalls.length, 0);
+  assert.equal(text.includes('标准 XML 结构'), true);
+  assert.equal(text.includes('DSML 风格'), true);
+});
+
+test('sieve ignores inline markdown tool example split across chunks', () => {
+  const events = runSieve([
+    '示例：`',
+    '<tool_calls><invoke name="read_file"><parameter name="path">README.md</parameter></invoke></tool_calls>',
+    '` 完毕。',
+  ], ['read_file']);
+  const finalCalls = events.filter((evt) => evt.type === 'tool_calls').flatMap((evt) => evt.calls || []);
+  const text = collectText(events);
+  assert.equal(finalCalls.length, 0);
+  assert.equal(text.includes('<tool_calls>'), true);
+  assert.equal(text.includes('完毕'), true);
+});
+
+test('sieve emits real tool after split inline markdown tool example closes', () => {
+  const events = runSieve([
+    '示例：`',
+    '<tool_calls><invoke name="read_file"><parameter name="path">README.md</parameter></invoke></tool_calls>',
+    '` ',
+    '<tool_calls><invoke name="read_file"><parameter name="path">real.md</parameter></invoke></tool_calls>',
+  ], ['read_file']);
+  const finalCalls = events.filter((evt) => evt.type === 'tool_calls').flatMap((evt) => evt.calls || []);
+  assert.equal(finalCalls.length, 1);
+  assert.equal(finalCalls[0].input.path, 'real.md');
 });
 
 test('sieve emits tool_calls for DSML space-separator typo', () => {

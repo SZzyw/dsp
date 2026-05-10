@@ -95,11 +95,12 @@ func setStaticContentType(w http.ResponseWriter, fullPath string) {
 }
 
 func (h *Handler) serveFromDisk(w http.ResponseWriter, r *http.Request, staticDir string) {
+	root := filepath.Clean(staticDir)
 	path := strings.TrimPrefix(r.URL.Path, "/admin")
 	path = strings.TrimPrefix(path, "/")
 	if path != "" && strings.Contains(path, ".") {
-		full := filepath.Join(staticDir, filepath.Clean(path))
-		if !strings.HasPrefix(full, staticDir) {
+		full := filepath.Join(root, filepath.Clean(path))
+		if full != root && !strings.HasPrefix(full, root+string(os.PathSeparator)) {
 			http.NotFound(w, r)
 			return
 		}
@@ -116,7 +117,7 @@ func (h *Handler) serveFromDisk(w http.ResponseWriter, r *http.Request, staticDi
 		http.NotFound(w, r)
 		return
 	}
-	index := filepath.Join(staticDir, "index.html")
+	index := filepath.Join(root, "index.html")
 	if _, err := os.Stat(index); err != nil {
 		http.Error(w, "index.html not found", http.StatusNotFound)
 		return

@@ -28,6 +28,11 @@ func canonicalizeToolCallCandidateSpans(text string) string {
 			i = next
 			continue
 		}
+		if end, ok := markdownCodeSpanEnd(text, i); ok {
+			b.WriteString(text[i:end])
+			i = end
+			continue
+		}
 		tag, ok := scanToolMarkupTagAt(text, i)
 		if !ok {
 			b.WriteByte(text[i])
@@ -619,19 +624,18 @@ func hasRepairableXMLToolCallsWrapper(text string) bool {
 	if strings.TrimSpace(text) == "" {
 		return false
 	}
-	if strings.Contains(strings.ToLower(text), "<tool_calls") {
+	if _, ok := firstToolMarkupTagByName(text, "tool_calls", false); ok {
 		return false
 	}
-	closeMatches := xmlToolCallsClosePattern.FindAllStringIndex(text, -1)
-	if len(closeMatches) == 0 {
+	invokeTag, ok := firstToolMarkupTagByName(text, "invoke", false)
+	if !ok {
 		return false
 	}
-	invokeLoc := xmlInvokeStartPattern.FindStringIndex(text)
-	if invokeLoc == nil {
+	closeTag, ok := lastToolMarkupTagByName(text, "tool_calls", true)
+	if !ok {
 		return false
 	}
-	closeLoc := closeMatches[len(closeMatches)-1]
-	return invokeLoc[0] < closeLoc[0]
+	return invokeTag.Start < closeTag.Start
 }
 
 func toolCDATAOpenLenAt(text string, idx int) int {

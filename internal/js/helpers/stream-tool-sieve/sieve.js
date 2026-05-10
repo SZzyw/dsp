@@ -3,6 +3,7 @@ const {
   resetIncrementalToolState,
   noteText,
   insideCodeFenceWithState,
+  insideMarkdownCodeSpanWithState,
 } = require('./state');
 const { trimWrappingJSONFence } = require('./jsonscan');
 const {
@@ -161,7 +162,7 @@ function splitSafeContentForToolDetection(state, s) {
   // Only hold back partial XML tool tags.
   const xmlIdx = findPartialXMLToolTagStart(text);
   if (xmlIdx >= 0) {
-    if (insideCodeFenceWithState(state, text.slice(0, xmlIdx))) {
+    if (insideCodeFenceWithState(state, text.slice(0, xmlIdx)) || insideMarkdownCodeSpanWithState(state, text.slice(0, xmlIdx))) {
       return [text, ''];
     }
     if (xmlIdx > 0) {
@@ -182,7 +183,7 @@ function findToolSegmentStart(state, s) {
     if (!tag) {
       return -1;
     }
-    if (!insideCodeFenceWithState(state, s.slice(0, tag.start))) {
+    if (!insideCodeFenceWithState(state, s.slice(0, tag.start)) && !insideMarkdownCodeSpanWithState(state, s.slice(0, tag.start))) {
       return tag.start;
     }
     offset = tag.end + 1;
