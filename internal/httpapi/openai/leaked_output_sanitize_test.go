@@ -26,6 +26,15 @@ func TestSanitizeLeakedOutputRemovesStandaloneMetaMarkers(t *testing.T) {
 	}
 }
 
+func TestSanitizeLeakedOutputRemovesFullwidthDelimitedMetaMarkers(t *testing.T) {
+	fw := "\uff5c"
+	raw := "A<" + fw + "end▁of▁sentence" + fw + ">B<" + fw + " Assistant " + fw + ">C<" + fw + "end_of_toolresults" + fw + ">D"
+	got := sanitizeLeakedOutput(raw)
+	if got != "ABCD" {
+		t.Fatalf("unexpected sanitize result for fullwidth-delimited meta markers: %q", got)
+	}
+}
+
 func TestSanitizeLeakedOutputRemovesThinkAndBosMarkers(t *testing.T) {
 	raw := "A<think>B</think>C<|begin▁of▁sentence|>D<| begin_of_sentence |>E<|begin_of_sentence|>F"
 	got := sanitizeLeakedOutput(raw)
@@ -39,6 +48,15 @@ func TestSanitizeLeakedOutputRemovesThoughtMarkers(t *testing.T) {
 	got := sanitizeLeakedOutput(raw)
 	if got != "ABCDE" {
 		t.Fatalf("unexpected sanitize result for leaked thought markers: %q", got)
+	}
+}
+
+func TestSanitizeLeakedOutputRemovesFullwidthDelimitedBosAndThoughtMarkers(t *testing.T) {
+	fw := "\uff5c"
+	raw := "A<" + fw + "begin▁of▁sentence" + fw + ">B<" + fw + "▁of▁thought" + fw + ">C<" + fw + " begin_of_thought " + fw + ">D"
+	got := sanitizeLeakedOutput(raw)
+	if got != "ABCD" {
+		t.Fatalf("unexpected sanitize result for fullwidth-delimited BOS/thought markers: %q", got)
 	}
 }
 

@@ -113,6 +113,9 @@ func TestBuildOpenAIPromptWithToolInstructionsOnlyOmitsSchemas(t *testing.T) {
 	if strings.Contains(finalPrompt, "You have access to these tools") || strings.Contains(finalPrompt, "Description: search docs") || strings.Contains(finalPrompt, "Parameters:") {
 		t.Fatalf("tool descriptions should be externalized, got: %q", finalPrompt)
 	}
+	if !strings.Contains(finalPrompt, "Treat DS2API_TOOLS.txt as the authoritative list of callable tools and schemas") {
+		t.Fatalf("expected instructions-only prompt to point model at tools file, got: %q", finalPrompt)
+	}
 	if !strings.Contains(finalPrompt, "TOOL CALL FORMAT") || !strings.Contains(finalPrompt, "Remember: The ONLY valid way to use tools") {
 		t.Fatalf("expected tool format instructions to remain in live prompt, got: %q", finalPrompt)
 	}

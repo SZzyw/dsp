@@ -33,6 +33,7 @@ type Handler struct {
 
 type streamLease struct {
 	Auth      *auth.RequestAuth
+	Standard  promptcompat.StandardRequest
 	ExpiresAt time.Time
 }
 
