@@ -105,6 +105,25 @@ func TestServeFromDiskRejectsSiblingDirectoryWithSharedPrefix(t *testing.T) {
 	}
 }
 
+func TestIsPathInsideRootAllowsFilesystemRootChildren(t *testing.T) {
+	root := filepath.VolumeName(os.TempDir()) + string(os.PathSeparator)
+	child := filepath.Join(root, "assets", "index.css")
+
+	if !isPathInsideRoot(child, root) {
+		t.Fatalf("expected filesystem-root child %q inside %q", child, root)
+	}
+}
+
+func TestIsPathInsideRootRejectsSharedPrefixSibling(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "admin")
+	sibling := filepath.Join(parent, "admin-leak", "secret.txt")
+
+	if isPathInsideRoot(sibling, root) {
+		t.Fatalf("expected shared-prefix sibling %q outside %q", sibling, root)
+	}
+}
+
 // TestSetStaticContentTypeUnknownExtensionFallsThrough verifies that unknown
 // extensions leave the Content-Type header unset, so http.ServeFile can apply
 // its own detection (sniffing or mime.TypeByExtension) for cases the pinned

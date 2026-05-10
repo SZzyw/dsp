@@ -100,7 +100,7 @@ func (h *Handler) serveFromDisk(w http.ResponseWriter, r *http.Request, staticDi
 	path = strings.TrimPrefix(path, "/")
 	if path != "" && strings.Contains(path, ".") {
 		full := filepath.Join(root, filepath.Clean(path))
-		if full != root && !strings.HasPrefix(full, root+string(os.PathSeparator)) {
+		if !isPathInsideRoot(full, root) {
 			http.NotFound(w, r)
 			return
 		}
@@ -125,6 +125,20 @@ func (h *Handler) serveFromDisk(w http.ResponseWriter, r *http.Request, staticDi
 	w.Header().Set("Cache-Control", "no-store, must-revalidate")
 	setStaticContentType(w, index)
 	http.ServeFile(w, r, index)
+}
+
+func isPathInsideRoot(path, root string) bool {
+	cleanPath := filepath.Clean(path)
+	cleanRoot := filepath.Clean(root)
+	if cleanPath == cleanRoot {
+		return true
+	}
+	volume := filepath.VolumeName(cleanRoot)
+	rootWithoutVolume := cleanRoot[len(volume):]
+	if rootWithoutVolume == string(os.PathSeparator) {
+		return strings.HasPrefix(cleanPath, cleanRoot)
+	}
+	return strings.HasPrefix(cleanPath, cleanRoot+string(os.PathSeparator))
 }
 
 func resolveStaticAdminDir(preferred string) string {
