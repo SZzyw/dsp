@@ -29,10 +29,6 @@ func (t *okhttpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.base.RoundTrip(req)
 }
 
-func (t *okhttpTransport) CancelRequest(req *http.Request) {
-	t.base.CancelRequest(req)
-}
-
 type Client struct {
 	http *http.Client
 }

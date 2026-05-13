@@ -391,7 +391,7 @@ func TestChatCompletionsCurrentInputFilePersistsNeutralPrompt(t *testing.T) {
 	if len(ds.uploadCalls) != 1 {
 		t.Fatalf("expected current input upload to happen, got %d", len(ds.uploadCalls))
 	}
-	if ds.uploadCalls[0].Filename != "chat_log.txt" {
+	if ds.uploadCalls[0].Filename != promptcompat.CurrentInputContextFilename {
 		t.Fatalf("expected chat_log.txt upload, got %q", ds.uploadCalls[0].Filename)
 	}
 	if full.HistoryText != string(ds.uploadCalls[0].Data) {
@@ -400,7 +400,7 @@ func TestChatCompletionsCurrentInputFilePersistsNeutralPrompt(t *testing.T) {
 	if len(full.Messages) != 1 {
 		t.Fatalf("expected continuation prompt to be the only persisted message, got %#v", full.Messages)
 	}
-	if !strings.Contains(full.Messages[0].Content, "chat_log.txt 里是之前的对话记录。接续回答最后一条消息。") {
+	if !strings.Contains(full.Messages[0].Content, promptcompat.CurrentInputContextFilename + " 里是之前的对话记录。接续回答最后一条消息。") {
 		t.Fatalf("expected continuation prompt to be persisted, got %#v", full.Messages[0])
 	}
 }

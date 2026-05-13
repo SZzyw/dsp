@@ -3,16 +3,29 @@ package promptcompat
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strings"
 	"unicode"
 
 	"ds2api/internal/toolcall"
 )
 
-const CurrentToolsContextFilename = "notes.txt"
+var CurrentToolsContextFilename = randomToolsFileName()
 
-const toolsTranscriptTitle = "# notes.txt"
-const toolsTranscriptSummary = "Available tool descriptions and parameter schemas for this request."
+var toolsTranscriptTitle = "# " + CurrentToolsContextFilename
+var toolsTranscriptSummary = "Available tool descriptions and parameter schemas for this request."
+
+func randomToolsFileName() string {
+	templates := []string{
+		"tool_list_%d.txt",
+		"commands_%d.txt",
+		"functions_%d.txt",
+	}
+	digits := []int{10000, 100000, 1000000}
+	tpl := templates[rand.Intn(len(templates))]
+	base := digits[rand.Intn(len(digits))]
+	return fmt.Sprintf(tpl, base+rand.Intn(base*9))
+}
 
 type toolPromptParts struct {
 	Descriptions string
@@ -40,7 +53,7 @@ func injectToolPromptWithDescriptions(messages []map[string]any, tools []any, po
 	if includeDescriptions && parts.Descriptions != "" {
 		toolPrompt = parts.Descriptions + "\n\n" + toolPrompt
 	} else if !includeDescriptions && parts.Descriptions != "" {
-		toolPrompt = "notes.txt 里有可用的工具描述，只调用那里列出的工具。\n\n" + toolPrompt
+		toolPrompt = CurrentToolsContextFilename + " 里有可用的工具描述，只调用那里列出的工具。\n\n" + toolPrompt
 	}
 
 	for i := range messages {

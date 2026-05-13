@@ -2,13 +2,26 @@ package promptcompat
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 )
 
-const CurrentInputContextFilename = "chat_log.txt"
+var CurrentInputContextFilename = randomFileName()
 
-const historyTranscriptTitle = "# chat_log.txt"
-const historyTranscriptSummary = "Prior conversation history and tool progress."
+var historyTranscriptTitle = "# " + CurrentInputContextFilename
+var historyTranscriptSummary = "Prior conversation history and tool progress."
+
+func randomFileName() string {
+	templates := []string{
+		"chat_log_%d.txt",
+		"conversation_%d.txt",
+		"notes_%d.txt",
+	}
+	digits := []int{10000, 100000, 1000000}
+	tpl := templates[rand.Intn(len(templates))]
+	base := digits[rand.Intn(len(digits))]
+	return fmt.Sprintf(tpl, base+rand.Intn(base*9))
+}
 
 func BuildOpenAIHistoryTranscript(messages []any) string {
 	return buildOpenAIHistoryTranscript(messages)

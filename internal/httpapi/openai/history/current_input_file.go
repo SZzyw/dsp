@@ -13,9 +13,10 @@ import (
 	"ds2api/internal/promptcompat"
 )
 
+var currentInputFilename = promptcompat.CurrentInputContextFilename
+var currentToolsFilename = promptcompat.CurrentToolsContextFilename
+
 const (
-	currentInputFilename    = promptcompat.CurrentInputContextFilename
-	currentToolsFilename    = promptcompat.CurrentToolsContextFilename
 	currentInputContentType = "text/plain; charset=utf-8"
 	currentInputPurpose     = "assistants"
 )
@@ -186,9 +187,9 @@ func latestUserInputForFile(messages []any) (int, string) {
 }
 
 func currentInputFilePrompt(hasToolsFile bool) string {
-	prompt := "chat_log.txt 里是之前的对话记录。接续回答最后一条消息。"
+	prompt := currentInputFilename + " 里是之前的对话记录。接续回答最后一条消息。"
 	if hasToolsFile {
-		prompt += " 工具用法写在 notes.txt 里，按那里的格式调用。"
+		prompt += " 工具用法写在 " + currentToolsFilename + " 里，按那里的格式调用。"
 	}
 	return prompt
 }

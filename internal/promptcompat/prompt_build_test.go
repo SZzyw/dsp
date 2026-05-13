@@ -113,7 +113,7 @@ func TestBuildOpenAIPromptWithToolInstructionsOnlyOmitsSchemas(t *testing.T) {
 	if strings.Contains(finalPrompt, "You have access to these tools") || strings.Contains(finalPrompt, "Description: search docs") || strings.Contains(finalPrompt, "Parameters:") {
 		t.Fatalf("tool descriptions should be externalized, got: %q", finalPrompt)
 	}
-	if !strings.Contains(finalPrompt, "notes.txt 里有可用的工具描述，只调用那里列出的工具。") {
+	if !strings.Contains(finalPrompt, CurrentToolsContextFilename + " 里有可用的工具描述，只调用那里列出的工具。") {
 		t.Fatalf("expected instructions-only prompt to point model at tools file, got: %q", finalPrompt)
 	}
 	if !strings.Contains(finalPrompt, "TOOL CALL FORMAT") || !strings.Contains(finalPrompt, "Remember: The ONLY valid way to use tools") {
@@ -139,7 +139,7 @@ func TestBuildOpenAIToolsContextTranscriptContainsOnlyDescriptions(t *testing.T)
 	if len(toolNames) != 1 || toolNames[0] != "search" {
 		t.Fatalf("unexpected tool names: %#v", toolNames)
 	}
-	for _, want := range []string{"# notes.txt", "You have access to these tools", "Tool: search", "Description: search docs", `Parameters: {"type":"object"}`} {
+	for _, want := range []string{"# " + CurrentToolsContextFilename, "You have access to these tools", "Tool: search", "Description: search docs", `Parameters: {"type":"object"}`} {
 		if !strings.Contains(transcript, want) {
 			t.Fatalf("expected tools transcript to contain %q, got: %q", want, transcript)
 		}
