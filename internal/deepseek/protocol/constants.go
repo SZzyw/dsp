@@ -4,6 +4,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"strconv"
+	"time"
 )
 
 const (
@@ -46,6 +49,7 @@ var defaultSkipExactPaths = []string{
 
 var ClientVersion string
 var BaseHeaders = map[string]string{}
+var RangersID string // 进程级 x-rangers-id，模拟 ByteDance SDK 的 bd_did
 var SkipContainsPatterns = cloneStringSlice(defaultSkipContainsPatterns)
 var SkipExactPathSet = toStringSet(defaultSkipExactPaths)
 
@@ -68,6 +72,13 @@ type sharedConstants struct {
 var sharedConstantsJSON []byte
 
 func init() {
+	// 进程级 x-rangers-id（模拟 ByteDance SDK 的 bd_did，每个进程生成一次）
+	id := fmt.Sprintf("%019d", rand.Uint64()%10000000000000000000)
+	RangersID = id
+	for len(RangersID) > 1 && RangersID[0] == '0' {
+		RangersID = RangersID[1:]
+	}
+
 	cfg := sharedConstants{}
 	if err := json.Unmarshal(sharedConstantsJSON, &cfg); err != nil {
 		panic(fmt.Errorf("load DeepSeek shared constants: %w", err))
@@ -128,6 +139,11 @@ func buildBaseHeaders(client clientConstants, overrides map[string]string) map[s
 	}
 	if client.Locale != "" {
 		out["x-client-locale"] = client.Locale
+	}
+	_, offset := time.Now().Zone()
+	out["x-client-timezone-offset"] = strconv.Itoa(offset)
+	if RangersID != "" {
+		out["x-rangers-id"] = RangersID
 	}
 	return out
 }

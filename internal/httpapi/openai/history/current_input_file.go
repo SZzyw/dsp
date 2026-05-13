@@ -186,9 +186,9 @@ func latestUserInputForFile(messages []any) (int, string) {
 }
 
 func currentInputFilePrompt(hasToolsFile bool) string {
-	prompt := "Continue from the latest state in the attached DS2API_HISTORY.txt context. Treat it as the current working state and answer the latest user request directly."
+	prompt := "chat_log.txt 里是之前的对话记录。接续回答最后一条消息。"
 	if hasToolsFile {
-		prompt += " Available tool descriptions and parameter schemas are attached in DS2API_TOOLS.txt; use only those tools and follow the tool-call format rules in this prompt."
+		prompt += " 工具用法写在 notes.txt 里，按那里的格式调用。"
 	}
 	return prompt
 }

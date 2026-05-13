@@ -15,14 +15,23 @@ import (
 
 func (c *Client) Login(ctx context.Context, acc config.Account) (string, error) {
 	clients := c.requestClientsForAccount(acc)
+
+	accountID := strings.TrimSpace(acc.Email)
+	if accountID == "" {
+		accountID = strings.TrimSpace(acc.Mobile)
+	}
+
 	payload := map[string]any{
 		"password":  strings.TrimSpace(acc.Password),
-		"device_id": "deepseek_to_api",
-		"os":        "android",
+		"device_id": DeviceID(accountID),
+		"os":        "Android",
 	}
 	if email := strings.TrimSpace(acc.Email); email != "" {
 		payload["email"] = email
+		payload["mobile"] = ""
+		payload["area_code"] = ""
 	} else if mobile := strings.TrimSpace(acc.Mobile); mobile != "" {
+		payload["email"] = nil
 		loginMobile, areaCode := normalizeMobileForLogin(mobile)
 		payload["mobile"] = loginMobile
 		payload["area_code"] = areaCode
