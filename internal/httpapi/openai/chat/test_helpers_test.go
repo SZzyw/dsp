@@ -12,17 +12,17 @@ import (
 )
 
 type mockOpenAIConfig struct {
-	aliases             map[string]string
-	autoDeleteMode      string
-	toolMode            string
-	earlyEmit           string
-	responsesTTL        int
-	embedProv           string
-	currentInputFlash   *bool
-	currentInputPro     *bool
-	currentInputVision  *bool
-	thinkingInjection   *bool
-	thinkingPrompt      string
+	aliases            map[string]string
+	autoDeleteMode     string
+	toolMode           string
+	earlyEmit          string
+	responsesTTL       int
+	embedProv          string
+	currentInputFlash  *bool
+	currentInputPro    *bool
+	currentInputVision *bool
+	thinkingInjection  *bool
+	thinkingPrompt     string
 }
 
 func (m mockOpenAIConfig) ModelAliases() map[string]string     { return m.aliases }
@@ -38,7 +38,7 @@ func (m mockOpenAIConfig) AutoDeleteMode() string {
 }
 func currentInputEnabled(ptr *bool) bool {
 	if ptr == nil {
-		return true
+		return false
 	}
 	return *ptr
 }
@@ -220,4 +220,8 @@ func historySplitTestMessages() []any {
 		},
 		map[string]any{"role": "user", "content": "latest user turn"},
 	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
