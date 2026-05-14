@@ -73,10 +73,6 @@
       "enabled": true
     }
   },
-  "thinking_injection": {
-    "enabled": true,
-    "prompt": ""
-  },
   "embeddings": {
     "provider": "deterministic"
   },

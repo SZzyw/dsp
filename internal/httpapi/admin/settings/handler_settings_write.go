@@ -17,7 +17,7 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminCfg, runtimeCfg, responsesCfg, embeddingsCfg, autoDeleteCfg, currentInputCfg, modelFamilyCfg, modelToolCfg, thinkingInjCfg, aliasMap, err := parseSettingsUpdateRequest(req)
+	adminCfg, runtimeCfg, responsesCfg, embeddingsCfg, autoDeleteCfg, currentInputCfg, modelFamilyCfg, modelToolCfg, aliasMap, err := parseSettingsUpdateRequest(req)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"detail": err.Error()})
 		return
@@ -37,8 +37,6 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 	modelToolFlashSet := hasNestedSettingsKey(req, "model_tool_policy", "flash")
 	modelToolProSet := hasNestedSettingsKey(req, "model_tool_policy", "pro")
 	modelToolVisionSet := hasNestedSettingsKey(req, "model_tool_policy", "vision")
-	thinkingInjectionEnabledSet := hasNestedSettingsKey(req, "thinking_injection", "enabled")
-	thinkingInjectionPromptSet := hasNestedSettingsKey(req, "thinking_injection", "prompt")
 
 	if err := h.Store.Update(func(c *config.Config) error {
 		if adminCfg != nil {
@@ -107,14 +105,6 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			if modelToolVisionSet {
 				c.ModelToolPolicy.Vision = modelToolCfg.Vision
-			}
-		}
-		if thinkingInjCfg != nil {
-			if thinkingInjectionEnabledSet {
-				c.ThinkingInjection.Enabled = thinkingInjCfg.Enabled
-			}
-			if thinkingInjectionPromptSet {
-				c.ThinkingInjection.Prompt = thinkingInjCfg.Prompt
 			}
 		}
 		if aliasMap != nil {

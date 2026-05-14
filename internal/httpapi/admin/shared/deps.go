@@ -39,8 +39,6 @@ type ConfigStore interface {
 	CurrentInputFileVisionEnabled() bool
 	ModelFamilyPolicy() config.ModelFamilyPolicyConfig
 	ToolCallsEnabledForModel(model string) bool
-	ThinkingInjectionEnabled() bool
-	ThinkingInjectionPrompt() string
 	AutoDeleteSessions() bool
 }
 

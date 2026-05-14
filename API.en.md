@@ -756,7 +756,6 @@ Reads runtime settings and status, including:
 - `responses` / `embeddings`
 - `auto_delete` (`mode`: `none` / `single` / `all`; legacy `sessions=true` is still treated as `all`)
 - `current_input_file` (`enabled` defaults to `true`, plus `min_chars`)
-- `thinking_injection` (`enabled` defaults to `true`, `prompt`, and `default_prompt`)
 - `model_aliases`
 - `toolcall` policy is fixed to `feature_match + high` and is no longer returned or editable via settings
 
@@ -770,7 +769,6 @@ Hot-updates runtime settings. Supported fields:
 - `embeddings.provider`
 - `auto_delete.mode`
 - `current_input_file.enabled` / `current_input_file.min_chars`
-- `thinking_injection.enabled` / `thinking_injection.prompt`
 - `model_aliases`
 - `toolcall` policy is fixed and is no longer writable through settings
 

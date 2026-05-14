@@ -129,68 +129,6 @@ func TestApplyCurrentInputFileUploadsWhenFlashEnabled(t *testing.T) {
 	}
 }
 
-func TestApplyThinkingInjectionAppendsLatestUserPrompt(t *testing.T) {
-	ds := &inlineUploadDSStub{}
-	h := &openAITestSurface{
-		Store: mockOpenAIConfig{
-			currentInputFlash: boolPtr(false),
-			thinkingInjection: boolPtr(true),
-		},
-		DS: ds,
-	}
-	req := map[string]any{
-		"model": "deepseek-v4-flash",
-		"messages": []any{
-			map[string]any{"role": "user", "content": "hello"},
-		},
-	}
-	stdReq, err := promptcompat.NormalizeOpenAIChatRequest(h.Store, req, "")
-	if err != nil {
-		t.Fatalf("normalize failed: %v", err)
-	}
-
-	out, err := h.applyCurrentInputFile(context.Background(), &auth.RequestAuth{DeepSeekToken: "token"}, stdReq)
-	if err != nil {
-		t.Fatalf("apply thinking injection failed: %v", err)
-	}
-	if len(ds.uploadCalls) != 0 {
-		t.Fatalf("expected no upload when flash current input is disabled, got %d", len(ds.uploadCalls))
-	}
-	if !strings.Contains(out.FinalPrompt, "hello\n\n"+promptcompat.ThinkingInjectionMarker) {
-		t.Fatalf("expected thinking injection after latest user message, got %s", out.FinalPrompt)
-	}
-}
-
-func TestApplyThinkingInjectionUsesCustomPrompt(t *testing.T) {
-	ds := &inlineUploadDSStub{}
-	h := &openAITestSurface{
-		Store: mockOpenAIConfig{
-			currentInputFlash: boolPtr(false),
-			thinkingInjection: boolPtr(true),
-			thinkingPrompt:    "custom thinking format",
-		},
-		DS: ds,
-	}
-	req := map[string]any{
-		"model": "deepseek-v4-flash",
-		"messages": []any{
-			map[string]any{"role": "user", "content": "hello"},
-		},
-	}
-	stdReq, err := promptcompat.NormalizeOpenAIChatRequest(h.Store, req, "")
-	if err != nil {
-		t.Fatalf("normalize failed: %v", err)
-	}
-
-	out, err := h.applyCurrentInputFile(context.Background(), &auth.RequestAuth{DeepSeekToken: "token"}, stdReq)
-	if err != nil {
-		t.Fatalf("apply thinking injection failed: %v", err)
-	}
-	if !strings.Contains(out.FinalPrompt, "hello\n\ncustom thinking format") {
-		t.Fatalf("expected custom thinking injection after latest user message, got %s", out.FinalPrompt)
-	}
-}
-
 func TestApplyCurrentInputFileDisabledPassThrough(t *testing.T) {
 	ds := &inlineUploadDSStub{}
 	h := &openAITestSurface{
@@ -230,7 +168,6 @@ func TestApplyCurrentInputFileUploadsFirstTurnWithNumberedHistoryTranscript(t *t
 	h := &openAITestSurface{
 		Store: mockOpenAIConfig{
 			currentInputFlash: boolPtr(true),
-			thinkingInjection: boolPtr(true),
 		},
 		DS: ds,
 	}
@@ -269,8 +206,8 @@ func TestApplyCurrentInputFileUploadsFirstTurnWithNumberedHistoryTranscript(t *t
 			t.Fatalf("expected uploaded transcript to contain %q, got %q", want, uploadedText)
 		}
 	}
-	if !strings.Contains(uploadedText, promptcompat.ThinkingInjectionMarker) {
-		t.Fatalf("expected thinking injection in current input file, got %q", uploadedText)
+	if strings.Contains(uploadedText, "Reasoning Effort: Absolute maximum with no shortcuts permitted.") {
+		t.Fatalf("expected current input file without thinking injection, got %q", uploadedText)
 	}
 
 	if strings.Contains(out.FinalPrompt, "first turn content that is long enough") {
@@ -298,7 +235,6 @@ func TestApplyCurrentInputFilePreservesFullContextPromptForTokenCounting(t *test
 	h := &openAITestSurface{
 		Store: mockOpenAIConfig{
 			currentInputVision: boolPtr(true),
-			thinkingInjection:  boolPtr(true),
 		},
 		DS: ds,
 	}
@@ -342,7 +278,6 @@ func TestApplyCurrentInputFileUploadsFullContextFile(t *testing.T) {
 	h := &openAITestSurface{
 		Store: mockOpenAIConfig{
 			currentInputVision: boolPtr(true),
-			thinkingInjection:  boolPtr(true),
 		},
 		DS: ds,
 	}
@@ -373,10 +308,13 @@ func TestApplyCurrentInputFileUploadsFullContextFile(t *testing.T) {
 		t.Fatalf("expected vision model type for vision request, got %q", upload.ModelType)
 	}
 	uploadedText := string(upload.Data)
-	for _, want := range []string{"# " + promptcompat.CurrentInputContextFilename, "=== 1. SYSTEM ===", "=== 2. USER ===", "=== 3. ASSISTANT ===", "=== 4. TOOL ===", "=== 5. USER ===", "system instructions", "first user turn", "hidden reasoning", "tool result", "latest user turn", promptcompat.ThinkingInjectionMarker} {
+	for _, want := range []string{"# " + promptcompat.CurrentInputContextFilename, "=== 1. SYSTEM ===", "=== 2. USER ===", "=== 3. ASSISTANT ===", "=== 4. TOOL ===", "=== 5. USER ===", "system instructions", "first user turn", "hidden reasoning", "tool result", "latest user turn"} {
 		if !strings.Contains(uploadedText, want) {
 			t.Fatalf("expected full context file to contain %q, got %q", want, uploadedText)
 		}
+	}
+	if strings.Contains(uploadedText, "Reasoning Effort: Absolute maximum with no shortcuts permitted.") {
+		t.Fatalf("expected full context file without thinking injection, got %q", uploadedText)
 	}
 	if strings.Contains(out.FinalPrompt, "first user turn") || strings.Contains(out.FinalPrompt, "latest user turn") || strings.Contains(out.FinalPrompt, "CURRENT_USER_INPUT.txt") || strings.Contains(out.FinalPrompt, "Read that file") {
 		t.Fatalf("expected live prompt to use only a continuation instruction, got %s", out.FinalPrompt)

@@ -67,15 +67,8 @@ func TestGetSettingsIncludesCurrentInputFileDefaults(t *testing.T) {
 	if got := boolFrom(currentInputFile["vision"]); !got {
 		t.Fatalf("expected current_input_file.vision=true, body=%v", body)
 	}
-	thinkingInjection, _ := body["thinking_injection"].(map[string]any)
-	if got := boolFrom(thinkingInjection["enabled"]); !got {
-		t.Fatalf("expected thinking_injection.enabled=true, body=%v", body)
-	}
-	if got, _ := thinkingInjection["prompt"].(string); got != "" {
-		t.Fatalf("expected empty custom thinking prompt, got %q body=%v", got, body)
-	}
-	if got, _ := thinkingInjection["default_prompt"].(string); got == "" {
-		t.Fatalf("expected default thinking prompt, body=%v", body)
+	if _, exists := body["thinking_injection"]; exists {
+		t.Fatalf("expected thinking_injection to be removed, body=%v", body)
 	}
 	modelFamilyPolicy, _ := body["model_family_policy"].(map[string]any)
 	flashPolicy, _ := modelFamilyPolicy["flash"].(map[string]any)
@@ -446,79 +439,6 @@ func TestUpdateSettingsIgnoresHistorySplitPayload(t *testing.T) {
 	currentInputFile, _ := body["current_input_file"].(map[string]any)
 	if !boolFrom(currentInputFile["flash"]) || boolFrom(currentInputFile["pro"]) || !boolFrom(currentInputFile["vision"]) {
 		t.Fatalf("expected current_input_file values preserved, got %v", currentInputFile)
-	}
-}
-
-func TestUpdateSettingsThinkingInjection(t *testing.T) {
-	h := newAdminTestHandler(t, `{"keys":["k1"]}`)
-	payload := map[string]any{
-		"thinking_injection": map[string]any{
-			"enabled": false,
-			"prompt":  " custom thinking prompt ",
-		},
-	}
-	b, _ := json.Marshal(payload)
-	req := httptest.NewRequest(http.MethodPut, "/admin/settings", bytes.NewReader(b))
-	rec := httptest.NewRecorder()
-	h.updateSettings(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	snap := h.Store.Snapshot()
-	if snap.ThinkingInjection.Enabled == nil || *snap.ThinkingInjection.Enabled {
-		t.Fatalf("expected thinking_injection.enabled=false, got %#v", snap.ThinkingInjection.Enabled)
-	}
-	if h.Store.ThinkingInjectionEnabled() {
-		t.Fatal("expected thinking injection accessor to reflect disabled config")
-	}
-	if got := h.Store.ThinkingInjectionPrompt(); got != "custom thinking prompt" {
-		t.Fatalf("expected custom thinking prompt, got %q", got)
-	}
-}
-
-func TestUpdateSettingsThinkingInjectionPartialPromptPreservesEnabled(t *testing.T) {
-	h := newAdminTestHandler(t, `{"keys":["k1"],"thinking_injection":{"enabled":false,"prompt":"original prompt"}}`)
-	payload := map[string]any{
-		"thinking_injection": map[string]any{
-			"prompt": " updated prompt ",
-		},
-	}
-	b, _ := json.Marshal(payload)
-	req := httptest.NewRequest(http.MethodPut, "/admin/settings", bytes.NewReader(b))
-	rec := httptest.NewRecorder()
-	h.updateSettings(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	snap := h.Store.Snapshot()
-	if snap.ThinkingInjection.Enabled == nil || *snap.ThinkingInjection.Enabled {
-		t.Fatalf("expected thinking_injection.enabled to remain false, got %#v", snap.ThinkingInjection.Enabled)
-	}
-	if got := h.Store.ThinkingInjectionPrompt(); got != "updated prompt" {
-		t.Fatalf("expected updated prompt, got %q", got)
-	}
-}
-
-func TestUpdateSettingsThinkingInjectionPartialEnabledPreservesPrompt(t *testing.T) {
-	h := newAdminTestHandler(t, `{"keys":["k1"],"thinking_injection":{"enabled":false,"prompt":"original prompt"}}`)
-	payload := map[string]any{
-		"thinking_injection": map[string]any{
-			"enabled": true,
-		},
-	}
-	b, _ := json.Marshal(payload)
-	req := httptest.NewRequest(http.MethodPut, "/admin/settings", bytes.NewReader(b))
-	rec := httptest.NewRecorder()
-	h.updateSettings(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
-	}
-	snap := h.Store.Snapshot()
-	if snap.ThinkingInjection.Enabled == nil || !*snap.ThinkingInjection.Enabled {
-		t.Fatalf("expected thinking_injection.enabled=true, got %#v", snap.ThinkingInjection.Enabled)
-	}
-	if got := h.Store.ThinkingInjectionPrompt(); got != "original prompt" {
-		t.Fatalf("expected original prompt to be preserved, got %q", got)
 	}
 }
 

@@ -20,8 +20,6 @@ type mockOpenAIConfig struct {
 	currentInputVision *bool
 	familyPolicy       *config.ModelFamilyPolicyConfig
 	toolCallsEnabled   *bool
-	thinkingInjection  *bool
-	thinkingPrompt     string
 }
 
 func (m mockOpenAIConfig) ModelAliases() map[string]string     { return m.aliases }
@@ -60,13 +58,6 @@ func (m mockOpenAIConfig) ModelFamilyPolicy() config.ModelFamilyPolicyConfig {
 	}
 	return *m.familyPolicy
 }
-func (m mockOpenAIConfig) ThinkingInjectionEnabled() bool {
-	if m.thinkingInjection == nil {
-		return false
-	}
-	return *m.thinkingInjection
-}
-func (m mockOpenAIConfig) ThinkingInjectionPrompt() string { return m.thinkingPrompt }
 func (m mockOpenAIConfig) ToolCallsEnabledForModel(model string) bool {
 	if m.toolCallsEnabled == nil {
 		return true

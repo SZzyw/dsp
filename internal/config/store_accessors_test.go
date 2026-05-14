@@ -36,21 +36,3 @@ func TestStoreCurrentInputFileAccessors(t *testing.T) {
 		t.Fatal("expected vision to inherit disabled toggle")
 	}
 }
-
-func TestStoreThinkingInjectionAccessors(t *testing.T) {
-	store := &Store{cfg: Config{}}
-	if !store.ThinkingInjectionEnabled() {
-		t.Fatal("expected thinking injection enabled by default")
-	}
-
-	disabled := false
-	store.cfg.ThinkingInjection.Enabled = &disabled
-	if store.ThinkingInjectionEnabled() {
-		t.Fatal("expected thinking injection disabled by explicit config")
-	}
-
-	store.cfg.ThinkingInjection.Prompt = "  custom thinking prompt  "
-	if got := store.ThinkingInjectionPrompt(); got != "custom thinking prompt" {
-		t.Fatalf("thinking injection prompt=%q want custom thinking prompt", got)
-	}
-}

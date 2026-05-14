@@ -44,8 +44,6 @@ type ConfigReader interface {
 	AutoDeleteSessions() bool
 	CurrentInputFileEnabledForModel(model string) bool
 	ToolCallsEnabledForModel(model string) bool
-	ThinkingInjectionEnabled() bool
-	ThinkingInjectionPrompt() string
 }
 
 type Deps struct {

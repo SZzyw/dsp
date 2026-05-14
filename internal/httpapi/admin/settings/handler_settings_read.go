@@ -6,7 +6,6 @@ import (
 
 	authn "ds2api/internal/auth"
 	"ds2api/internal/config"
-	"ds2api/internal/promptcompat"
 )
 
 func (h *Handler) getSettings(w http.ResponseWriter, _ *http.Request) {
@@ -46,11 +45,6 @@ func (h *Handler) getSettings(w http.ResponseWriter, _ *http.Request) {
 			"flash":  map[string]any{"enabled": h.Store.ToolCallsEnabledForModel("deepseek-v4-flash")},
 			"pro":    map[string]any{"enabled": h.Store.ToolCallsEnabledForModel("deepseek-v4-pro")},
 			"vision": map[string]any{"enabled": h.Store.ToolCallsEnabledForModel("deepseek-v4-vision")},
-		},
-		"thinking_injection": map[string]any{
-			"enabled":        h.Store.ThinkingInjectionEnabled(),
-			"prompt":         h.Store.ThinkingInjectionPrompt(),
-			"default_prompt": promptcompat.DefaultThinkingInjectionPrompt,
 		},
 		"model_aliases": snap.ModelAliases,
 		"env_backed":    h.Store.IsEnvBacked(),

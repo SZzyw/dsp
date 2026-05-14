@@ -51,9 +51,6 @@ func (c Config) MarshalJSON() ([]byte, error) {
 	if c.CurrentInputFile.Flash != nil || c.CurrentInputFile.Pro != nil || c.CurrentInputFile.Vision != nil {
 		m["current_input_file"] = c.CurrentInputFile
 	}
-	if c.ThinkingInjection.Enabled != nil || strings.TrimSpace(c.ThinkingInjection.Prompt) != "" {
-		m["thinking_injection"] = c.ThinkingInjection
-	}
 	return json.Marshal(m)
 }
 
@@ -130,9 +127,7 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 				return fmt.Errorf("invalid field %q: %w", k, err)
 			}
 		case "thinking_injection":
-			if err := json.Unmarshal(v, &c.ThinkingInjection); err != nil {
-				return fmt.Errorf("invalid field %q: %w", k, err)
-			}
+			// Removed field ignored instead of persisted.
 		default:
 			var anyVal any
 			if err := json.Unmarshal(v, &anyVal); err == nil {
@@ -170,10 +165,6 @@ func (c Config) Clone() Config {
 			Flash:  cloneBoolPtr(c.CurrentInputFile.Flash),
 			Pro:    cloneBoolPtr(c.CurrentInputFile.Pro),
 			Vision: cloneBoolPtr(c.CurrentInputFile.Vision),
-		},
-		ThinkingInjection: ThinkingInjectionConfig{
-			Enabled: cloneBoolPtr(c.ThinkingInjection.Enabled),
-			Prompt:  c.ThinkingInjection.Prompt,
 		},
 		AdditionalFields: map[string]any{},
 	}

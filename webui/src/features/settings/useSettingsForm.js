@@ -34,7 +34,6 @@ const DEFAULT_FORM = {
         pro: { enabled: true },
         vision: { enabled: true },
     },
-    thinking_injection: { enabled: true, prompt: '', default_prompt: '' },
     model_aliases_text: '{}',
 }
 
@@ -116,11 +115,6 @@ function fromServerForm(data) {
                 enabled: data.model_tool_policy?.vision?.enabled ?? true,
             },
         },
-        thinking_injection: {
-            enabled: data.thinking_injection?.enabled ?? true,
-            prompt: data.thinking_injection?.prompt || '',
-            default_prompt: data.thinking_injection?.default_prompt || '',
-        },
         model_aliases_text: JSON.stringify(data.model_aliases || {}, null, 2),
     }
 }
@@ -168,10 +162,6 @@ function toServerPayload(form) {
             vision: {
                 enabled: Boolean(form.model_tool_policy?.vision?.enabled ?? true),
             },
-        },
-        thinking_injection: {
-            enabled: Boolean(form.thinking_injection?.enabled ?? true),
-            prompt: String(form.thinking_injection?.prompt || '').trim(),
         },
     }
 }

@@ -21,7 +21,6 @@ type Config struct {
 	Embeddings        EmbeddingsConfig        `json:"embeddings,omitempty"`
 	AutoDelete        AutoDeleteConfig        `json:"auto_delete"`
 	CurrentInputFile  CurrentInputFileConfig  `json:"current_input_file,omitempty"`
-	ThinkingInjection ThinkingInjectionConfig `json:"thinking_injection,omitempty"`
 	AdditionalFields  map[string]any          `json:"-"`
 }
 
@@ -193,9 +192,4 @@ type ModelToolPolicyConfig struct {
 	Flash  ModelToolPolicyRule `json:"flash,omitempty"`
 	Pro    ModelToolPolicyRule `json:"pro,omitempty"`
 	Vision ModelToolPolicyRule `json:"vision,omitempty"`
-}
-
-type ThinkingInjectionConfig struct {
-	Enabled *bool  `json:"enabled,omitempty"`
-	Prompt  string `json:"prompt,omitempty"`
 }
