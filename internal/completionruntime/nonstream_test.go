@@ -64,11 +64,12 @@ func TestExecuteNonStreamWithRetryBuildsCanonicalTurn(t *testing.T) {
 		`data: {"response_message_id":42,"p":"response/content","v":"<tool_calls><invoke name=\"Write\"><parameter name=\"content\">{\"x\":1}</parameter></invoke></tool_calls>"}`,
 	)}}
 	stdReq := promptcompat.StandardRequest{
-		Surface:         "test",
-		ResponseModel:   "deepseek-v4-flash",
-		PromptTokenText: "prompt",
-		FinalPrompt:     "final prompt",
-		ToolNames:       []string{"Write"},
+		Surface:          "test",
+		ResponseModel:    "deepseek-v4-flash",
+		PromptTokenText:  "prompt",
+		FinalPrompt:      "final prompt",
+		ToolCallsEnabled: true,
+		ToolNames:        []string{"Write"},
 		ToolsRaw: []any{map[string]any{
 			"name": "Write",
 			"input_schema": map[string]any{
