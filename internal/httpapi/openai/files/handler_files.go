@@ -75,7 +75,11 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	if contentType == "" && len(data) > 0 {
 		contentType = http.DetectContentType(data)
 	}
-	modelType := resolveUploadModelType(h.Store, r)
+	modelType, err := resolveUploadModelType(h.Store, r)
+	if err != nil {
+		shared.WriteOpenAIError(w, config.ModelPolicyErrorStatus(err), err.Error())
+		return
+	}
 	result, err := h.DS.UploadFile(r.Context(), a, dsclient.UploadFileRequest{
 		Filename:    header.Filename,
 		ContentType: contentType,
@@ -131,21 +135,23 @@ func (h *Handler) RetrieveFile(w http.ResponseWriter, r *http.Request) {
 	shared.WriteJSON(w, http.StatusOK, buildOpenAIFileObject(result))
 }
 
-func resolveUploadModelType(store shared.ConfigReader, r *http.Request) string {
+func resolveUploadModelType(store shared.ConfigReader, r *http.Request) (string, error) {
 	for _, candidate := range []string{r.FormValue("model_type"), r.Header.Get("X-Model-Type")} {
 		if modelType := normalizeUploadModelType(candidate); modelType != "" {
-			return modelType
+			return modelType, nil
 		}
 	}
 	requestedModel := strings.TrimSpace(r.FormValue("model"))
 	if requestedModel != "" {
-		if resolvedModel, ok := config.ResolveModel(store, requestedModel); ok {
+		if resolvedModel, err := config.ResolveModelOrError(store, requestedModel); err == nil {
 			if modelType, ok := config.GetModelType(resolvedModel); ok {
-				return modelType
+				return modelType, nil
 			}
+		} else {
+			return "", err
 		}
 	}
-	return "default"
+	return "default", nil
 }
 
 func normalizeUploadModelType(raw string) string {

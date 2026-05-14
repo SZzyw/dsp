@@ -18,9 +18,9 @@ func NormalizeOpenAIChatRequest(store ConfigReader, req map[string]any, traceID 
 	if strings.TrimSpace(model) == "" || len(messagesRaw) == 0 {
 		return StandardRequest{}, fmt.Errorf("request must include 'model' and 'messages'")
 	}
-	resolvedModel, ok := config.ResolveModel(store, model)
-	if !ok {
-		return StandardRequest{}, fmt.Errorf("model %q is not available", model)
+	resolvedModel, err := config.ResolveModelOrError(store, model)
+	if err != nil {
+		return StandardRequest{}, err
 	}
 	defaultThinkingEnabled, searchEnabled, _ := config.GetModelConfig(resolvedModel)
 	thinkingEnabled := util.ResolveThinkingEnabled(req, defaultThinkingEnabled)
@@ -63,9 +63,9 @@ func NormalizeOpenAIResponsesRequest(store ConfigReader, req map[string]any, tra
 	if model == "" {
 		return StandardRequest{}, fmt.Errorf("request must include 'model'")
 	}
-	resolvedModel, ok := config.ResolveModel(store, model)
-	if !ok {
-		return StandardRequest{}, fmt.Errorf("model %q is not available", model)
+	resolvedModel, err := config.ResolveModelOrError(store, model)
+	if err != nil {
+		return StandardRequest{}, err
 	}
 	defaultThinkingEnabled, searchEnabled, _ := config.GetModelConfig(resolvedModel)
 	thinkingEnabled := util.ResolveThinkingEnabled(req, defaultThinkingEnabled)

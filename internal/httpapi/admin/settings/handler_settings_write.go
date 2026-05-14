@@ -17,7 +17,7 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminCfg, runtimeCfg, responsesCfg, embeddingsCfg, autoDeleteCfg, currentInputCfg, thinkingInjCfg, aliasMap, err := parseSettingsUpdateRequest(req)
+	adminCfg, runtimeCfg, responsesCfg, embeddingsCfg, autoDeleteCfg, currentInputCfg, modelFamilyCfg, thinkingInjCfg, aliasMap, err := parseSettingsUpdateRequest(req)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"detail": err.Error()})
 		return
@@ -31,6 +31,9 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 	currentInputFlashSet := hasNestedSettingsKey(req, "current_input_file", "flash")
 	currentInputProSet := hasNestedSettingsKey(req, "current_input_file", "pro")
 	currentInputVisionSet := hasNestedSettingsKey(req, "current_input_file", "vision")
+	modelFamilyFlashSet := hasNestedSettingsKey(req, "model_family_policy", "flash")
+	modelFamilyProSet := hasNestedSettingsKey(req, "model_family_policy", "pro")
+	modelFamilyVisionSet := hasNestedSettingsKey(req, "model_family_policy", "vision")
 	thinkingInjectionEnabledSet := hasNestedSettingsKey(req, "thinking_injection", "enabled")
 	thinkingInjectionPromptSet := hasNestedSettingsKey(req, "thinking_injection", "prompt")
 
@@ -73,6 +76,17 @@ func (h *Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			if currentInputVisionSet {
 				c.CurrentInputFile.Vision = currentInputCfg.Vision
+			}
+		}
+		if modelFamilyCfg != nil {
+			if modelFamilyFlashSet {
+				c.ModelFamilyPolicy.Flash = modelFamilyCfg.Flash
+			}
+			if modelFamilyProSet {
+				c.ModelFamilyPolicy.Pro = modelFamilyCfg.Pro
+			}
+			if modelFamilyVisionSet {
+				c.ModelFamilyPolicy.Vision = modelFamilyCfg.Vision
 			}
 		}
 		if thinkingInjCfg != nil {

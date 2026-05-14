@@ -1,10 +1,23 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 type mockModelAliasReader map[string]string
 
 func (m mockModelAliasReader) ModelAliases() map[string]string { return m }
+
+type mockModelPolicyReader struct {
+	aliases map[string]string
+	policy  ModelFamilyPolicyConfig
+}
+
+func (m mockModelPolicyReader) ModelAliases() map[string]string { return m.aliases }
+func (m mockModelPolicyReader) ModelFamilyPolicy() ModelFamilyPolicyConfig {
+	return m.policy
+}
 
 func TestResolveModelDirectDeepSeek(t *testing.T) {
 	got, ok := ResolveModel(nil, "deepseek-v4-flash")
@@ -141,6 +154,50 @@ func TestResolveModelCustomAliasToVision(t *testing.T) {
 	}, "my-vision-model")
 	if !ok || got != "deepseek-v4-vision" {
 		t.Fatalf("expected alias -> deepseek-v4-vision, got ok=%v model=%q", ok, got)
+	}
+}
+
+func TestResolveModelWithFamilyPolicyRoutesModelFamily(t *testing.T) {
+	got, err := ResolveModelOrError(mockModelPolicyReader{
+		policy: ModelFamilyPolicyConfig{
+			Pro: ModelFamilyPolicyRule{Mode: "route", Target: "flash"},
+		},
+	}, "deepseek-v4-pro-search")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "deepseek-v4-flash-search" {
+		t.Fatalf("expected deepseek-v4-pro-search -> deepseek-v4-flash-search, got %q", got)
+	}
+}
+
+func TestResolveModelWithFamilyPolicyDisablesModelFamily(t *testing.T) {
+	_, err := ResolveModelOrError(mockModelPolicyReader{
+		policy: ModelFamilyPolicyConfig{
+			Vision: ModelFamilyPolicyRule{Mode: "disable"},
+		},
+	}, "deepseek-v4-vision")
+	if err == nil {
+		t.Fatal("expected disabled model family error")
+	}
+	if !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("expected disabled error, got %v", err)
+	}
+}
+
+func TestValidateModelFamilyPolicyRejectsRouteCycles(t *testing.T) {
+	err := ValidateConfig(Config{
+		ModelFamilyPolicy: ModelFamilyPolicyConfig{
+			Flash:  ModelFamilyPolicyRule{Mode: "route", Target: "pro"},
+			Pro:    ModelFamilyPolicyRule{Mode: "route", Target: "vision"},
+			Vision: ModelFamilyPolicyRule{Mode: "route", Target: "flash"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected cycle validation error")
+	}
+	if !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("expected cycle error, got %v", err)
 	}
 }
 

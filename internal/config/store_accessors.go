@@ -21,6 +21,12 @@ func (s *Store) ModelAliases() map[string]string {
 	return out
 }
 
+func (s *Store) ModelFamilyPolicy() ModelFamilyPolicyConfig {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cfg.ModelFamilyPolicy
+}
+
 func (s *Store) ToolcallMode() string {
 	return "feature_match"
 }

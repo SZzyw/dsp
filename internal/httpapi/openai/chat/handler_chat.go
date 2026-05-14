@@ -54,7 +54,7 @@ func (h *Handler) ChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 	stdReq, err := promptcompat.NormalizeOpenAIChatRequest(h.Store, req, requestTraceID(r))
 	if err != nil {
-		writeOpenAIError(w, http.StatusBadRequest, err.Error())
+		writeOpenAIError(w, config.ModelPolicyErrorStatus(err), err.Error())
 		return
 	}
 	stdReq, err = h.applyCurrentInputFile(r.Context(), a, stdReq)

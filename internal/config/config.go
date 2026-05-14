@@ -13,6 +13,7 @@ type Config struct {
 	Accounts          []Account               `json:"accounts,omitempty"`
 	Proxies           []Proxy                 `json:"proxies,omitempty"`
 	ModelAliases      map[string]string       `json:"model_aliases,omitempty"`
+	ModelFamilyPolicy ModelFamilyPolicyConfig `json:"model_family_policy,omitempty"`
 	Admin             AdminConfig             `json:"admin,omitempty"`
 	Runtime           RuntimeConfig           `json:"runtime,omitempty"`
 	Responses         ResponsesConfig         `json:"responses,omitempty"`
@@ -168,6 +169,17 @@ type CurrentInputFileConfig struct {
 	Flash  *bool `json:"flash,omitempty"`
 	Pro    *bool `json:"pro,omitempty"`
 	Vision *bool `json:"vision,omitempty"`
+}
+
+type ModelFamilyPolicyRule struct {
+	Mode   string `json:"mode,omitempty"`
+	Target string `json:"target,omitempty"`
+}
+
+type ModelFamilyPolicyConfig struct {
+	Flash  ModelFamilyPolicyRule `json:"flash,omitempty"`
+	Pro    ModelFamilyPolicyRule `json:"pro,omitempty"`
+	Vision ModelFamilyPolicyRule `json:"vision,omitempty"`
 }
 
 type ThinkingInjectionConfig struct {

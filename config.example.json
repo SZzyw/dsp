@@ -51,6 +51,17 @@
     "pro": true,
     "vision": true
   },
+  "model_family_policy": {
+    "flash": {
+      "mode": "allow"
+    },
+    "pro": {
+      "mode": "allow"
+    },
+    "vision": {
+      "mode": "allow"
+    }
+  },
   "thinking_injection": {
     "enabled": true,
     "prompt": ""

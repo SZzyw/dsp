@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -25,6 +26,11 @@ type OllamaCapabilitiesModelInfo struct {
 
 type ModelAliasReader interface {
 	ModelAliases() map[string]string
+}
+
+type ModelFamilyPolicyReader interface {
+	ModelAliases() map[string]string
+	ModelFamilyPolicy() ModelFamilyPolicyConfig
 }
 
 const noThinkingModelSuffix = "-nothinking"
@@ -227,23 +233,49 @@ func DefaultModelAliases() map[string]string {
 	}
 }
 
+type ModelPolicyError struct {
+	Status  int
+	Reason  string
+	Family  string
+	Message string
+}
+
+func (e *ModelPolicyError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func ModelPolicyErrorStatus(err error) int {
+	if policyErr, ok := err.(*ModelPolicyError); ok && policyErr.Status > 0 {
+		return policyErr.Status
+	}
+	return 400
+}
+
 func ResolveModel(store ModelAliasReader, requested string) (string, bool) {
+	model, err := ResolveModelOrError(store, requested)
+	return model, err == nil
+}
+
+func ResolveModelOrError(store ModelAliasReader, requested string) (string, error) {
 	model := lower(strings.TrimSpace(requested))
 	if model == "" {
-		return "", false
+		return "", fmt.Errorf("model is empty")
 	}
 	aliases := loadModelAliases(store)
 	if IsSupportedDeepSeekModel(model) {
-		return model, true
+		return applyModelFamilyPolicy(store, model)
 	}
 	if mapped, ok := aliases[model]; ok && IsSupportedDeepSeekModel(mapped) {
-		return mapped, true
+		return applyModelFamilyPolicy(store, mapped)
 	}
 	baseModel, noThinking := splitNoThinkingModel(model)
 	if mapped, ok := aliases[baseModel]; ok && IsSupportedDeepSeekModel(mapped) {
-		return withNoThinkingVariant(mapped, noThinking), true
+		return applyModelFamilyPolicy(store, withNoThinkingVariant(mapped, noThinking))
 	}
-	return "", false
+	return "", fmt.Errorf("model %q is not available", requested)
 }
 
 func lower(s string) string {
@@ -358,4 +390,124 @@ func loadModelAliases(store ModelAliasReader) map[string]string {
 		}
 	}
 	return aliases
+}
+
+func NormalizeModelFamilyPolicy(policy ModelFamilyPolicyConfig) ModelFamilyPolicyConfig {
+	normalizeRule := func(rule ModelFamilyPolicyRule) ModelFamilyPolicyRule {
+		mode := strings.ToLower(strings.TrimSpace(rule.Mode))
+		target := strings.ToLower(strings.TrimSpace(rule.Target))
+		if mode == "" {
+			mode = "allow"
+		}
+		if mode != "route" {
+			target = ""
+		}
+		return ModelFamilyPolicyRule{
+			Mode:   mode,
+			Target: target,
+		}
+	}
+	return ModelFamilyPolicyConfig{
+		Flash:  normalizeRule(policy.Flash),
+		Pro:    normalizeRule(policy.Pro),
+		Vision: normalizeRule(policy.Vision),
+	}
+}
+
+func applyModelFamilyPolicy(store ModelAliasReader, model string) (string, error) {
+	reader, ok := store.(ModelFamilyPolicyReader)
+	if !ok || isEmptyModelFamilyPolicy(reader.ModelFamilyPolicy()) {
+		return model, nil
+	}
+	policy := reader.ModelFamilyPolicy()
+	baseModel, noThinking := splitNoThinkingModel(model)
+	if baseModel == "" {
+		return model, nil
+	}
+	sourceFamily, sourceSearch, ok := modelFamilyForBase(baseModel)
+	if !ok {
+		return model, nil
+	}
+
+	visited := map[string]struct{}{}
+	currentFamily := sourceFamily
+	for {
+		if _, exists := visited[currentFamily]; exists {
+			return "", &ModelPolicyError{Message: fmt.Sprintf("model family policy contains route cycle involving %s", currentFamily)}
+		}
+		visited[currentFamily] = struct{}{}
+		rule := modelFamilyRule(policy, currentFamily)
+		mode := strings.ToLower(strings.TrimSpace(rule.Mode))
+		switch mode {
+		case "", "allow":
+			return buildModelFromFamily(currentFamily, sourceSearch, noThinking), nil
+		case "disable":
+			return "", &ModelPolicyError{
+				Status:  403,
+				Reason:  "disabled",
+				Family:  currentFamily,
+				Message: fmt.Sprintf("model family %q is disabled by server policy", currentFamily),
+			}
+		case "route":
+			currentFamily = strings.ToLower(strings.TrimSpace(rule.Target))
+		default:
+			return "", &ModelPolicyError{
+				Status:  400,
+				Reason:  "invalid_policy",
+				Family:  currentFamily,
+				Message: fmt.Sprintf("model family %q has invalid mode %q", currentFamily, rule.Mode),
+			}
+		}
+	}
+}
+
+func modelFamilyForBase(baseModel string) (family string, search bool, ok bool) {
+	switch baseModel {
+	case "deepseek-v4-flash":
+		return "flash", false, true
+	case "deepseek-v4-flash-search":
+		return "flash", true, true
+	case "deepseek-v4-pro":
+		return "pro", false, true
+	case "deepseek-v4-pro-search":
+		return "pro", true, true
+	case "deepseek-v4-vision":
+		return "vision", false, true
+	default:
+		return "", false, false
+	}
+}
+
+func buildModelFromFamily(family string, search, noThinking bool) string {
+	var baseModel string
+	switch family {
+	case "flash":
+		if search {
+			baseModel = "deepseek-v4-flash-search"
+		} else {
+			baseModel = "deepseek-v4-flash"
+		}
+	case "pro":
+		if search {
+			baseModel = "deepseek-v4-pro-search"
+		} else {
+			baseModel = "deepseek-v4-pro"
+		}
+	case "vision":
+		baseModel = "deepseek-v4-vision"
+	}
+	return withNoThinkingVariant(baseModel, noThinking)
+}
+
+func modelFamilyRule(policy ModelFamilyPolicyConfig, family string) ModelFamilyPolicyRule {
+	switch family {
+	case "flash":
+		return policy.Flash
+	case "pro":
+		return policy.Pro
+	case "vision":
+		return policy.Vision
+	default:
+		return ModelFamilyPolicyRule{}
+	}
 }

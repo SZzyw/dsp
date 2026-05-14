@@ -396,6 +396,18 @@
         "currentInputFileVision": "Vision 允许上传",
         "currentInputFileModelHelp": "开启后，该模型族允许使用临时聊天历史上下文文件上传。",
         "modelTitle": "模型映射",
+        "modelPolicyTitle": "模型族策略",
+        "modelPolicyMode": "策略",
+        "modelPolicyTarget": "路由目标",
+        "modelPolicyTargetUnset": "无目标",
+        "modelPolicyModeAllow": "允许",
+        "modelPolicyModeDisable": "禁用",
+        "modelPolicyModeRoute": "路由",
+        "modelPolicy": {
+            "flash": "Flash 模型族",
+            "pro": "Pro 模型族",
+            "vision": "Vision 模型族"
+        },
         "modelAliases": "全局模型映射（JSON）",
         "autoDeleteTitle": "会话删除策略",
         "autoDeleteDesc": "选择每次请求完成后如何清理 DeepSeek 远端聊天记录。",

@@ -15,6 +15,7 @@ import (
 	"ds2api/internal/assistantturn"
 	"ds2api/internal/auth"
 	"ds2api/internal/completionruntime"
+	"ds2api/internal/config"
 	"ds2api/internal/httpapi/openai/history"
 	"ds2api/internal/httpapi/requestbody"
 	"ds2api/internal/promptcompat"
@@ -59,7 +60,7 @@ func (h *Handler) handleGeminiDirect(w http.ResponseWriter, r *http.Request, str
 	}
 	stdReq, err := normalizeGeminiRequest(h.Store, routeModel, req, stream)
 	if err != nil {
-		writeGeminiError(w, http.StatusBadRequest, err.Error())
+		writeGeminiError(w, config.ModelPolicyErrorStatus(err), err.Error())
 		return true
 	}
 	a, err := h.Auth.Determine(r)

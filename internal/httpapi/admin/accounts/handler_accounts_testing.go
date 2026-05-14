@@ -161,12 +161,16 @@ func (h *Handler) testAccount(ctx context.Context, acc config.Account, model, me
 		return result
 	}
 	thinking, search, ok := config.GetModelConfig(model)
-	resolvedModel, resolved := config.ResolveModel(modelAliasSnapshotReader{
+	resolvedModel, resolveErr := config.ResolveModelOrError(modelAliasSnapshotReader{
 		aliases: h.Store.Snapshot().ModelAliases,
 	}, model)
-	if resolved {
+	if resolveErr == nil {
 		model = resolvedModel
 		thinking, search, ok = config.GetModelConfig(model)
+	}
+	if resolveErr != nil {
+		result["message"] = resolveErr.Error()
+		return result
 	}
 	if !ok {
 		thinking, search = false, false

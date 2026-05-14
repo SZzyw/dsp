@@ -27,6 +27,9 @@ func ValidateConfig(c Config) error {
 	if err := ValidateCurrentInputFileConfig(c.CurrentInputFile); err != nil {
 		return err
 	}
+	if err := ValidateModelFamilyPolicyConfig(c.ModelFamilyPolicy); err != nil {
+		return err
+	}
 	if err := ValidateAccountProxyReferences(c.Accounts, c.Proxies); err != nil {
 		return err
 	}
@@ -115,6 +118,57 @@ func ValidateAutoDeleteConfig(autoDelete AutoDeleteConfig) error {
 }
 
 func ValidateCurrentInputFileConfig(currentInputFile CurrentInputFileConfig) error {
+	return nil
+}
+
+func ValidateModelFamilyPolicyConfig(policy ModelFamilyPolicyConfig) error {
+	edges := map[string]string{}
+	for _, pair := range []struct {
+		name string
+		rule ModelFamilyPolicyRule
+	}{
+		{name: "flash", rule: policy.Flash},
+		{name: "pro", rule: policy.Pro},
+		{name: "vision", rule: policy.Vision},
+	} {
+		mode := strings.ToLower(strings.TrimSpace(pair.rule.Mode))
+		target := strings.ToLower(strings.TrimSpace(pair.rule.Target))
+		switch mode {
+		case "", "allow", "disable":
+			if mode != "route" && target != "" {
+				return fmt.Errorf("model_family_policy.%s.target is only allowed when mode=route", pair.name)
+			}
+		case "route":
+			if target == "" {
+				return fmt.Errorf("model_family_policy.%s.target is required when mode=route", pair.name)
+			}
+			if target != "flash" && target != "pro" && target != "vision" {
+				return fmt.Errorf("model_family_policy.%s.target must be one of flash, pro, vision", pair.name)
+			}
+			if target == pair.name {
+				return fmt.Errorf("model_family_policy.%s cannot route to itself", pair.name)
+			}
+			edges[pair.name] = target
+		default:
+			return fmt.Errorf("model_family_policy.%s.mode must be one of allow, disable, route", pair.name)
+		}
+	}
+
+	for start := range edges {
+		seen := map[string]struct{}{}
+		current := start
+		for {
+			next, ok := edges[current]
+			if !ok {
+				break
+			}
+			if _, ok := seen[next]; ok {
+				return fmt.Errorf("model_family_policy contains route cycle involving %s", next)
+			}
+			seen[next] = struct{}{}
+			current = next
+		}
+	}
 	return nil
 }
 

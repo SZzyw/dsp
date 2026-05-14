@@ -85,7 +85,7 @@ func (h *Handler) Responses(w http.ResponseWriter, r *http.Request) {
 	traceID := requestTraceID(r)
 	stdReq, err := promptcompat.NormalizeOpenAIResponsesRequest(h.Store, req, traceID)
 	if err != nil {
-		writeOpenAIError(w, http.StatusBadRequest, err.Error())
+		writeOpenAIError(w, config.ModelPolicyErrorStatus(err), err.Error())
 		return
 	}
 	stdReq, err = h.applyCurrentInputFile(r.Context(), a, stdReq)

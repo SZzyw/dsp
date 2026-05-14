@@ -62,10 +62,12 @@ func (h *Handler) PreprocessInlineFileInputs(ctx context.Context, a *auth.Reques
 	}
 	modelType := "default"
 	if requestedModel, ok := req["model"].(string); ok {
-		if resolvedModel, ok := config.ResolveModel(h.Store, requestedModel); ok {
+		if resolvedModel, err := config.ResolveModelOrError(h.Store, requestedModel); err == nil {
 			if resolvedType, ok := config.GetModelType(resolvedModel); ok {
 				modelType = resolvedType
 			}
+		} else {
+			return &inlineFileUploadError{status: config.ModelPolicyErrorStatus(err), message: err.Error(), err: err}
 		}
 	}
 	state := &inlineUploadState{

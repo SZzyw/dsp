@@ -3,6 +3,8 @@ package claude
 import (
 	"encoding/json"
 	"net/http"
+
+	"ds2api/internal/config"
 )
 
 func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +28,7 @@ func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
 	}
 	normalized, err := normalizeClaudeRequest(h.Store, req)
 	if err != nil {
-		writeClaudeError(w, http.StatusBadRequest, err.Error())
+		writeClaudeError(w, config.ModelPolicyErrorStatus(err), err.Error())
 		return
 	}
 	inputTokens := countClaudeInputTokens(normalized.Standard)

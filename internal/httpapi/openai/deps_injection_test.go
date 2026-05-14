@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"ds2api/internal/config"
 	"ds2api/internal/promptcompat"
 )
 
@@ -17,6 +18,7 @@ type mockOpenAIConfig struct {
 	currentInputFlash  *bool
 	currentInputPro    *bool
 	currentInputVision *bool
+	familyPolicy       *config.ModelFamilyPolicyConfig
 	thinkingInjection  *bool
 	thinkingPrompt     string
 }
@@ -50,6 +52,12 @@ func (m mockOpenAIConfig) CurrentInputFileEnabledForModel(model string) bool {
 	default:
 		return true
 	}
+}
+func (m mockOpenAIConfig) ModelFamilyPolicy() config.ModelFamilyPolicyConfig {
+	if m.familyPolicy == nil {
+		return config.ModelFamilyPolicyConfig{}
+	}
+	return *m.familyPolicy
 }
 func (m mockOpenAIConfig) ThinkingInjectionEnabled() bool {
 	if m.thinkingInjection == nil {
@@ -100,6 +108,28 @@ func TestNormalizeOpenAIChatRequestDisablesThinkingForNoThinkingModel(t *testing
 	}
 	if out.Search {
 		t.Fatalf("expected search=false for deepseek-v4-pro-nothinking, got=%v", out.Search)
+	}
+}
+
+func TestNormalizeOpenAIChatRequestRoutesModelFamily(t *testing.T) {
+	cfg := mockOpenAIConfig{
+		familyPolicy: &config.ModelFamilyPolicyConfig{
+			Pro: config.ModelFamilyPolicyRule{Mode: "route", Target: "flash"},
+		},
+	}
+	req := map[string]any{
+		"model":    "deepseek-v4-pro",
+		"messages": []any{map[string]any{"role": "user", "content": "hello"}},
+	}
+	out, err := promptcompat.NormalizeOpenAIChatRequest(cfg, req, "")
+	if err != nil {
+		t.Fatalf("promptcompat.NormalizeOpenAIChatRequest error: %v", err)
+	}
+	if out.ResolvedModel != "deepseek-v4-flash" {
+		t.Fatalf("expected routed model deepseek-v4-flash, got %q", out.ResolvedModel)
+	}
+	if out.ResponseModel != "deepseek-v4-pro" {
+		t.Fatalf("expected response model preserved, got %q", out.ResponseModel)
 	}
 }
 

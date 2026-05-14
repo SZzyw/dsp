@@ -21,6 +21,7 @@ type mockOpenAIConfig struct {
 	currentInputFlash  *bool
 	currentInputPro    *bool
 	currentInputVision *bool
+	familyPolicy       *config.ModelFamilyPolicyConfig
 	thinkingInjection  *bool
 	thinkingPrompt     string
 }
@@ -54,6 +55,12 @@ func (m mockOpenAIConfig) CurrentInputFileEnabledForModel(model string) bool {
 	default:
 		return true
 	}
+}
+func (m mockOpenAIConfig) ModelFamilyPolicy() config.ModelFamilyPolicyConfig {
+	if m.familyPolicy == nil {
+		return config.ModelFamilyPolicyConfig{}
+	}
+	return *m.familyPolicy
 }
 func (m mockOpenAIConfig) ThinkingInjectionEnabled() bool {
 	if m.thinkingInjection == nil {

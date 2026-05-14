@@ -768,6 +768,40 @@ func TestChatCompletionsCurrentInputFileUploadFailureReturnsInternalServerError(
 	}
 }
 
+func TestChatCompletionsDisabledModelFamilyReturns403(t *testing.T) {
+	ds := &inlineUploadDSStub{}
+	h := &openAITestSurface{
+		Store: mockOpenAIConfig{
+			familyPolicy: &config.ModelFamilyPolicyConfig{
+				Pro: config.ModelFamilyPolicyRule{Mode: "disable"},
+			},
+		},
+		Auth: streamStatusAuthStub{},
+		DS:   ds,
+	}
+	reqBody, _ := json.Marshal(map[string]any{
+		"model":    "deepseek-v4-pro",
+		"messages": historySplitTestMessages(),
+		"stream":   false,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(string(reqBody)))
+	req.Header.Set("Authorization", "Bearer direct-token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ChatCompletions(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(ds.uploadCalls) != 0 {
+		t.Fatalf("expected disabled model to stop before uploads, got %d", len(ds.uploadCalls))
+	}
+	if !strings.Contains(rec.Body.String(), "disabled") {
+		t.Fatalf("expected disabled detail, got %s", rec.Body.String())
+	}
+}
+
 func TestCurrentInputFileWorksAcrossAutoDeleteModes(t *testing.T) {
 	for _, mode := range []string{"none", "single", "all"} {
 		t.Run(mode, func(t *testing.T) {

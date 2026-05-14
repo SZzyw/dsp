@@ -77,6 +77,11 @@ func TestGetSettingsIncludesCurrentInputFileDefaults(t *testing.T) {
 	if got, _ := thinkingInjection["default_prompt"].(string); got == "" {
 		t.Fatalf("expected default thinking prompt, body=%v", body)
 	}
+	modelFamilyPolicy, _ := body["model_family_policy"].(map[string]any)
+	flashPolicy, _ := modelFamilyPolicy["flash"].(map[string]any)
+	if got, _ := flashPolicy["mode"].(string); got != "allow" {
+		t.Fatalf("expected flash mode allow, got %v", modelFamilyPolicy)
+	}
 }
 
 func TestUpdateSettingsValidation(t *testing.T) {
@@ -206,6 +211,66 @@ func TestUpdateSettingsCurrentInputFile(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &body)
 	if success, _ := body["success"].(bool); !success {
 		t.Fatalf("expected success body, got %v", body)
+	}
+}
+
+func TestUpdateSettingsModelFamilyPolicy(t *testing.T) {
+	h := newAdminTestHandler(t, `{"keys":["k1"]}`)
+	payload := map[string]any{
+		"model_family_policy": map[string]any{
+			"flash":  map[string]any{"mode": "allow"},
+			"pro":    map[string]any{"mode": "route", "target": "flash"},
+			"vision": map[string]any{"mode": "disable"},
+		},
+	}
+	b, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPut, "/admin/settings", bytes.NewReader(b))
+	rec := httptest.NewRecorder()
+	h.updateSettings(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/admin/settings", nil)
+	rec = httptest.NewRecorder()
+	h.getSettings(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 from readback, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	modelFamilyPolicy, _ := body["model_family_policy"].(map[string]any)
+	proPolicy, _ := modelFamilyPolicy["pro"].(map[string]any)
+	if got, _ := proPolicy["mode"].(string); got != "route" {
+		t.Fatalf("expected pro route policy, got %v", modelFamilyPolicy)
+	}
+	if got, _ := proPolicy["target"].(string); got != "flash" {
+		t.Fatalf("expected pro route target flash, got %v", modelFamilyPolicy)
+	}
+	visionPolicy, _ := modelFamilyPolicy["vision"].(map[string]any)
+	if got, _ := visionPolicy["mode"].(string); got != "disable" {
+		t.Fatalf("expected vision disable policy, got %v", modelFamilyPolicy)
+	}
+}
+
+func TestUpdateSettingsModelFamilyPolicyRejectsCycles(t *testing.T) {
+	h := newAdminTestHandler(t, `{"keys":["k1"]}`)
+	payload := map[string]any{
+		"model_family_policy": map[string]any{
+			"flash":  map[string]any{"mode": "route", "target": "pro"},
+			"pro":    map[string]any{"mode": "route", "target": "vision"},
+			"vision": map[string]any{"mode": "route", "target": "flash"},
+		},
+	}
+	b, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPut, "/admin/settings", bytes.NewReader(b))
+	rec := httptest.NewRecorder()
+	h.updateSettings(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("cycle")) {
+		t.Fatalf("expected cycle detail, got %s", rec.Body.String())
 	}
 }
 

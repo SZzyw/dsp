@@ -51,8 +51,8 @@ func (h *Handler) Embeddings(w http.ResponseWriter, r *http.Request) {
 		shared.WriteOpenAIError(w, http.StatusBadRequest, "Request must include 'model'.")
 		return
 	}
-	if _, ok := config.ResolveModel(h.Store, model); !ok {
-		shared.WriteOpenAIError(w, http.StatusBadRequest, fmt.Sprintf("Model '%s' is not available.", model))
+	if _, err := config.ResolveModelOrError(h.Store, model); err != nil {
+		shared.WriteOpenAIError(w, config.ModelPolicyErrorStatus(err), err.Error())
 		return
 	}
 

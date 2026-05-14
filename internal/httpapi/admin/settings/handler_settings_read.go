@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	authn "ds2api/internal/auth"
+	"ds2api/internal/config"
 	"ds2api/internal/promptcompat"
 )
 
 func (h *Handler) getSettings(w http.ResponseWriter, _ *http.Request) {
 	snap := h.Store.Snapshot()
+	familyPolicy := config.NormalizeModelFamilyPolicy(snap.ModelFamilyPolicy)
 	recommended := defaultRuntimeRecommended(len(snap.Accounts), h.Store.RuntimeAccountMaxInflight())
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
@@ -32,6 +34,11 @@ func (h *Handler) getSettings(w http.ResponseWriter, _ *http.Request) {
 			"flash":  h.Store.CurrentInputFileFlashEnabled(),
 			"pro":    h.Store.CurrentInputFileProEnabled(),
 			"vision": h.Store.CurrentInputFileVisionEnabled(),
+		},
+		"model_family_policy": map[string]any{
+			"flash":  familyPolicy.Flash,
+			"pro":    familyPolicy.Pro,
+			"vision": familyPolicy.Vision,
 		},
 		"thinking_injection": map[string]any{
 			"enabled":        h.Store.ThinkingInjectionEnabled(),

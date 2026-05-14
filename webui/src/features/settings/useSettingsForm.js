@@ -17,6 +17,11 @@ const DEFAULT_FORM = {
     embeddings: { provider: '' },
     auto_delete: { mode: 'none' },
     current_input_file: { flash: true, pro: true, vision: true },
+    model_family_policy: {
+        flash: { mode: 'allow', target: '' },
+        pro: { mode: 'allow', target: '' },
+        vision: { mode: 'allow', target: '' },
+    },
     thinking_injection: { enabled: true, prompt: '', default_prompt: '' },
     model_aliases_text: '{}',
 }
@@ -72,6 +77,20 @@ function fromServerForm(data) {
             pro: data.current_input_file?.pro ?? true,
             vision: data.current_input_file?.vision ?? true,
         },
+        model_family_policy: {
+            flash: {
+                mode: data.model_family_policy?.flash?.mode || 'allow',
+                target: data.model_family_policy?.flash?.target || '',
+            },
+            pro: {
+                mode: data.model_family_policy?.pro?.mode || 'allow',
+                target: data.model_family_policy?.pro?.target || '',
+            },
+            vision: {
+                mode: data.model_family_policy?.vision?.mode || 'allow',
+                target: data.model_family_policy?.vision?.target || '',
+            },
+        },
         thinking_injection: {
             enabled: data.thinking_injection?.enabled ?? true,
             prompt: data.thinking_injection?.prompt || '',
@@ -97,6 +116,20 @@ function toServerPayload(form) {
             flash: Boolean(form.current_input_file?.flash ?? true),
             pro: Boolean(form.current_input_file?.pro ?? true),
             vision: Boolean(form.current_input_file?.vision ?? true),
+        },
+        model_family_policy: {
+            flash: {
+                mode: String(form.model_family_policy?.flash?.mode || 'allow').trim(),
+                target: String(form.model_family_policy?.flash?.target || '').trim(),
+            },
+            pro: {
+                mode: String(form.model_family_policy?.pro?.mode || 'allow').trim(),
+                target: String(form.model_family_policy?.pro?.target || '').trim(),
+            },
+            vision: {
+                mode: String(form.model_family_policy?.vision?.mode || 'allow').trim(),
+                target: String(form.model_family_policy?.vision?.target || '').trim(),
+            },
         },
         thinking_injection: {
             enabled: Boolean(form.thinking_injection?.enabled ?? true),

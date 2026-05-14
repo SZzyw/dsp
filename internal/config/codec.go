@@ -29,6 +29,9 @@ func (c Config) MarshalJSON() ([]byte, error) {
 	if len(c.ModelAliases) > 0 {
 		m["model_aliases"] = c.ModelAliases
 	}
+	if !isEmptyModelFamilyPolicy(c.ModelFamilyPolicy) {
+		m["model_family_policy"] = c.ModelFamilyPolicy
+	}
 	if strings.TrimSpace(c.Admin.PasswordHash) != "" || c.Admin.JWTExpireHours > 0 || c.Admin.JWTValidAfterUnix > 0 {
 		m["admin"] = c.Admin
 	}
@@ -80,6 +83,10 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 			// Removed legacy mapping fields are ignored instead of persisted.
 		case "model_aliases":
 			if err := json.Unmarshal(v, &c.ModelAliases); err != nil {
+				return fmt.Errorf("invalid field %q: %w", k, err)
+			}
+		case "model_family_policy":
+			if err := json.Unmarshal(v, &c.ModelFamilyPolicy); err != nil {
 				return fmt.Errorf("invalid field %q: %w", k, err)
 			}
 		case "admin":
@@ -137,11 +144,16 @@ func (c Config) Clone() Config {
 		Accounts:     slices.Clone(c.Accounts),
 		Proxies:      slices.Clone(c.Proxies),
 		ModelAliases: cloneStringMap(c.ModelAliases),
-		Admin:        c.Admin,
-		Runtime:      c.Runtime,
-		Responses:    c.Responses,
-		Embeddings:   c.Embeddings,
-		AutoDelete:   c.AutoDelete,
+		ModelFamilyPolicy: ModelFamilyPolicyConfig{
+			Flash:  c.ModelFamilyPolicy.Flash,
+			Pro:    c.ModelFamilyPolicy.Pro,
+			Vision: c.ModelFamilyPolicy.Vision,
+		},
+		Admin:      c.Admin,
+		Runtime:    c.Runtime,
+		Responses:  c.Responses,
+		Embeddings: c.Embeddings,
+		AutoDelete: c.AutoDelete,
 		CurrentInputFile: CurrentInputFileConfig{
 			Flash:  cloneBoolPtr(c.CurrentInputFile.Flash),
 			Pro:    cloneBoolPtr(c.CurrentInputFile.Pro),
@@ -176,6 +188,15 @@ func cloneBoolPtr(in *bool) *bool {
 	}
 	v := *in
 	return &v
+}
+
+func isEmptyModelFamilyPolicy(cfg ModelFamilyPolicyConfig) bool {
+	return strings.TrimSpace(cfg.Flash.Mode) == "" &&
+		strings.TrimSpace(cfg.Flash.Target) == "" &&
+		strings.TrimSpace(cfg.Pro.Mode) == "" &&
+		strings.TrimSpace(cfg.Pro.Target) == "" &&
+		strings.TrimSpace(cfg.Vision.Mode) == "" &&
+		strings.TrimSpace(cfg.Vision.Target) == ""
 }
 
 func parseConfigString(raw string) (Config, error) {

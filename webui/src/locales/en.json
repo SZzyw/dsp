@@ -396,6 +396,18 @@
         "currentInputFileVision": "Enable for Vision",
         "currentInputFileModelHelp": "When enabled, that model family may use transient chat-history context file uploads.",
         "modelTitle": "Model mapping",
+        "modelPolicyTitle": "Model family policy",
+        "modelPolicyMode": "Policy",
+        "modelPolicyTarget": "Route target",
+        "modelPolicyTargetUnset": "No target",
+        "modelPolicyModeAllow": "Allow",
+        "modelPolicyModeDisable": "Disable",
+        "modelPolicyModeRoute": "Route",
+        "modelPolicy": {
+            "flash": "Flash family",
+            "pro": "Pro family",
+            "vision": "Vision family"
+        },
         "modelAliases": "Global model aliases (JSON)",
         "autoDeleteTitle": "Session Cleanup Policy",
         "autoDeleteDesc": "Choose how DeepSeek remote chat records are cleaned up after each request completes.",

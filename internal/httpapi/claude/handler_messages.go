@@ -61,7 +61,7 @@ func (h *Handler) handleClaudeDirect(w http.ResponseWriter, r *http.Request) boo
 	}
 	norm, err := normalizeClaudeRequest(h.Store, req)
 	if err != nil {
-		writeClaudeError(w, http.StatusBadRequest, err.Error())
+		writeClaudeError(w, config.ModelPolicyErrorStatus(err), err.Error())
 		return true
 	}
 	exposeThinking := norm.Standard.Thinking
